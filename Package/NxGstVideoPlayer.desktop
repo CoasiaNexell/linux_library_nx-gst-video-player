@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=0.8.0
+Name=NxGstVideoPlayer
+Name[ko]=NxGstVideoPlayer
+Comment=GStreamer Video Player Application
+Comment[ko]=NxGstVideo Player 프로그램
+Icon=icon_video.png
+TryExec=NxGstVideoPlayer
+Exec=NxGstVideoPlayer
+VideoLayer=yes
