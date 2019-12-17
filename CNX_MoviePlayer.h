@@ -44,8 +44,8 @@
 #include <QTime>
 #include <QDebug>
 #include "CNX_Util.h"
+#include "NX_MediaInfo.h"
 #include "CNX_Discover.h"
-//#include <NX_MoviePlay.h>
 
 #include <gst/gst.h>
 #include <glib.h>
@@ -59,8 +59,6 @@ typedef struct DSP_RECT {
     int32_t     iWidth;
     int32_t     iHeight;
 } DSP_RECT;
-
-#define QUERY_TIMEOUT_300MS  300
 
 typedef struct _MovieData {
     GstElement *m_Src;
@@ -105,7 +103,6 @@ public:
                        const char *uri, int DspWidth, int DspHeight);
 
 	int CloseHandle();
-    int GetMediaInfo(const char* uri);
 
 	//MediaPlayer common Control
     int SetVolume(int volume);
@@ -122,9 +119,6 @@ public:
     GstState GetState();
 
 	//MediaPlayer video information
-	int GetVideoWidth( int track );
-	int GetVideoHeight( int track );
-
     void DrmVideoMute(int bOnOff);
 
     void registerCb(void (*pCbEventCallback)(void *, unsigned int EventType, unsigned int EventData, unsigned int param));
@@ -134,7 +128,7 @@ private:
 	//MediaPlayer InitMediaPlayer
 	int OpenHandle( void (*pCbEventCallback)( void *privateDesc, unsigned int EventType, unsigned int /*EventData*/, unsigned int /*param*/ ),
 					void *cbPrivate );
-    //int GetMediaInfo();
+    int GetMediaInfo(const char* uri);
 
 	void GetAspectRatio(int srcWidth, int srcHeight,
 						int dspWidth, int dspHeight,
@@ -160,6 +154,7 @@ private:
 	int				m_iMediaType;
 	int             m_bVideoMute;
 
+    GST_MEDIA_INFO	m_MediaInfo;
     DSP_RECT m_dstDspRect;
 
     CNX_Discover    *m_pDiscover;

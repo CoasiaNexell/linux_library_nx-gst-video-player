@@ -1,6 +1,8 @@
 #ifndef CNX_DISCOVER_H
 #define CNX_DISCOVER_H
 
+#include "NX_MediaInfo.h"
+
 #ifdef LOG_TAG
 #undef LOG_TAG
 #endif
@@ -13,8 +15,8 @@ public:
     CNX_Discover();
     ~CNX_Discover();
 
-public:
-    void StartDiscover(const char* pUri);
+//public:
+    int StartDiscover(const char* pUri, struct GST_MEDIA_INFO *pInfo);
 };
 
 #undef LOG_TAG

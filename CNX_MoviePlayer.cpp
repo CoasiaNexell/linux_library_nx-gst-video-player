@@ -12,7 +12,6 @@
 
 static GstState m_GstState = GST_STATE_NULL;
 static gboolean bus_callback (GstBus *bus, GstMessage *msg, gpointer  data);
-static void *m_pPlayerVideoFrame = NULL;
 static void (*event_cb)(void *, unsigned int EventType, unsigned int EventData, unsigned int param);
 
 //#define AUDIO_DEFAULT_DEVICE "plughw:0,0"
@@ -34,6 +33,7 @@ CNX_MoviePlayer::CNX_MoviePlayer()
 
     gst_init(0, NULL);
 
+    memset(&m_MediaInfo, 0, sizeof(GST_MEDIA_INFO));
     m_pDiscover = new CNX_Discover();
 }
 
@@ -59,6 +59,8 @@ int CNX_MoviePlayer::InitMediaPlayer(void (*pCbEventCallback)(void *privateDesc,
 	CNX_AutoLock lock( &m_hLock );
 
 	m_pAudioDeviceName = pAudioDeviceName;
+
+    GetMediaInfo(pUri);
 #if 0
     /* TODO: nxvideosink property 'dst-x, dst-y, dst-w, dst-h' using DSP_RECT */
     GetAspectRatio(imagWidth,imagHeight,
@@ -113,7 +115,6 @@ on_pad_added_demux (GstElement *element,
     GstCaps *caps;
     GstStructure *gstr;
     const gchar *name;
-    GstPadLinkReturn ret;
 
     GstElement *sink_pad_audio = data->audio_queue;
     GstElement *sink_pad_video = data->video_queue;
@@ -135,87 +136,33 @@ on_pad_added_demux (GstElement *element,
     NXLOGI("%s(): name:%s", __FUNCTION__, name);
     if (g_str_has_prefix(name, "video/"))
     {
-        NXLOGI("%s(): Dynamic video pad created, linking demuxer <-> video_parser", __FUNCTION__);
         sinkpad = gst_element_get_static_pad (sink_pad_video, "sink");
-        ret = gst_pad_link (pad, sinkpad);
-        if (ret) {
-            NXLOGE("%s(): Failed to link new video pad (%d)", __FUNCTION__, ret);
-        }
-        gst_object_unref (sinkpad);
-    }
-    else if (g_str_has_prefix(name, "audio/"))
-    {
-        NXLOGI("%s(): Dynamic audio pad created, linking demuxer <-> audio_parser", __FUNCTION__);
+    } else if (g_str_has_prefix(name, "audio/")) {
         sinkpad = gst_element_get_static_pad (sink_pad_audio, "sink");
-        if (NULL == sinkpad)
-        {
+    }
+
+    if (g_str_has_prefix(name, "video/") || g_str_has_prefix(name, "audio/"))
+    {
+        if (NULL == sinkpad) {
             NXLOGE("%s() Failed to get static pad", __FUNCTION__);
             return;
         }
-        if (GST_PAD_LINK_FAILED(gst_pad_link (pad, sinkpad)))
-        {
+
+        if (GST_PAD_LINK_FAILED(gst_pad_link (pad, sinkpad))) {
             NXLOGE("%s() Failed to link %s:%s to %s:%s",
                     __FUNCTION__,
                     GST_DEBUG_PAD_NAME(pad),
                     GST_DEBUG_PAD_NAME(sinkpad));
         }
+
+        NXLOGI("%s() Succeed to create dynamic pad link %s:%s to %s:%s",
+                __FUNCTION__,
+                GST_DEBUG_PAD_NAME(pad),
+                GST_DEBUG_PAD_NAME(sinkpad));
+
         gst_object_unref (sinkpad);
     }
 }
-
-#if 0
-static void on_vdec_pad_added (GstElement *element, GstPad *new_pad, gpointer data)
-{
-    NXLOGE("%s()", __FUNCTION__);
-
-    GstCaps *caps;
-    GstStructure *gstr;
-    GstPad *targetsink;
-    const gchar *name;
-    GstElement *decoder = (GstElement *) data;
-
-    caps = gst_pad_get_current_caps (new_pad);
-    if (caps == NULL) {
-        NXLOGE("%s() Failed to get current caps", __FUNCTION__);
-        return;
-    }
-
-    gstr = gst_caps_get_structure (caps, 0);
-    if (gstr == NULL)
-    {
-        NXLOGE("%s() Failed to get current caps", __FUNCTION__);
-        return;
-    }
-
-    name = gst_structure_get_name(gstr);
-    NXLOGI("%s(): str:%s", __FUNCTION__, name);
-    if (g_str_has_prefix(str, "video/"))
-    {
-        targetsink = gst_element_get_static_pad (decoder, "nxvideosink");
-        if (targetsink == NULL)
-        {
-            NXLOGE("%s() Failed to get current caps", __FUNCTION__);
-            return;
-        }
-
-        if (GST_PAD_LINK_FAILED(gst_pad_link (new_pad, targetsink)))
-        {
-            NXLOGE("%s() Failed to link %s:%s to %s:%s",
-                    __FUNCTION__,
-                    GST_DEBUG_PAD_NAME(new_pad),
-                    GST_DEBUG_PAD_NAME(targetsink));
-        }
-
-        NXLOGI("%s() Succeed to link %s:%s to %s:%s",
-                __FUNCTION__,
-                GST_DEBUG_PAD_NAME(new_pad),
-                GST_DEBUG_PAD_NAME(targetsink));
-
-        gst_object_unref (targetsink);
-    }
-    gst_caps_unref (caps);
-}
-#endif
 
 void CNX_MoviePlayer::registerCb(void (*pCbEventCallback)(void *privateDesc, unsigned int EventType, unsigned int EventData, unsigned int param))
 {
@@ -243,9 +190,9 @@ int CNX_MoviePlayer::SetupGStreamer(void (*pCbEventCallback)(void *privateDesc, 
     NXLOGI("%s(): create elements", __FUNCTION__);
 
     memset(&m_dstDspRect, 0, sizeof(DSP_RECT));
-    /*GetAspectRatio(imagWidth,imagHeight,
-                   DspWidth,DspHeight,
-                   &m_dstDspRect);*/
+    GetAspectRatio(m_MediaInfo.iWidth, m_MediaInfo.iHeight,
+                   DspWidth, DspHeight,
+                   &m_dstDspRect);
 
     /* MP4
      * gst-launch-1.0 gst-launch-1.0 filesrc location=/tmp/media/sda1/05_A\ Pink\ -\ NoNoNo\ \(1080p_H.264-AAC\).mp4
@@ -275,8 +222,8 @@ int CNX_MoviePlayer::SetupGStreamer(void (*pCbEventCallback)(void *privateDesc, 
 
     if(!m_data.m_Src || !m_data.m_Demux ||
             !m_data.audio_queue || !m_data.decodebin || !m_data.audioconvert ||
-            !m_data.video_queue || !m_data.audioresample || !m_data.autoaudiosink ||
-            !m_data.m_Parser || !m_data.m_NxVDecoder || !m_data.nxvideosink)
+            !m_data.audioresample || !m_data.autoaudiosink ||
+            !m_data.video_queue || !m_data.m_Parser || !m_data.m_NxVDecoder || !m_data.nxvideosink)
     {
         NXLOGE("%s(): Failed to create all elements. Exiting", __FUNCTION__);
         return -1;
@@ -368,10 +315,10 @@ int CNX_MoviePlayer::SetupGStreamer(void (*pCbEventCallback)(void *privateDesc, 
 #endif
 
     //	Set Default Position
-    g_object_set (G_OBJECT (m_data.nxvideosink), "dst-x", m_X, NULL);
-    g_object_set (G_OBJECT (m_data.nxvideosink), "dst-y", m_Y, NULL);
-    g_object_set (G_OBJECT (m_data.nxvideosink), "dst-w", m_Width, NULL);
-    g_object_set (G_OBJECT (m_data.nxvideosink), "dst-h", m_Height, NULL);
+    g_object_set (G_OBJECT (m_data.nxvideosink), "dst-x", m_dstDspRect.iX, NULL);
+    g_object_set (G_OBJECT (m_data.nxvideosink), "dst-y", m_dstDspRect.iY, NULL);
+    g_object_set (G_OBJECT (m_data.nxvideosink), "dst-w", m_dstDspRect.iWidth, NULL);
+    g_object_set (G_OBJECT (m_data.nxvideosink), "dst-h", m_dstDspRect.iHeight, NULL);
 
     //	Pipeline
     ret = gst_element_set_state (m_Pipeline, GST_STATE_READY);
@@ -549,11 +496,7 @@ int CNX_MoviePlayer::Play()
     }
 
     GstStateChangeReturn ret;
-
-    NXLOGE("GST_STATE_PLAYING ++");
     ret = gst_element_set_state (m_Pipeline, GST_STATE_PLAYING);
-    NXLOGE("GST_STATE_PLAYING --");
-
     if (ret == GST_STATE_CHANGE_FAILURE) {
         NXLOGE("Failed to set the pipeline to the PLAYING state");
         return -1;
@@ -597,6 +540,7 @@ int CNX_MoviePlayer::Pause()
     if(NULL == m_Pipeline)
     {
         NXLOGE("%s(): Error! pipeline is NULL", __FUNCTION__);
+        return -1;
     }
 
     GstStateChangeReturn ret;
@@ -742,81 +686,6 @@ void CNX_MoviePlayer::PrintMediaInfo( const char *pUri )
 
 //================================================================================================================
 //public methods	video information
-int CNX_MoviePlayer::GetVideoWidth( int track )
-{
-    NXLOGE( "%s()", __FUNCTION__);
-	CNX_AutoLock lock( &m_hLock );
-#if 0
-	if( track >= m_MediaInfo.iVideoTrackNum )
-	{
-		NXLOGE( "%s(): Error! Track Number. (track = %d / videoTrack = %d)\n", __FUNCTION__, track, m_MediaInfo.iVideoTrackNum );
-		return -1;
-	}
-
-	int width = -1, trackOrder = 0;
-
-	for( int i = 0; i < m_MediaInfo.iProgramNum; i++ )
-	{
-		for( int j = 0; j < m_MediaInfo.ProgramInfo[i].iVideoNum + m_MediaInfo.ProgramInfo[i].iAudioNum; j++ )
-		{
-			if( MP_TRACK_VIDEO == m_MediaInfo.ProgramInfo[i].TrackInfo[j].iTrackType )
-			{
-				if( track == trackOrder )
-				{
-					width = m_MediaInfo.ProgramInfo[i].TrackInfo[j].iWidth;
-					return width;
-				}
-				trackOrder++;
-			}
-		}
-	}
-#endif
-    int width = 1280; // modified to fix compile err
-    if(NULL == m_Pipeline) {
-        NXLOGE("%s(): Error! pipeline is NULL", __FUNCTION__);
-        return width;
-    }
-
-	return width;
-}
-
-int CNX_MoviePlayer::GetVideoHeight( int track )
-{
-    NXLOGE( "%s()", __FUNCTION__);
-	CNX_AutoLock lock( &m_hLock );
-#if 0
-	if( track >= m_MediaInfo.iVideoTrackNum )
-	{
-		NXLOGE("%s(): Error! Track Number. (track = %d / videoTrack = %d)\n", __FUNCTION__, track, m_MediaInfo.iVideoTrackNum );
-		return -1;
-	}
-
-	int height = -1, trackOrder = 0;
-
-	for( int i = 0; i < m_MediaInfo.iProgramNum; i++ )
-	{
-		for( int j = 0; j < m_MediaInfo.ProgramInfo[i].iVideoNum + m_MediaInfo.ProgramInfo[i].iAudioNum; j++ )
-		{
-			if( MP_TRACK_VIDEO == m_MediaInfo.ProgramInfo[i].TrackInfo[j].iTrackType )
-			{
-				if( track == trackOrder )
-				{
-					height = m_MediaInfo.ProgramInfo[i].TrackInfo[j].iHeight;
-					return height;
-				}
-				trackOrder++;
-			}
-		}
-	}
-#endif
-    int height = 720;    // modified to fix compile err
-    if(NULL == m_Pipeline) {
-        NXLOGE("%s(): Error! pipeline is NULL", __FUNCTION__);
-        return height;
-    }
-
-	return height;
-}
 
 //================================================================================================================
 //private methods	for InitMediaPlayer
@@ -838,19 +707,24 @@ int CNX_MoviePlayer::OpenHandle( void (*pCbEventCallback)( void *privateDesc, un
 int CNX_MoviePlayer::GetMediaInfo(const char* uri)
 {
     NXLOGE( "%s()", __FUNCTION__);
-#if 0
-	MP_RESULT iResult = NX_MPGetMediaInfo( m_hPlayer, &m_MediaInfo );
-	if( MP_ERR_NONE != iResult )
-	{
-		NXLOGE( "%s(): Error! NX_MPGetMediaInfo() Failed! (ret = %d)\n", __FUNCTION__, iResult );
-		return -1;
-	}
-#endif
-    /*if(m_pDiscover != NULL) {
-        m_pDiscover->StartDiscover(uri);
+
+    if (m_pDiscover != NULL) {
+        if (0 > m_pDiscover->StartDiscover(uri, &m_MediaInfo))
+        {
+            NXLOGE("%s() Failed to get media info", __FUNCTION__);
+            return -1;
+        }
+
+        NXLOGI("%s() seekable:%s, width:%d, height:%d, duration: %"GST_TIME_FORMAT "\r"
+                , __FUNCTION__
+                , m_MediaInfo.isSeekable ? "yes":"no"
+                , m_MediaInfo.iWidth
+                , m_MediaInfo.iHeight
+                , GST_TIME_ARGS (m_MediaInfo.iDuration));
     } else {
+        NXLOGE("%s() Error! m_pDiscover is NULL", __FUNCTION__);
         return -1;
-    }*/
+    }
 
 	return 0;
 }
@@ -878,6 +752,9 @@ void CNX_MoviePlayer::GetAspectRatio(int srcWidth, int srcHeight,
 									 int dspWidth, int dspHeight,
                                      DSP_RECT *pDspDstRect)
 {
+    NXLOGI("%s() srcWidth(%d),  srcHeight(%d), dspWidth(%d), dspWidth(%d)"
+           , __FUNCTION__, srcWidth, srcHeight, dspWidth, dspHeight);
+
 	// Calculate Video Aspect Ratio
 	double xRatio = (double)dspWidth / (double)srcWidth;
 	double yRatio = (double)dspHeight / (double)srcHeight;

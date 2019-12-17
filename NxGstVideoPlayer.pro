@@ -34,7 +34,7 @@ CONFIG += plugin
     INCLUDEPATH += $$PWD/../../library/prebuilt/include
 
 CONFIG += link_pkgconfig
-PKGCONFIG += glib-2.0 gstreamer-1.0
+PKGCONFIG += glib-2.0 gstreamer-1.0 gstreamer-pbutils-1.0
 
 SOURCES += \
     CNX_MoviePlayer.cpp \
@@ -54,7 +54,8 @@ HEADERS  += \
     NxEvent.h \
     PlayListVideoFrame.h \
     PlayerVideoFrame.h \
-    CNX_Discover.h
+    CNX_Discover.h \
+    NX_MediaInfo.h
 
 FORMS    += \
     MainFrame.ui \
