@@ -61,22 +61,24 @@ typedef struct DSP_RECT {
 } DSP_RECT;
 
 typedef struct _MovieData {
-    GstElement *m_Src;
+	GstElement *source;
 
-    GstElement *audio_queue;
-    GstElement *video_queue;
+	GstElement *filesrc_typefind;
 
-    GstElement *m_Demux;
-    GstElement *m_Parser;
-    GstElement *m_NxVDecoder;
-    GstElement *nxvideosink;
+	GstElement *audio_queue;
+	GstElement *video_queue;
 
-    GstElement *decodebin;
-    GstElement *audioconvert;
-    GstElement *audioresample;
-    GstElement *autoaudiosink;
+	GstElement *demuxer;
+	GstElement *video_parser;
+	GstElement *nxdecoder;
+	GstElement *nxvideosink;
 
-    GstElement *volume;
+	GstElement *decodebin;
+	GstElement *audioconvert;
+	GstElement *audioresample;
+	GstElement *autoaudiosink;
+
+	GstElement *volume;
 } MovieData;
 
 class CNX_MoviePlayer
@@ -105,7 +107,7 @@ public:
 	int CloseHandle();
 
 	//MediaPlayer common Control
-    int SetVolume(int volume);
+	int SetVolume(int volume);
 	int Play();
 	int Seek(qint64 position);
 	int Pause();
@@ -119,7 +121,7 @@ public:
     GstState GetState();
 
 	//MediaPlayer video information
-    void DrmVideoMute(int bOnOff);
+	void DrmVideoMute(int bOnOff);
 
     void registerCb(void (*pCbEventCallback)(void *, unsigned int EventType, unsigned int EventData, unsigned int param));
 
@@ -128,7 +130,7 @@ private:
 	//MediaPlayer InitMediaPlayer
 	int OpenHandle( void (*pCbEventCallback)( void *privateDesc, unsigned int EventType, unsigned int /*EventData*/, unsigned int /*param*/ ),
 					void *cbPrivate );
-    int GetMediaInfo(const char* uri);
+	int GetMediaInfo(const char* uri);
 
 	void GetAspectRatio(int srcWidth, int srcHeight,
 						int dspWidth, int dspHeight,
@@ -139,22 +141,22 @@ private:
 
 	//
 	//vars
-    bool    debug;
+	bool    debug;
 	pthread_mutex_t	m_hLock;
     GThread *m_thread;
     GMainLoop *m_Loop;
     GstBus *m_Bus;
     guint m_WatchId;
-    GstElement *m_Pipeline;
+	GstElement *m_Pipeline;
 
-    MovieData m_data;
+	MovieData m_data;
 
     int m_X, m_Y, m_Width, m_Height;
 
 	int				m_iMediaType;
 	int             m_bVideoMute;
 
-    GST_MEDIA_INFO	m_MediaInfo;
+	GST_MEDIA_INFO	m_MediaInfo;
     DSP_RECT m_dstDspRect;
 
     CNX_Discover    *m_pDiscover;

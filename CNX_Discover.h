@@ -15,8 +15,7 @@ public:
     CNX_Discover();
     ~CNX_Discover();
 
-//public:
-    int StartDiscover(const char* pUri, struct GST_MEDIA_INFO *pInfo);
+	int StartDiscover(const char* pUri, struct GST_MEDIA_INFO *pInfo);
 };
 
 #undef LOG_TAG

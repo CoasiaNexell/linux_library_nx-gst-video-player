@@ -113,8 +113,9 @@ on_pad_added_demux (GstElement *element,
 {
     GstPad *sinkpad;
     GstCaps *caps;
-    GstStructure *gstr;
-    const gchar *name;
+	GstStructure *structure;
+	const gchar *mime_type;
+	gint width, height;
 
     GstElement *sink_pad_audio = data->audio_queue;
     GstElement *sink_pad_video = data->video_queue;
@@ -125,23 +126,25 @@ on_pad_added_demux (GstElement *element,
         return;
     }
 
-    gstr = gst_caps_get_structure (caps, 0);
-    if (gstr == NULL)
-    {
+	structure = gst_caps_get_structure (caps, 0);
+	if (structure == NULL) {
         NXLOGE("%s() Failed to get current caps", __FUNCTION__);
         return;
     }
 
-    name = gst_structure_get_name(gstr);
-    NXLOGI("%s(): name:%s", __FUNCTION__, name);
-    if (g_str_has_prefix(name, "video/"))
-    {
+	mime_type = gst_structure_get_name(structure);
+	NXLOGI("%s(): mime_type:%s", __FUNCTION__, mime_type);
+	if (g_str_has_prefix(mime_type, "video/")) {
         sinkpad = gst_element_get_static_pad (sink_pad_video, "sink");
-    } else if (g_str_has_prefix(name, "audio/")) {
+
+		// caps parsing
+		gst_structure_get_int (structure, "width", &width);
+		gst_structure_get_int (structure, "height", &height);
+	} else if (g_str_has_prefix(mime_type, "audio/")) {
         sinkpad = gst_element_get_static_pad (sink_pad_audio, "sink");
     }
 
-    if (g_str_has_prefix(name, "video/") || g_str_has_prefix(name, "audio/"))
+	if (g_str_has_prefix(mime_type, "video/") || g_str_has_prefix(mime_type, "audio/"))
     {
         if (NULL == sinkpad) {
             NXLOGE("%s() Failed to get static pad", __FUNCTION__);
@@ -164,6 +167,18 @@ on_pad_added_demux (GstElement *element,
     }
 }
 
+static void
+cb_typefind_demux (GstElement *typefind,
+					guint       probability,
+					GstCaps    *caps,
+					gpointer    data)
+{
+	gchar *type = NULL;
+
+	type = gst_caps_to_string (caps);
+	NXLOGI("%s() type:%s", __FUNCTION__, type);
+}
+
 void CNX_MoviePlayer::registerCb(void (*pCbEventCallback)(void *privateDesc, unsigned int EventType, unsigned int EventData, unsigned int param))
 {
     event_cb = pCbEventCallback;
@@ -177,7 +192,11 @@ int CNX_MoviePlayer::SetupGStreamer(void (*pCbEventCallback)(void *privateDesc, 
     gdouble vol = 1.0;
     GstStateChangeReturn ret;
 
-    GetMediaInfo(uri);
+	if (0 > GetMediaInfo(uri))
+	{
+		NXLOGE("%s() Failed to get media info", __FUNCTION__);
+		return -1;
+	}
 
     memset(&m_data, 0, sizeof(MovieData));
 
@@ -185,9 +204,8 @@ int CNX_MoviePlayer::SetupGStreamer(void (*pCbEventCallback)(void *privateDesc, 
 
     if (initialize() < 0) {
         NXLOGE("%s() Failed to init GStreamer", __FUNCTION__);
+		return -1;
     }
-
-    NXLOGI("%s(): create elements", __FUNCTION__);
 
     memset(&m_dstDspRect, 0, sizeof(DSP_RECT));
     GetAspectRatio(m_MediaInfo.iWidth, m_MediaInfo.iHeight,
@@ -202,11 +220,26 @@ int CNX_MoviePlayer::SetupGStreamer(void (*pCbEventCallback)(void *privateDesc, 
      */
 
     //	Source
-    m_data.m_Src = gst_element_factory_make ("filesrc", "source");
-    g_object_set(m_data.m_Src, "location", uri, NULL);
+	m_data.source = gst_element_factory_make ("filesrc", "source");
+	g_object_set(m_data.source, "location", uri, NULL);
 
-    //	Demux
-    m_data.m_Demux = gst_element_factory_make ("qtdemux", "demux");
+	m_data.filesrc_typefind = gst_element_factory_make ("typefind", "typefind");
+
+	if (g_strcmp0(m_MediaInfo.container_format, "video/quicktime") == 0)	// Quicktime
+	{
+		//	Demux
+		m_data.demuxer = gst_element_factory_make ("qtdemux", "demux");
+	}
+	else if (g_strcmp0(m_MediaInfo.container_format, "video/x-matroska") == 0)	// Matroska
+	{
+		//	Demux
+		m_data.demuxer = gst_element_factory_make ("matroskademux", "matroskademux");
+	}
+	else if (g_strcmp0(m_MediaInfo.container_format, "video/x-msvideo") == 0)	// AVI
+	{
+		//	Demux
+		m_data.demuxer = gst_element_factory_make ("avidemux", "avidemux");
+	}
 
 #if 1
     m_data.audio_queue = gst_element_factory_make ("queue2", "audio_queue");
@@ -216,39 +249,69 @@ int CNX_MoviePlayer::SetupGStreamer(void (*pCbEventCallback)(void *privateDesc, 
     m_data.autoaudiosink = gst_element_factory_make ("autoaudiosink", "autoaudiosink");
 
     m_data.video_queue = gst_element_factory_make ("queue2", "video_queue");
-    m_data.m_Parser = gst_element_factory_make ("h264parse", "parser");
-    m_data.m_NxVDecoder = gst_element_factory_make ("nxvideodec", "nxvideodec");
+	if (g_strcmp0(m_MediaInfo.video_codec, "video/mpeg") == 0)
+	{
+		m_data.video_parser = gst_element_factory_make ("h264parse", "parser");
+		if (!m_data.video_parser)
+		{
+			NXLOGE("%s(): Failed to create all elements. Exiting", __FUNCTION__);
+			return -1;
+		}
+	}
+	m_data.nxdecoder = gst_element_factory_make ("nxvideodec", "nxvideodec");
     m_data.nxvideosink = gst_element_factory_make ("nxvideosink", "nxvideosink");
 
-    if(!m_data.m_Src || !m_data.m_Demux ||
+	if(!m_data.source || !m_data.demuxer ||
             !m_data.audio_queue || !m_data.decodebin || !m_data.audioconvert ||
             !m_data.audioresample || !m_data.autoaudiosink ||
-            !m_data.video_queue || !m_data.m_Parser || !m_data.m_NxVDecoder || !m_data.nxvideosink)
+			!m_data.video_queue || !m_data.nxdecoder || !m_data.nxvideosink)
     {
         NXLOGE("%s(): Failed to create all elements. Exiting", __FUNCTION__);
         return -1;
     }
 
-    NXLOGI("%s(): Add elements to bin", __FUNCTION__);
-    gst_bin_add_many(GST_BIN(m_Pipeline)
-                     , m_data.m_Src, m_data.m_Demux
-                     , m_data.audio_queue, m_data.decodebin, m_data.audioconvert, m_data.audioresample, m_data.autoaudiosink
-                     , m_data.video_queue, m_data.m_Parser, m_data.m_NxVDecoder, m_data.nxvideosink
-                     , NULL);
+	NXLOGI("%s(): Add elements to bin", __FUNCTION__);
+	if (g_strcmp0(m_MediaInfo.video_codec, "video/mpeg") == 0)
+	{
+		gst_bin_add_many(GST_BIN(m_Pipeline)
+						 , m_data.source, m_data.filesrc_typefind, m_data.demuxer
+						 , m_data.audio_queue, m_data.decodebin, m_data.audioconvert, m_data.audioresample, m_data.autoaudiosink
+						 , m_data.video_queue, m_data.video_parser, m_data.nxdecoder, m_data.nxvideosink
+						 , NULL);
+	}
+	else
+	{
+		gst_bin_add_many(GST_BIN(m_Pipeline)
+						 , m_data.source, m_data.filesrc_typefind, m_data.demuxer
+						 , m_data.audio_queue, m_data.decodebin, m_data.audioconvert, m_data.audioresample, m_data.autoaudiosink
+						 , m_data.video_queue, m_data.nxdecoder, m_data.nxvideosink
+						 , NULL);
+	}
 
     NXLOGI("%s(): Link elements", __FUNCTION__);
-    if (!gst_element_link (m_data.m_Src, m_data.m_Demux))
+	if (!gst_element_link_many (m_data.source, m_data.filesrc_typefind, m_data.demuxer, NULL))
     {
         NXLOGE("%s(): Failed to link src<-->demux", __FUNCTION__);
         gst_object_unref(m_Pipeline);
         return -1;
     }
-    if (!gst_element_link_many (m_data.video_queue, m_data.m_Parser, m_data.m_NxVDecoder, m_data.nxvideosink, NULL))
-    {
-        NXLOGE("%s(): Failed to link video elements", __FUNCTION__);
-        gst_object_unref(m_Pipeline);
-        return -1;
-    }
+	if (g_strcmp0(m_MediaInfo.video_codec, "video/mpeg") == 0)
+	{
+		if (!gst_element_link_many (m_data.video_queue, m_data.video_parser, m_data.nxdecoder, m_data.nxvideosink, NULL)) {
+			NXLOGE("%s(): Failed to link video elements with video_parser", __FUNCTION__);
+			gst_object_unref(m_Pipeline);
+			return -1;
+		}
+	}
+	else
+	{
+		// avi
+		if (!gst_element_link_many (m_data.video_queue, m_data.nxdecoder, m_data.nxvideosink, NULL)) {
+			NXLOGE("%s(): Failed to link video elements", __FUNCTION__);
+			gst_object_unref(m_Pipeline);
+			return -1;
+		}
+	}
 
     if (!gst_element_link (m_data.audio_queue, m_data.decodebin))
     {
@@ -264,19 +327,20 @@ int CNX_MoviePlayer::SetupGStreamer(void (*pCbEventCallback)(void *privateDesc, 
     }
 
     NXLOGI("%s(): set pad-added signal", __FUNCTION__);
-    g_signal_connect(m_data.m_Demux, "pad-added", G_CALLBACK (on_pad_added_demux), &m_data);
-    g_signal_connect(m_data.decodebin, "pad-added", G_CALLBACK (on_decodebin_pad_added_demux), &m_data);
+	g_signal_connect (m_data.filesrc_typefind,	"have-type", G_CALLBACK (cb_typefind_demux), &m_data);
+	g_signal_connect (m_data.demuxer,	"pad-added", G_CALLBACK (on_pad_added_demux), &m_data);
+	g_signal_connect (m_data.decodebin, "pad-added", G_CALLBACK (on_decodebin_pad_added_demux), &m_data);
 #else
-    m_data.m_Parser = gst_element_factory_make ("h264parse", "parser");
-    if (!m_data.m_Parser)
+	m_data.video_parser = gst_element_factory_make ("h264parse", "parser");
+	if (!m_data.video_parser)
     {
         printf( "h264parse (Linux) could not be created. Exiting.\n");
         return -1;
     }
 
     //	Decoder
-    m_data.m_NxVDecoder = gst_element_factory_make ("nxvideodec", "decoder");
-    if (!m_data.m_NxVDecoder)
+	m_data.nxdecoder = gst_element_factory_make ("nxvideodec", "decoder");
+	if (!m_data.nxdecoder)
     {
         NXLOGE("%s(): Failed to create nxvideodec. Exiting", __FUNCTION__);
         return -1;
@@ -290,7 +354,7 @@ int CNX_MoviePlayer::SetupGStreamer(void (*pCbEventCallback)(void *privateDesc, 
         return -1;
     }
 
-    if(!m_data.m_Src || !m_data.m_Demux || !m_data.m_Parser || !m_data.m_NxVDecoder || !m_data.nxvideosink)
+	if(!m_data.source || !m_data.demuxer || !m_data.video_parser || !m_data.nxdecoder || !m_data.nxvideosink)
     {
         NXLOGE("%s(): Failed to create all elements. Exiting", __FUNCTION__);
         return -1;
@@ -298,20 +362,20 @@ int CNX_MoviePlayer::SetupGStreamer(void (*pCbEventCallback)(void *privateDesc, 
 
     //	Add Elements
     gst_bin_add_many(GST_BIN(m_Pipeline),
-                      m_data.m_Src, m_data.m_Demux,
-                      m_data.m_Parser, m_data.m_NxVDecoder, m_data.nxvideosink,
+					  m_data.source, m_data.demuxer,
+					  m_data.video_parser, m_data.nxdecoder, m_data.nxvideosink,
                       NULL);
 
     //	Link Elements
-    if (!gst_element_link (m_data.m_Src, m_data.m_Demux)
-            || !gst_element_link_many (m_data.m_Parser, m_data.m_NxVDecoder, m_data.nxvideosink, NULL)) {
+	if (!gst_element_link (m_data.source, m_data.demuxer)
+			|| !gst_element_link_many (m_data.video_parser, m_data.nxdecoder, m_data.nxvideosink, NULL)) {
         NXLOGE("%s(): Failed to link elements", __FUNCTION__);
         gst_object_unref(m_Pipeline);
         return -1;
     }
 
     // Connect to the pad-added signal
-    g_signal_connect(m_data.m_Demux, "pad-added", G_CALLBACK (on_pad_added_demux), &m_data);
+	g_signal_connect(m_data.demuxer, "pad-added", G_CALLBACK (on_pad_added_demux), &m_data);
 #endif
 
     //	Set Default Position
@@ -715,12 +779,17 @@ int CNX_MoviePlayer::GetMediaInfo(const char* uri)
             return -1;
         }
 
-        NXLOGI("%s() seekable:%s, width:%d, height:%d, duration: %"GST_TIME_FORMAT "\r"
-                , __FUNCTION__
-                , m_MediaInfo.isSeekable ? "yes":"no"
-                , m_MediaInfo.iWidth
-                , m_MediaInfo.iHeight
-                , GST_TIME_ARGS (m_MediaInfo.iDuration));
+		NXLOGI("%s() container(%s), video codec(%s)"
+			   ", audio codec(%s), seekable(%s), width(%d), height(%d)"
+			   ", duration: (%" GST_TIME_FORMAT ")\r"
+			   , __FUNCTION__
+			   , m_MediaInfo.container_format
+			   , m_MediaInfo.video_codec
+			   , m_MediaInfo.audio_codec
+			   , m_MediaInfo.isSeekable ? "yes":"no"
+			   , m_MediaInfo.iWidth
+			   , m_MediaInfo.iHeight
+			   , GST_TIME_ARGS (m_MediaInfo.iDuration));
     } else {
         NXLOGE("%s() Error! m_pDiscover is NULL", __FUNCTION__);
         return -1;
