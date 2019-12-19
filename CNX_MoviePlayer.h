@@ -117,6 +117,7 @@ public:
     void PrintMediaInfo(const char* pUri);
 	qint64 GetMediaPosition();
 	qint64 GetMediaDuration();
+
     //NX_MediaStatus GetState();
     GstState GetState();
 
@@ -143,7 +144,7 @@ private:
 	//vars
 	bool    debug;
 	pthread_mutex_t	m_hLock;
-    GThread *m_thread;
+
     GMainLoop *m_Loop;
     GstBus *m_Bus;
     guint m_WatchId;

@@ -23,7 +23,6 @@ CNX_MoviePlayer::CNX_MoviePlayer()
 	, m_iMediaType( 0 )
 	, m_bVideoMute( 0 )
 	, m_pAudioDeviceName(NULL)
-    , m_thread(NULL)
     , m_Loop(NULL)
     , m_Bus(NULL)
     , m_Pipeline(NULL)
@@ -74,11 +73,11 @@ static void on_decodebin_pad_added_demux (GstElement *element,
                         GstPad *pad,
                         MovieData *data)
 {
+	NXLOGE("%s() ++++++++++++++++++++++++++++++=", __FUNCTION__);
     GstPad *sinkpad;
     GstCaps *caps;
     GstStructure *gstr;
-    const gchar *name;
-    GstPadLinkReturn ret;
+	const gchar *mime_type;
     GstElement *sink_pad_audio = data->audioconvert;
 
     caps = gst_pad_get_current_caps (pad);
@@ -88,22 +87,29 @@ static void on_decodebin_pad_added_demux (GstElement *element,
     }
 
     gstr = gst_caps_get_structure (caps, 0);
-    if (gstr == NULL)
-    {
+	if (gstr == NULL) {
         NXLOGE("%s() Failed to get current caps", __FUNCTION__);
         return;
     }
 
-    name = gst_structure_get_name(gstr);
-    NXLOGI("%s(): name:%s", __FUNCTION__, name);
-    if (g_str_has_prefix(name, "audio/")) {
+	mime_type = gst_structure_get_name(gstr);
+	NXLOGI("%s(): name:%s", __FUNCTION__, mime_type);
+	if (g_str_has_prefix(mime_type, "audio/")) {
         NXLOGI("%s(): Dynamic audio pad created, linking decodebin <-> audioconvert", __FUNCTION__);
         sinkpad = gst_element_get_static_pad (sink_pad_audio, "sink");
-        ret = gst_pad_link (pad, sinkpad);
-        if (ret) {
-            NXLOGE("%s(): Failed to link new audio pad (%d)", __FUNCTION__, ret);
+		if (NULL == sinkpad) {
+			NXLOGE("%s() Failed to get static pad", __FUNCTION__);
+			return;
+		}
+
+		if (GST_PAD_LINK_FAILED(gst_pad_link (pad, sinkpad))) {
+			NXLOGE("%s() Failed to link %s:%s to %s:%s",
+					__FUNCTION__,
+					GST_DEBUG_PAD_NAME(pad),
+					GST_DEBUG_PAD_NAME(sinkpad));
         }
     }
+	NXLOGE("%s() -----------------------------------------", __FUNCTION__);
 }
 
 static void
@@ -249,7 +255,7 @@ int CNX_MoviePlayer::SetupGStreamer(void (*pCbEventCallback)(void *privateDesc, 
     m_data.autoaudiosink = gst_element_factory_make ("autoaudiosink", "autoaudiosink");
 
     m_data.video_queue = gst_element_factory_make ("queue2", "video_queue");
-	if (g_strcmp0(m_MediaInfo.video_codec, "video/mpeg") == 0)
+	if (g_strcmp0(m_MediaInfo.video_codec, "video/x-h264") == 0)
 	{
 		m_data.video_parser = gst_element_factory_make ("h264parse", "parser");
 		if (!m_data.video_parser)
@@ -271,7 +277,7 @@ int CNX_MoviePlayer::SetupGStreamer(void (*pCbEventCallback)(void *privateDesc, 
     }
 
 	NXLOGI("%s(): Add elements to bin", __FUNCTION__);
-	if (g_strcmp0(m_MediaInfo.video_codec, "video/mpeg") == 0)
+	if (g_strcmp0(m_MediaInfo.video_codec, "video/x-h264") == 0)
 	{
 		gst_bin_add_many(GST_BIN(m_Pipeline)
 						 , m_data.source, m_data.filesrc_typefind, m_data.demuxer
@@ -295,7 +301,7 @@ int CNX_MoviePlayer::SetupGStreamer(void (*pCbEventCallback)(void *privateDesc, 
         gst_object_unref(m_Pipeline);
         return -1;
     }
-	if (g_strcmp0(m_MediaInfo.video_codec, "video/mpeg") == 0)
+	if (g_strcmp0(m_MediaInfo.video_codec, "video/x-h264") == 0)
 	{
 		if (!gst_element_link_many (m_data.video_queue, m_data.video_parser, m_data.nxdecoder, m_data.nxvideosink, NULL)) {
 			NXLOGE("%s(): Failed to link video elements with video_parser", __FUNCTION__);
@@ -327,7 +333,7 @@ int CNX_MoviePlayer::SetupGStreamer(void (*pCbEventCallback)(void *privateDesc, 
     }
 
     NXLOGI("%s(): set pad-added signal", __FUNCTION__);
-	g_signal_connect (m_data.filesrc_typefind,	"have-type", G_CALLBACK (cb_typefind_demux), &m_data);
+	//g_signal_connect (m_data.filesrc_typefind,	"have-type", G_CALLBACK (cb_typefind_demux), &m_data);
 	g_signal_connect (m_data.demuxer,	"pad-added", G_CALLBACK (on_pad_added_demux), &m_data);
 	g_signal_connect (m_data.decodebin, "pad-added", G_CALLBACK (on_decodebin_pad_added_demux), &m_data);
 #else
@@ -454,16 +460,16 @@ int CNX_MoviePlayer::deinitialize()
     if(NULL != m_Pipeline)
     {
         gst_object_unref (GST_OBJECT (m_Pipeline));
+		m_Pipeline = NULL;
     }
-    m_Pipeline = NULL;
 
     g_source_remove (m_WatchId);
 
     if(NULL != m_Loop)
     {
         g_main_loop_unref (m_Loop);
+		m_Loop = NULL;
     }
-    m_Loop = NULL;
 
     /* TODO */
     m_GstState = GST_STATE_NULL;
@@ -479,7 +485,6 @@ static gboolean bus_callback (GstBus *bus, GstMessage *msg, gpointer  data)
         case GST_MESSAGE_EOS:
             NXLOGI("%s(): End-of-stream", __FUNCTION__);
             event_cb(NULL, GST_MESSAGE_EOS, 0, 0);
-            g_main_loop_quit (loop);
             break;
         case GST_MESSAGE_ERROR:
         {
@@ -550,7 +555,7 @@ int CNX_MoviePlayer::SetVolume(int volume)
 
 int CNX_MoviePlayer::Play()
 {
-    NXLOGE( "%s()", __FUNCTION__);
+	NXLOGI("%s() +++++++++++++++++++++++ GstState '%s'", __FUNCTION__, gst_element_state_get_name (m_GstState));
 	CNX_AutoLock lock( &m_hLock );
 
     if(NULL == m_Pipeline)
@@ -566,6 +571,7 @@ int CNX_MoviePlayer::Play()
         return -1;
     }
 
+	NXLOGE( "%s() ----------------------------------------", __FUNCTION__);
 	return 0;
 }
 
@@ -598,7 +604,7 @@ int CNX_MoviePlayer::Seek(qint64 position)
 
 int CNX_MoviePlayer::Pause()
 {
-    NXLOGE( "%s()", __FUNCTION__);
+	NXLOGI( "%s()", __FUNCTION__);
 	CNX_AutoLock lock( &m_hLock );
 
     if(NULL == m_Pipeline)
@@ -609,7 +615,8 @@ int CNX_MoviePlayer::Pause()
 
     GstStateChangeReturn ret;
     ret = gst_element_set_state(m_Pipeline, GST_STATE_PAUSED);
-    if (ret == GST_STATE_CHANGE_FAILURE) {
+	if (ret == GST_STATE_CHANGE_FAILURE)
+	{
         NXLOGE("Failed to set the pipeline to the PAUSED state");
     }
     return 0;
@@ -640,8 +647,9 @@ int CNX_MoviePlayer::Stop()
 //public methods	common information
 qint64 CNX_MoviePlayer::GetMediaPosition()
 {
-    //NXLOGE( "%s()", __FUNCTION__);
     CNX_AutoLock lock( &m_hLock );
+
+	//NXLOGI("%s() GstState '%s'", __FUNCTION__, gst_element_state_get_name (m_GstState));
 
     if(NULL == m_Pipeline)
     {
@@ -668,21 +676,29 @@ qint64 CNX_MoviePlayer::GetMediaPosition()
 
 qint64 CNX_MoviePlayer::GetMediaDuration()
 {
-    //NXLOGE( "%s()", __FUNCTION__);
 	CNX_AutoLock lock( &m_hLock );
 
-    if(NULL == m_Pipeline)
+	//NXLOGI("%s() GstState '%s'", __FUNCTION__, gst_element_state_get_name (m_GstState));
+
+	if(NULL == m_Pipeline)
     {
-        NXLOGE("%s(): Error! pipeline is NULL", __FUNCTION__);
-        return -1;
+		NXLOGE("%s(): Error! pipeline is NULL", __FUNCTION__);
+		return -1;
     }
+
+	if (GST_STATE_PLAYING != m_GstState)
+	{
+		//NXLOGI("%s() duration '%" GST_TIME_FORMAT "'\r"
+		//	   , __FUNCTION__, GST_TIME_ARGS (m_MediaInfo.iDuration));
+		return m_MediaInfo.iDuration;
+	}
 
     qint64 duration = 0;
     if(gst_element_query_duration(m_Pipeline, GST_FORMAT_TIME, &duration))
     {
-        if(debug)
+		if(debug)
         {
-            NXLOGD("%s(): Time: %" GST_TIME_FORMAT "\r",
+			NXLOGD("%s() Time: %" GST_TIME_FORMAT "\r",
                     __FUNCTION__, GST_TIME_ARGS (duration));
         }
     }
@@ -698,6 +714,7 @@ qint64 CNX_MoviePlayer::GetMediaDuration()
 GstState CNX_MoviePlayer::GetState()
 {
 	CNX_AutoLock lock( &m_hLock );
+
     NXLOGI("%s(): %s", __FUNCTION__, gst_element_state_get_name (m_GstState));
     return m_GstState;
 }
@@ -707,44 +724,19 @@ void CNX_MoviePlayer::PrintMediaInfo( const char *pUri )
 
 	NXLOGD("####################################################################################################\n");
 	NXLOGD( "FileName : %s\n", pUri );
-#if 0
-	NXLOGD( "Media Info : Program( %d EA ), Video( %d EA ), Audio( %d EA ), Subtitle( %d EA ), Data( %d EA )\n",
-			m_MediaInfo.iProgramNum, m_MediaInfo.iVideoTrackNum, m_MediaInfo.iAudioTrackNum, m_MediaInfo.iSubTitleTrackNum, m_MediaInfo.iDataTrackNum );
 
-	for( int32_t i = 0; i < m_MediaInfo.iProgramNum; i++ )
-	{
-		NXLOGD( "Program Info #%d : Video( %d EA ), Audio( %d EA ), Subtitle( %d EA ), Data( %d EA ), Duration( %lld ms )\n",
-				i, m_MediaInfo.ProgramInfo[i].iVideoNum, m_MediaInfo.ProgramInfo[i].iAudioNum, m_MediaInfo.ProgramInfo[i].iSubTitleNum, m_MediaInfo.ProgramInfo[i].iDataNum, m_MediaInfo.ProgramInfo[i].iDuration);
+	NXLOGI("%s() container(%s), video codec(%s)"
+		   ", audio codec(%s), seekable(%s), width(%d), height(%d)"
+		   ", duration: (%" GST_TIME_FORMAT ")\r"
+		   , __FUNCTION__
+		   , m_MediaInfo.container_format
+		   , m_MediaInfo.video_codec
+		   , m_MediaInfo.audio_codec
+		   , m_MediaInfo.isSeekable ? "yes":"no"
+		   , m_MediaInfo.iWidth
+		   , m_MediaInfo.iHeight
+		   , GST_TIME_ARGS (m_MediaInfo.iDuration));
 
-		if( 0 < m_MediaInfo.ProgramInfo[i].iVideoNum )
-		{
-			int num = 0;
-			for( int j = 0; j < m_MediaInfo.ProgramInfo[i].iVideoNum + m_MediaInfo.ProgramInfo[i].iAudioNum; j++ )
-			{
-				MP_TRACK_INFO *pTrackInfo = &m_MediaInfo.ProgramInfo[i].TrackInfo[j];
-				if( MP_TRACK_VIDEO == pTrackInfo->iTrackType )
-				{
-					NXLOGD( "-. Video Track #%d : Index( %d ), Type( %d ), Resolution( %d x %d ), Duration( %lld ms )\n",
-							num++, pTrackInfo->iTrackIndex, (int)pTrackInfo->iCodecId, pTrackInfo->iWidth, pTrackInfo->iHeight, pTrackInfo->iDuration );
-				}
-			}
-		}
-
-		if( 0 < m_MediaInfo.ProgramInfo[i].iAudioNum )
-		{
-			int num = 0;
-			for( int j = 0; j < m_MediaInfo.ProgramInfo[i].iVideoNum + m_MediaInfo.ProgramInfo[i].iAudioNum; j++ )
-			{
-				MP_TRACK_INFO *pTrackInfo = &m_MediaInfo.ProgramInfo[i].TrackInfo[j];
-				if( MP_TRACK_AUDIO == pTrackInfo->iTrackType )
-				{
-					NXLOGD( "-. Audio Track #%d : Index( %d ), Type( %d ), Ch( %d ), Samplerate( %d Hz ), Bitrate( %d bps ), Duration( %lld ms )\n",
-							num++, pTrackInfo->iTrackIndex, (int)pTrackInfo->iCodecId, pTrackInfo->iChannels, pTrackInfo->iSampleRate, pTrackInfo->iBitrate, pTrackInfo->iDuration );
-				}
-			}
-		}
-	}
-#endif
 	NXLOGD( "####################################################################################################\n");
 }
 
@@ -813,7 +805,14 @@ void CNX_MoviePlayer::DrmVideoMute(int bOnOff)
 
     m_bVideoMute = bOnOff;
     /* TODO */
-    g_object_set (G_OBJECT (m_data.nxvideosink), "dst-y", /*m_Y*/720, NULL);
+	if (bOnOff)
+	{
+		g_object_set (G_OBJECT (m_data.nxvideosink), "dst-y", /*m_Y*/720, NULL);
+	}
+	else
+	{
+		g_object_set (G_OBJECT (m_data.nxvideosink), "dst-y", 720, NULL);
+	}
 }
 
 //================================================================================================================

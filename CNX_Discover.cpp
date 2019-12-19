@@ -71,7 +71,6 @@ static void print_stream_info (GstDiscovererStreamInfo *info, gint depth, struct
 		if (!res) {
 			//NXLOGI("%s() no dimensions", __FUNCTION__);
 		} else {
-			NXLOGI("%s() width:%d, height:%d", __FUNCTION__, width, height);
 			pMediaInfo->iWidth = width;
 			pMediaInfo->iHeight = height;
 		}

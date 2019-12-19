@@ -210,9 +210,9 @@ PlayerVideoFrame::PlayerVideoFrame(QWidget *parent)
 
 	//Get audioDeviceName
 	memset(m_audioDeviceName,0,sizeof(m_audioDeviceName));
-    if(0 > m_pIConfig->Open("/nexell/daudio/NxGstVideoPlayer/nxvideoplayer_config.xml"))
+	if(0 > m_pIConfig->Open("/nexell/daudio/NxGstVideoPlayer/nxvideoplayer_config.xml"))
 	{
-        NXLOGE("[%s]nxgstvideooplayer_config.xml open err\n", __FUNCTION__);
+		NXLOGE("[%s]nxgstvideooplayer_config.xml open err\n", __FUNCTION__);
 	}
 	else
 	{
@@ -232,12 +232,17 @@ PlayerVideoFrame::PlayerVideoFrame(QWidget *parent)
 
 PlayerVideoFrame::~PlayerVideoFrame()
 {
+	if (m_PosUpdateTimer.isActive())
+	{
+		m_PosUpdateTimer.stop();
+	}
+
 	if(m_pNxPlayer)
 	{
         GstState state = m_pNxPlayer->GetState();
         if( (GST_STATE_PLAYING == state)||(GST_STATE_PAUSED == state) )
 		{
-            StopVideo();
+			StopVideo();
 		}
 
 		delete m_pNxPlayer;
@@ -282,15 +287,15 @@ int32_t PlayerVideoFrame::SaveInfo()
 		return -1;
 	}
 
-    if(0 > m_pIConfig->Open("/nexell/daudio/NxGstVideoPlayer/config.xml"))
+	if(0 > m_pIConfig->Open("/nexell/daudio/NxGstVideoPlayer/config.xml"))
 	{
 		NXLOGW("xml open err\n");
 		QFile qFile;
-        qFile.setFileName("/nexell/daudio/NxGstVideoPlayer/config.xml");
+		qFile.setFileName("/nexell/daudio/NxGstVideoPlayer/config.xml");
 		if(qFile.remove())
 		{
 			NXLOGW("config.xml is removed because of open err\n");
-            if(0 > m_pIConfig->Open("/nexell/daudio/NxGstVideoPlayer/config.xml"))
+			if(0 > m_pIConfig->Open("/nexell/daudio/NxGstVideoPlayer/config.xml"))
 			{
 				NXLOGE("xml open err again!!\n");
 				return -1;
@@ -331,12 +336,12 @@ int32_t PlayerVideoFrame::SaveInfo()
 	{
 		char pCurPos[sizeof(long long int)] = {};
 		qint64 iCurPos = m_pNxPlayer->GetMediaPosition();
-		if( 0 > iCurPos)
+		if(0 > iCurPos)
 		{
 			NXLOGW("current position is not valid  iCurPos : %lld is set to 0\n",iCurPos);
 			iCurPos = 0;
 		}
-		sprintf(pCurPos, "%lld", iCurPos);
+		sprintf(pCurPos, "%lld", NANOSEC_TO_MSEC(iCurPos));
 		if(0 > m_pIConfig->Write("pos", pCurPos))
 		{
 			NXLOGE("xml write pos err\n");
@@ -368,11 +373,11 @@ bool PlayerVideoFrame::SeekToPrev(int* iSavedPosition, int* iFileIdx)
 		return false;
 	}
 
-    if(0 > m_pIConfig->Open("/nexell/daudio/NxGstVideoPlayer/config.xml"))
+	if(0 > m_pIConfig->Open("/nexell/daudio/NxGstVideoPlayer/config.xml"))
 	{
 		NXLOGE("xml open err\n");
 		QFile qFile;
-        qFile.setFileName("/nexell/daudio/NxGstVideoPlayer/config.xml");
+		qFile.setFileName("/nexell/daudio/NxGstVideoPlayer/config.xml");
 		if(qFile.remove())
 		{
 			NXLOGE("config.xml is removed because of open err\n");
@@ -673,6 +678,7 @@ void PlayerVideoFrame::DoPositionUpdate()
 		UpdateDurationInfo( 0, 0 );
 		return;
 	}
+
 	if(m_bIsInitialized)
 	{
 		int64_t iDuration = m_pNxPlayer->GetMediaDuration();
@@ -684,10 +690,11 @@ void PlayerVideoFrame::DoPositionUpdate()
 			iDuration = 0;
 		}
 		//	ProgressBar
-        ui->progressBar->setValue(iPosition / (1000*1000*1000));
+		ui->progressBar->setValue(NANOSEC_TO_SEC(iPosition));
         UpdateDurationInfo(iPosition, iDuration);
     }
-    else {
+	else
+	{
 		ui->progressBar->setRange(0, 100);
 		ui->progressBar->setValue(0);
 		UpdateDurationInfo( 0, 0 );
@@ -698,16 +705,16 @@ void PlayerVideoFrame::UpdateDurationInfo(int64_t position, int64_t duration)
 {
     char pos[256], dur[256];
     sprintf(pos, TIME_FORMAT, GST_TIME_ARGS (position));
-    if (dbg)    NXLOGD("%s(): position: %s", __FUNCTION__, pos);
+	NXLOGD("%s(): position: %s", __FUNCTION__, pos);
 
     sprintf(dur, TIME_FORMAT, GST_TIME_ARGS (duration));
-    if (dbg)    NXLOGD("%s(): duration: %s", __FUNCTION__, dur);
+	NXLOGD("%s(): duration: %s", __FUNCTION__, dur);
 
     QString tStr;
     tStr = QString(pos) + " / " + QString(dur);
 
 	ui->durationlabel->setText(tStr);
-    //NXLOGI("%s() %s", __FUNCTION__, tStr.toStdString().c_str());
+	NXLOGI("%s() %s", __FUNCTION__, tStr.toStdString().c_str());
 }
 
 void PlayerVideoFrame::statusChanged(int eventType)
@@ -723,9 +730,8 @@ void PlayerVideoFrame::statusChanged(int eventType)
 	{
     case GST_MESSAGE_EOS:
 	{
-        NXLOGI("******** End-Of-Stream !!!\n");
-        /* TODO */
-        //PlayNextVideo();
+		NXLOGI("******** End-Of-Stream !!!\n");
+		PlayNextVideo();
 		break;
 	}
 #if 0
@@ -773,7 +779,7 @@ void PlayerVideoFrame::statusChanged(int eventType)
 
 bool PlayerVideoFrame::StopVideo()
 {
-    NXLOGW("%s() ++++++++++++++++++++++++++++", __FUNCTION__);
+	NXLOGW("%s() ++++++++++++++++++++++++++++", __FUNCTION__);
 	if(NULL == m_pNxPlayer)
 	{
 		NXLOGW("%s(), line: %d, m_pNxPlayer is NULL \n", __FUNCTION__, __LINE__);
@@ -814,7 +820,7 @@ bool PlayerVideoFrame::StopVideo()
 		m_pMessageFrame->hide();
 	}
 
-    NXLOGW("%s() ---------------------------", __FUNCTION__);
+	NXLOGW("%s() ---------------------------", __FUNCTION__);
 	return true;
 }
 
@@ -837,14 +843,14 @@ bool PlayerVideoFrame::CloseVideo()
 
 bool PlayerVideoFrame::PlayNextVideo()
 {
-    NXLOGI("%s() +++++++++++++++++++++++++", __FUNCTION__);
+	NXLOGI("%s() +++++++++++++++++++++++++", __FUNCTION__);
 	if(NULL == m_pNxPlayer)
 	{
 		NXLOGW("%s(), line: %d, m_pNxPlayer is NULL \n", __FUNCTION__, __LINE__);
 		return false;
 	}
 
-    StopVideo();
+	StopVideo();
 
 	//	find next index
 	if(0 != m_FileList.GetSize())
@@ -852,7 +858,7 @@ bool PlayerVideoFrame::PlayNextVideo()
 		m_iCurFileListIdx = (m_iCurFileListIdx+1) % m_FileList.GetSize();
 	}
 
-    return PlayVideo();
+	return PlayVideo();
 }
 
 bool PlayerVideoFrame::PlayPreviousVideo()
@@ -909,14 +915,15 @@ bool PlayerVideoFrame::PlayVideo()
 		return false;
 	}
 
-    GstState gState = m_pNxPlayer->GetState();
-    NXLOGI("%s() gState: %d ++++++++++++++++++++++++", __FUNCTION__, gState);
+	GstState gState = m_pNxPlayer->GetState();
+	NXLOGI("%s() gState: %s ++++++++++++++++++++++++",
+		   __FUNCTION__, gst_element_state_get_name (gState));
 
-    if( (GST_STATE_PAUSED == gState) || (GST_STATE_READY == gState))
+	if( (GST_STATE_PAUSED == gState) || (GST_STATE_READY == gState))
 	{
 		m_pNxPlayer->Play();
 
-        //if(1.0 == m_pNxPlayer->GetVideoSpeed())
+		//if(1.0 == m_pNxPlayer->GetVideoSpeed())
 		{
 			m_fSpeed = 1.0;
 			ui->speedButton->setText("x 1");
@@ -936,7 +943,7 @@ bool PlayerVideoFrame::PlayVideo()
 		}
 		return true;
 	}
-    else if(GST_STATE_NULL == gState)
+	else if(GST_STATE_NULL == gState)
 	{
 		m_listMutex.Lock();
 		if( 0 < m_FileList.GetSize() )
@@ -972,7 +979,7 @@ bool PlayerVideoFrame::PlayVideo()
                                                       m_FileList.GetList(m_iCurFileListIdx).toStdString().c_str(),
                                                       width(),height());
                 if(iResult != 0) {
-                    NXLOGE("%s(): Error! Failed to setup GStreamer", __FUNCTION__);
+					NXLOGE("%s() Error! Failed to setup GStreamer", __FUNCTION__);
                 }
 
 				iTryCount++;
@@ -988,17 +995,14 @@ bool PlayerVideoFrame::PlayVideo()
                     }
                     else
                     {
-                        /* TODO: Move to the correct place */
-                        m_iDuration = m_pNxPlayer->GetMediaDuration();
-                        if (-1 == m_iDuration) {
-                            NXLOGE("%s(): Failed to get duration", __FUNCTION__);
-                        } else {
-                            NXLOGI("%s(): dur:%lld (%d sec)", __FUNCTION__, m_iDuration, NANOSEC_TO_SEC(m_iDuration));
-                        }
-                        ui->progressBar->setMaximum( /*m_iDuration/(1000*1000*1000)*/170 );	//	Max Seconds
+						m_iDuration = m_pNxPlayer->GetMediaDuration();
+						if (-1 == m_iDuration) {
+							NXLOGE("%s() Failed to get duration", __FUNCTION__);
+						}
+						ui->progressBar->setMaximum(NANOSEC_TO_SEC(m_iDuration));
 						ui->appNameLabel->setText(m_FileList.GetList(m_iCurFileListIdx));
 
-                        //if(1.0 == m_pNxPlayer->GetVideoSpeed())
+						//if(1.0 == m_pNxPlayer->GetVideoSpeed())
 						{
 							ui->speedButton->setText("x 1");
 							QString style;
@@ -1016,7 +1020,7 @@ bool PlayerVideoFrame::PlayVideo()
 							ui->progressBar->setStyleSheet(style);
 						}
 
-                        NXLOGI("%s(): ********************media play done!", __FUNCTION__);
+						NXLOGI("%s() ********************media play done!", __FUNCTION__);
 						m_listMutex.Unlock();
 						return true;
 					}
@@ -1047,8 +1051,8 @@ bool PlayerVideoFrame::PlayVideo()
 				m_iCurFileListIdx = (m_iCurFileListIdx+1) % m_FileList.GetSize();
 				CloseVideo();
 			}
-        }
-        else
+		}
+		else
 		{
             NXLOGW("%s(): Have no available contents!! InitMediaPlayer is not tried", __FUNCTION__);
 			m_listMutex.Unlock();
@@ -1060,7 +1064,7 @@ bool PlayerVideoFrame::PlayVideo()
 
 bool PlayerVideoFrame::PauseVideo()
 {
-    NXLOGI("%s()", __FUNCTION__);
+	NXLOGI("%s()", __FUNCTION__);
 	if(NULL == m_pNxPlayer)
 	{
 		NXLOGE("%s(), line: %d, m_pNxPlayer is NULL \n", __FUNCTION__, __LINE__);
@@ -1077,7 +1081,7 @@ bool PlayerVideoFrame::PauseVideo()
 
 bool PlayerVideoFrame::SeekVideo(int32_t mSec)
 {
-    NXLOGI("%s()", __FUNCTION__);
+	NXLOGI("%s()", __FUNCTION__);
 	if(NULL == m_pNxPlayer)
 	{
 		NXLOGE("%s(), line: %d, m_pNxPlayer is NULL \n", __FUNCTION__, __LINE__);
@@ -1086,7 +1090,7 @@ bool PlayerVideoFrame::SeekVideo(int32_t mSec)
 
     if(GST_STATE_PLAYING == m_pNxPlayer->GetState() || GST_STATE_PAUSED == m_pNxPlayer->GetState())
 	{
-        NXLOGI("%s() seek to %d mSec", __FUNCTION__, mSec);
+		NXLOGI("%s() seek to %d mSec", __FUNCTION__, mSec);
         if(0 > m_pNxPlayer->Seek(mSec))
 		{
 			return false;
@@ -1097,10 +1101,10 @@ bool PlayerVideoFrame::SeekVideo(int32_t mSec)
 
 bool PlayerVideoFrame::SetVideoMute(bool iStopRendering)
 {
-    NXLOGI("%s()", __FUNCTION__);
+	NXLOGI("%s()", __FUNCTION__);
 	if(NULL == m_pNxPlayer)
 	{
-        NXLOGE("%s(), line: %d, m_pNxPlayer is NULL ", __FUNCTION__, __LINE__);
+		NXLOGE("%s(), line: %d, m_pNxPlayer is NULL ", __FUNCTION__, __LINE__);
 		return false;
 	}
 
@@ -1108,14 +1112,14 @@ bool PlayerVideoFrame::SetVideoMute(bool iStopRendering)
 	m_bStopRenderingFlag = iStopRendering;
 	m_statusMutex.Unlock();
 
-    NXLOGI("%s(), line: %d, SetVideoMute : %d -------", __FUNCTION__, __LINE__, m_bStopRenderingFlag);
+	NXLOGI("%s(), line: %d, SetVideoMute : %d -------", __FUNCTION__, __LINE__, m_bStopRenderingFlag);
 
 	return true;
 }
 
 bool PlayerVideoFrame::VideoMuteStart()
 {
-    NXLOGI("%s()", __FUNCTION__);
+	NXLOGI("%s()", __FUNCTION__);
 	if(m_fSpeed > 1.0)
 	{
 		StopVideo();
@@ -1472,8 +1476,8 @@ void PlayerVideoFrame::on_speedButton_released()
 		return;
 	}
 
-    //if ( m_pNxPlayer->GetVideoSpeedSupport() < 0)
-    if (1)
+	//if ( m_pNxPlayer->GetVideoSpeedSupport() < 0)
+	if (1)
 	{
 		if(m_bNotSupportSpeed)
 		{
@@ -1501,7 +1505,7 @@ void PlayerVideoFrame::on_speedButton_released()
 	else if(m_fSpeed ==8.0) ui->speedButton->setText("x 8");
 	else if(m_fSpeed ==16.0) ui->speedButton->setText("x 16");
 
-    //m_pNxPlayer->SetVideoSpeed( m_fSpeed  );
+	//m_pNxPlayer->SetVideoSpeed( m_fSpeed  );
 
 	if(m_fSpeed > 1.0)
 	{
