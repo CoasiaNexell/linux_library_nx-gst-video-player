@@ -74,6 +74,8 @@ typedef struct _MovieData {
 	GstElement *nxvideosink;
 
 	GstElement *decodebin;
+	GstElement *audio_parser;
+	GstElement *audio_decoder;
 	GstElement *audioconvert;
 	GstElement *audioresample;
 	GstElement *autoaudiosink;

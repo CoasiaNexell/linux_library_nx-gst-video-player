@@ -48,6 +48,8 @@ struct GST_MEDIA_INFO {
 	gchar*          audio_codec;
 	gint32          iWidth;
 	gint32          iHeight;
+	gint32			video_mpegversion;
+	gint32			audio_mpegversion;
 	gboolean        isSeekable;
 	gint64          iDuration;
 };

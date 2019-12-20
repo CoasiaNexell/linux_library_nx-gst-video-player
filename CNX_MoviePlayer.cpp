@@ -121,7 +121,7 @@ on_pad_added_demux (GstElement *element,
     GstCaps *caps;
 	GstStructure *structure;
 	const gchar *mime_type;
-	gint width, height;
+	gint width = 0, height = 0;
 
     GstElement *sink_pad_audio = data->audio_queue;
     GstElement *sink_pad_video = data->video_queue;
@@ -231,29 +231,57 @@ int CNX_MoviePlayer::SetupGStreamer(void (*pCbEventCallback)(void *privateDesc, 
 
 	m_data.filesrc_typefind = gst_element_factory_make ("typefind", "typefind");
 
-	if (g_strcmp0(m_MediaInfo.container_format, "video/quicktime") == 0)	// Quicktime
+	//	Demux
+	if ((g_strcmp0(m_MediaInfo.container_format, "video/quicktime") == 0) ||	// Quicktime
+		(g_strcmp0(m_MediaInfo.container_format, "application/x-3gp") == 0))	// 3GP
 	{
-		//	Demux
 		m_data.demuxer = gst_element_factory_make ("qtdemux", "demux");
 	}
 	else if (g_strcmp0(m_MediaInfo.container_format, "video/x-matroska") == 0)	// Matroska
 	{
-		//	Demux
 		m_data.demuxer = gst_element_factory_make ("matroskademux", "matroskademux");
 	}
 	else if (g_strcmp0(m_MediaInfo.container_format, "video/x-msvideo") == 0)	// AVI
 	{
-		//	Demux
 		m_data.demuxer = gst_element_factory_make ("avidemux", "avidemux");
+	}
+	else if (g_strcmp0(m_MediaInfo.container_format, "video/mpeg") == 0)	// MPEG (vob)
+	{
+		m_data.demuxer = gst_element_factory_make ("mpegpsdemux", "mpegpsdemux");
+	}
+	if (!m_data.demuxer)
+	{
+		NXLOGE("%s(): Failed to create demuxer. Exiting", __FUNCTION__);
+		return -1;
 	}
 
 #if 1
+	/* Audio */
     m_data.audio_queue = gst_element_factory_make ("queue2", "audio_queue");
-    m_data.decodebin = gst_element_factory_make ("decodebin", "decodebin");
+	/*if ((g_strcmp0(m_MediaInfo.audio_codec, "audio/mpeg") == 0) && (m_MediaInfo.audio_mpegversion <= 2))
+	{
+		m_data.audio_parser = gst_element_factory_make ("mpegaudioparse", "mpegaudioparse");
+		m_data.audio_decoder = gst_element_factory_make ("mpg123audiodec", "mpg123audiodec");
+		if (!m_data.audio_parser || !m_data.audio_decoder)
+		{
+			NXLOGE("%s(): Failed to create audio_parser or audio_parser for the MIME-type 'audio/mpeg'. Exiting", __FUNCTION__);
+			return -1;
+		}
+	}
+	else
+	{*/
+		m_data.decodebin = gst_element_factory_make ("decodebin", "decodebin");
+		if (!m_data.decodebin)
+		{
+			NXLOGE("%s(): Failed to create all elements. Exiting", __FUNCTION__);
+			return -1;
+		}
+	//}
     m_data.audioconvert = gst_element_factory_make ("audioconvert", "audioconvert");
     m_data.audioresample = gst_element_factory_make ("audioresample", "audioresample");
     m_data.autoaudiosink = gst_element_factory_make ("autoaudiosink", "autoaudiosink");
 
+	/* Video */
     m_data.video_queue = gst_element_factory_make ("queue2", "video_queue");
 	if (g_strcmp0(m_MediaInfo.video_codec, "video/x-h264") == 0)
 	{
@@ -264,11 +292,21 @@ int CNX_MoviePlayer::SetupGStreamer(void (*pCbEventCallback)(void *privateDesc, 
 			return -1;
 		}
 	}
+	else if ((g_strcmp0(m_MediaInfo.video_codec, "video/mpeg") == 0) && (m_MediaInfo.video_mpegversion <= 2))
+	{
+		m_data.video_parser = gst_element_factory_make ("mpegvideoparse", "parser");
+		if (!m_data.video_parser)
+		{
+			NXLOGE("%s(): Failed to create all elements. Exiting", __FUNCTION__);
+			return -1;
+		}
+	}
+
 	m_data.nxdecoder = gst_element_factory_make ("nxvideodec", "nxvideodec");
     m_data.nxvideosink = gst_element_factory_make ("nxvideosink", "nxvideosink");
 
-	if(!m_data.source || !m_data.demuxer ||
-            !m_data.audio_queue || !m_data.decodebin || !m_data.audioconvert ||
+	if(!m_data.source ||
+			!m_data.audio_queue || !m_data.audioconvert ||
             !m_data.audioresample || !m_data.autoaudiosink ||
 			!m_data.video_queue || !m_data.nxdecoder || !m_data.nxvideosink)
     {
@@ -277,7 +315,8 @@ int CNX_MoviePlayer::SetupGStreamer(void (*pCbEventCallback)(void *privateDesc, 
     }
 
 	NXLOGI("%s(): Add elements to bin", __FUNCTION__);
-	if (g_strcmp0(m_MediaInfo.video_codec, "video/x-h264") == 0)
+	if ( (g_strcmp0(m_MediaInfo.video_codec, "video/x-h264") == 0) ||
+		  ((g_strcmp0(m_MediaInfo.video_codec, "video/mpeg") == 0) && (m_MediaInfo.video_mpegversion <= 2)) )
 	{
 		gst_bin_add_many(GST_BIN(m_Pipeline)
 						 , m_data.source, m_data.filesrc_typefind, m_data.demuxer
@@ -287,11 +326,21 @@ int CNX_MoviePlayer::SetupGStreamer(void (*pCbEventCallback)(void *privateDesc, 
 	}
 	else
 	{
-		gst_bin_add_many(GST_BIN(m_Pipeline)
-						 , m_data.source, m_data.filesrc_typefind, m_data.demuxer
-						 , m_data.audio_queue, m_data.decodebin, m_data.audioconvert, m_data.audioresample, m_data.autoaudiosink
-						 , m_data.video_queue, m_data.nxdecoder, m_data.nxvideosink
-						 , NULL);
+		/*if ((g_strcmp0(m_MediaInfo.audio_codec, "audio/mpeg") == 0) && (m_MediaInfo.audio_mpegversion <= 2))
+		{
+			gst_bin_add_many(GST_BIN(m_Pipeline)
+							 , m_data.source, m_data.filesrc_typefind, m_data.demuxer
+							 , m_data.audio_queue, m_data.audio_parser, m_data.audio_decoder, m_data.audioconvert, m_data.audioresample, m_data.autoaudiosink
+							 , m_data.video_queue, m_data.video_parser, m_data.nxdecoder, m_data.nxvideosink
+							 , NULL);
+		}
+		else {*/
+			gst_bin_add_many(GST_BIN(m_Pipeline)
+							 , m_data.source, m_data.filesrc_typefind, m_data.demuxer
+							 , m_data.audio_queue, m_data.decodebin, m_data.audioconvert, m_data.audioresample, m_data.autoaudiosink
+							 , m_data.video_queue, /*m_data.video_parser, */m_data.nxdecoder, m_data.nxvideosink
+							 , NULL);
+		//}
 	}
 
     NXLOGI("%s(): Link elements", __FUNCTION__);
@@ -301,7 +350,9 @@ int CNX_MoviePlayer::SetupGStreamer(void (*pCbEventCallback)(void *privateDesc, 
         gst_object_unref(m_Pipeline);
         return -1;
     }
-	if (g_strcmp0(m_MediaInfo.video_codec, "video/x-h264") == 0)
+	/* Link video elements */
+	if ((g_strcmp0(m_MediaInfo.video_codec, "video/x-h264") == 0) ||
+			((g_strcmp0(m_MediaInfo.video_codec, "video/mpeg") == 0) && (m_MediaInfo.video_mpegversion <= 2)) )
 	{
 		if (!gst_element_link_many (m_data.video_queue, m_data.video_parser, m_data.nxdecoder, m_data.nxvideosink, NULL)) {
 			NXLOGE("%s(): Failed to link video elements with video_parser", __FUNCTION__);
@@ -319,12 +370,25 @@ int CNX_MoviePlayer::SetupGStreamer(void (*pCbEventCallback)(void *privateDesc, 
 		}
 	}
 
-    if (!gst_element_link (m_data.audio_queue, m_data.decodebin))
-    {
-        NXLOGE("%s(): Failed to link audio_queue<-->decodebin", __FUNCTION__);
-        gst_object_unref(m_Pipeline);
-        return -1;
-    }
+	/*if ((g_strcmp0(m_MediaInfo.audio_codec, "audio/mpeg") == 0) && (m_MediaInfo.audio_mpegversion <= 2))
+	{
+		if (!gst_element_link_many (m_data.audio_queue, m_data.audio_parser, m_data.audio_decoder, NULL))
+		{
+			NXLOGE("%s(): Failed to link audio_queue<-->decodebin", __FUNCTION__);
+			gst_object_unref(m_Pipeline);
+			return -1;
+		}
+	}
+	else
+	{*/
+		if (!gst_element_link (m_data.audio_queue, m_data.decodebin))
+		{
+			NXLOGE("%s(): Failed to link audio_queue<-->decodebin", __FUNCTION__);
+			gst_object_unref(m_Pipeline);
+			return -1;
+		}
+	//}
+
     if (!gst_element_link_many (m_data.audioconvert, m_data.audioresample, m_data.autoaudiosink, NULL))
     {
         NXLOGE("%s(): Failed to link audioconvert<-->audioresample<-->autoaudiosink", __FUNCTION__);
@@ -334,8 +398,21 @@ int CNX_MoviePlayer::SetupGStreamer(void (*pCbEventCallback)(void *privateDesc, 
 
     NXLOGI("%s(): set pad-added signal", __FUNCTION__);
 	//g_signal_connect (m_data.filesrc_typefind,	"have-type", G_CALLBACK (cb_typefind_demux), &m_data);
+
+	/* demuxer <--> audio_queue/video_queue */
 	g_signal_connect (m_data.demuxer,	"pad-added", G_CALLBACK (on_pad_added_demux), &m_data);
-	g_signal_connect (m_data.decodebin, "pad-added", G_CALLBACK (on_decodebin_pad_added_demux), &m_data);
+
+
+	/*if ((g_strcmp0(m_MediaInfo.audio_codec, "audio/mpeg") == 0) && (m_MediaInfo.audio_mpegversion <= 2))
+	{
+		// audio_decoder <--> audio_converter
+		g_signal_connect (m_data.audio_decoder, "pad-added", G_CALLBACK (on_decodebin_pad_added_demux), &m_data);
+	}
+	else
+	{*/
+		// decodbin <--> audio_converter
+		g_signal_connect (m_data.decodebin, "pad-added", G_CALLBACK (on_decodebin_pad_added_demux), &m_data);
+	//}
 #else
 	m_data.video_parser = gst_element_factory_make ("h264parse", "parser");
 	if (!m_data.video_parser)

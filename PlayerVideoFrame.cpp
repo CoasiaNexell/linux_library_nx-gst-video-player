@@ -705,16 +705,16 @@ void PlayerVideoFrame::UpdateDurationInfo(int64_t position, int64_t duration)
 {
     char pos[256], dur[256];
     sprintf(pos, TIME_FORMAT, GST_TIME_ARGS (position));
-	NXLOGD("%s(): position: %s", __FUNCTION__, pos);
+	//NXLOGD("%s(): position: %s", __FUNCTION__, pos);
 
     sprintf(dur, TIME_FORMAT, GST_TIME_ARGS (duration));
-	NXLOGD("%s(): duration: %s", __FUNCTION__, dur);
+	//NXLOGD("%s(): duration: %s", __FUNCTION__, dur);
 
     QString tStr;
     tStr = QString(pos) + " / " + QString(dur);
 
 	ui->durationlabel->setText(tStr);
-	NXLOGI("%s() %s", __FUNCTION__, tStr.toStdString().c_str());
+	//NXLOGI("%s() %s", __FUNCTION__, tStr.toStdString().c_str());
 }
 
 void PlayerVideoFrame::statusChanged(int eventType)

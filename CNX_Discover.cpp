@@ -44,6 +44,8 @@ static void print_stream_info (GstDiscovererStreamInfo *info, gint depth, struct
 	const GstTagList *tags;
 	gint width = -1;
 	gint height = -1;
+	gint video_mpegversion = 0;
+	gint audio_mpegversion = 0;
 	const gchar *stream_type = NULL;
 	gchar *dbg_msg = NULL;
 	const gchar *mime_type;
@@ -73,6 +75,18 @@ static void print_stream_info (GstDiscovererStreamInfo *info, gint depth, struct
 		} else {
 			pMediaInfo->iWidth = width;
 			pMediaInfo->iHeight = height;
+		}
+		if (g_str_has_prefix(mime_type, "video/mpeg"))
+		{
+			gst_structure_get_int (structure, "mpegversion", &video_mpegversion);
+			pMediaInfo->video_mpegversion = video_mpegversion;
+			NXLOGI("%s() video_mpegversion:%d", __FUNCTION__, video_mpegversion);
+		}
+		if (g_str_has_prefix(mime_type, "audio/mpeg"))
+		{
+			gst_structure_get_int (structure, "mpegversion", &audio_mpegversion);
+			pMediaInfo->audio_mpegversion = audio_mpegversion;
+			NXLOGI("%s() audio_mpegversion:%d", __FUNCTION__, audio_mpegversion);
 		}
 		gst_caps_unref (caps);
 	}
