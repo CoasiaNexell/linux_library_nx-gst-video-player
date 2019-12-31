@@ -106,7 +106,6 @@ static void print_stream_info (GstDiscovererStreamInfo *info, gint depth, struct
 				g_free (pMediaInfo->container_format);
 				pMediaInfo->container_format = NULL;
 			}
-			NXLOGI("%s() copy container_format", __FUNCTION__);
 			pMediaInfo->container_format = g_strdup(mime_type);
 		}
 	} else if (g_strcmp0(stream_type, TOPOLOGY_TYPE_VIDEO) == 0) {
@@ -115,18 +114,14 @@ static void print_stream_info (GstDiscovererStreamInfo *info, gint depth, struct
 				g_free (pMediaInfo->video_codec);
 				pMediaInfo->video_codec = NULL;
 			}
-			NXLOGI("%s() copy video_codec", __FUNCTION__);
 			pMediaInfo->video_codec = g_strdup(mime_type);
 		}
 	} else if (g_strcmp0(stream_type, TOPOLOGY_TYPE_AUDIO) == 0) {
-		NXLOGI("%s() copy audio_codec1 stream_type(%s)", __FUNCTION__, stream_type);
 		if (desc) {
 			if (pMediaInfo->audio_codec) {
-				NXLOGI("%s() audio_codec2 not freed", __FUNCTION__);
 				g_free (pMediaInfo->audio_codec);
 				pMediaInfo->audio_codec = NULL;
 			}
-			NXLOGI("%s() copy audio_codec3 mime_type(%s)", __FUNCTION__, mime_type);
 			pMediaInfo->audio_codec = g_strdup(mime_type);
 		}
 	}
@@ -358,7 +353,7 @@ static int start_discover (const char* filePath, GST_MEDIA_INFO *pMediaInfo)
 	return 0;
 }
 
-gboolean isSupportedMedia(const gchar* mimeType)
+gboolean isSupportedMimeType(const gchar* mimeType)
 {
 	/* Quicktime, 3GP, Matroska, AVI, MPEG (vob) */
 	if ((g_strcmp0(mimeType, "video/quicktime") == 0) ||
@@ -387,7 +382,7 @@ NX_GST_ERROR StartDiscover(const char* pUri, GST_MEDIA_INFO **pInfo)
 		NXLOGE("%s Failed to discover", __FUNCTION__);
 		return NX_GST_ERROR_DISCOVER_FAILED;
 	}
-	if (FALSE == isSupportedMedia((*pInfo)->container_format))
+	if (FALSE == isSupportedMimeType((*pInfo)->container_format))
 	{
 		return NX_GST_ERROR_NOT_SUPPORTED_CONTENTS;
 	}

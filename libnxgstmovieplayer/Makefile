@@ -19,6 +19,7 @@ LIBRARY	+= -lstdc++ -lpthread -lm
 ######################################################################
 # Target
 COBJS  	:= GstDiscover.o
+COBJS  	+= NX_GstUtils.o
 #COBJS  	:= NX_GstMoviePlay.o
 
 CPPOBJS	:=

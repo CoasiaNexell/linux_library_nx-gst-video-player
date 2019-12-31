@@ -13,6 +13,7 @@ typedef enum {
 	MP_EVENT_DEMUX_LINK_FAILED,
 	MP_EVENT_NOT_SUPPORTED,
 	MP_EVENT_GST_ERROR,
+	MP_EVENT_STATE_CHANGED,
 	MP_EVENT_NUMS
 } NX_GST_EVENT;
 
@@ -66,11 +67,12 @@ typedef enum
 
 typedef enum
 {
-	MP_STATE_UNKNOWN 	= -1,
-	MP_STATE_STOPPED	= 0,
-	MP_STATE_READY		= 1,
-	MP_STATE_PAUSED 	= 2,
-	MP_STATE_PLAYING	= 3,
+	MP_STATE_UNKNOWN 		= -1,
+	MP_STATE_VOID_PENDING	= 0,
+	MP_STATE_STOPPED		= 1,
+	MP_STATE_READY			= 2,
+	MP_STATE_PAUSED 		= 3,
+	MP_STATE_PLAYING		= 4,
 } NX_MEDIA_STATE;
 
 typedef struct GST_MEDIA_INFO {
@@ -103,7 +105,6 @@ typedef struct DSP_RECT {
 extern "C" {
 #endif	//	__cplusplus
 
-MP_HANDLE NX_GSTMP_CreateMPHandler();
 NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pUri);
 NX_GST_RET NX_GSTMP_Open(MP_HANDLE *handle,
 					           void (*cb)(void *owner, unsigned int msg,
@@ -111,7 +112,7 @@ NX_GST_RET NX_GSTMP_Open(MP_HANDLE *handle,
 				   			   void *cbOwner);
 void NX_GSTMP_Close(MP_HANDLE handle);
 NX_GST_RET NX_GSTMP_GetMediaInfo(MP_HANDLE handle, GST_MEDIA_INFO *pInfo);
-NX_GST_RET NX_GSTMP_SetAspectRatio(MP_HANDLE handle, int dspWidth, int dspHeight);
+NX_GST_RET NX_GSTMP_SetDisplayInfo(MP_HANDLE handle, int dspWidth, int dspHeight, DSP_RECT rect);
 NX_GST_RET NX_GSTMP_Play(MP_HANDLE handle);
 NX_GST_RET NX_GSTMP_Pause(MP_HANDLE hande);
 NX_GST_RET NX_GSTMP_Stop(MP_HANDLE hande);
@@ -120,7 +121,11 @@ gint64 NX_GSTMP_GetDuration(MP_HANDLE handle);
 gint64 NX_GSTMP_GetPosition(MP_HANDLE handle);
 NX_GST_RET NX_GSTMP_SetVolume(MP_HANDLE handle, int volume);
 NX_MEDIA_STATE NX_GSTMP_GetState(MP_HANDLE handle);
+NX_GST_RET NX_GSTMP_VideoMute(MP_HANDLE handle, int32_t bOnoff);
 
+const char* get_nx_media_state(NX_MEDIA_STATE state);
+const char* get_nx_gst_event(NX_GST_EVENT event);
+const char* get_nx_gst_error(NX_GST_ERROR error);
 #ifdef __cplusplus
 }
 #endif

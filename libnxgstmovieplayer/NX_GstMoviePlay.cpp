@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
+#include <unistd.h>
 
 #define LOG_TAG "[NxGstVideoPlayer]"
 #include <NX_Log.h>
@@ -38,6 +39,7 @@ struct MOVIE_TYPE {
 	GstBus *bus;
 
 	pthread_mutex_t apiLock;
+	pthread_mutex_t stateLock;
 
 	gboolean pipeline_is_linked;
 
@@ -48,6 +50,8 @@ struct MOVIE_TYPE {
 	GST_MEDIA_INFO gst_media_info;
 
 	NX_GST_ERROR error;
+
+	gboolean pending;
 
 	//	Callback
 	void (*callback)(void *, unsigned int EventType, unsigned int EventData, unsigned int param);
@@ -70,6 +74,7 @@ class _CAutoLock
 		pthread_mutex_t *m_pLock;
 };
 
+NX_MEDIA_STATE gst_state_to_nx_mp_state(GstState state);
 static gpointer loop_func(gpointer data);
 static void start_loop_thread(MP_HANDLE handle);
 static void stop_my_thread(MP_HANDLE handle);
@@ -182,10 +187,13 @@ on_pad_added_demux (GstElement *element,
 	const gchar *mime_type;
 	GstElement *target_sink_pad = NULL;
 	gint width = 0, height = 0;
-	MP_HANDLE handle = (MP_HANDLE)data;
+	MP_HANDLE handle = NULL;
 
 	FUNC_IN();
 
+	handle = (MP_HANDLE)data;
+
+	NXLOGI("%s()", __FUNCTION__);
     caps = gst_pad_get_current_caps(pad);
     if (caps == NULL) {
         NXLOGE("%s() Failed to get current caps", __FUNCTION__);
@@ -200,7 +208,6 @@ on_pad_added_demux (GstElement *element,
     }
 
 	mime_type = gst_structure_get_name(structure);
-	NXLOGI("%s() mime_type:%s", __FUNCTION__, mime_type);
 	if (g_str_has_prefix(mime_type, "video/")) {
 		target_sink_pad = handle->video_queue;
         sinkpad = gst_element_get_static_pad (target_sink_pad, "sink");
@@ -278,15 +285,37 @@ static gboolean gst_bus_callback (GstBus *bus, GstMessage *msg, MP_HANDLE handle
 					   , GST_OBJECT_NAME (msg->src)
 					   , gst_element_state_get_name (old_state)
 					   , gst_element_state_get_name (new_state));
+				//	Send Message
+				handle->callback(NULL, (int)MP_EVENT_STATE_CHANGED, (int)gst_state_to_nx_mp_state(new_state), 0);
             }
             break;
         }
+		case GST_MESSAGE_DURATION_CHANGED:
+		{
+			NXLOGI("%s() TODO:%s", __FUNCTION__, gst_message_type_get_name(GST_MESSAGE_TYPE(msg)));
+			break;
+		}
+		case GST_MESSAGE_STREAM_STATUS:
+		{
+			GstStreamStatusType t;
+			GstElement *owner;
+			gst_message_parse_stream_status(msg, &t, &owner);
+			break;
+		}
+		case GST_MESSAGE_ASYNC_DONE:
+		{
+			GstClockTime running_time;
+			gst_message_parse_async_done(msg, &running_time);
+			NXLOGI("%s() msg->src(%s) running_time(%" GST_TIME_FORMAT ")",
+					__FUNCTION__, GST_OBJECT_NAME (msg->src), GST_TIME_ARGS (running_time));
+			break;
+		}
         default:
         {
             GstMessageType type = GST_MESSAGE_TYPE(msg);
 			// TODO: parse tag, latency, stream-status, reset-time, async-done, new-clock, etc
-            //NXLOGV("%s() Received GST_MESSAGE_TYPE [%s]",
-            //       __FUNCTION__, gst_message_type_get_name(type));
+            NXLOGV("%s() Received GST_MESSAGE_TYPE [%s]",
+                   __FUNCTION__, gst_message_type_get_name(type));
             break;
         }
     }
@@ -313,46 +342,6 @@ void PrintMediaInfo(MP_HANDLE handle, const char *pUri)
 		   , GST_TIME_ARGS (handle->gst_media_info.iDuration));
 
 	FUNC_OUT();
-}
-
-void GetAspectRatio(int srcWidth, int srcHeight,
-						  int dspWidth, int dspHeight,
-                          DSP_RECT *pDspDstRect)
-{
-	double xRatio = (double)dspWidth / (double)srcWidth;
-	double yRatio = (double)dspHeight / (double)srcHeight;
-
-	if( xRatio > yRatio )
-	{
-		pDspDstRect->iWidth    = (int)((double)srcWidth * yRatio);
-		pDspDstRect->iHeight   = dspHeight;
-	}
-	else
-	{
-		pDspDstRect->iWidth    = dspWidth;
-		pDspDstRect->iHeight   = (int)((double)srcHeight * xRatio);
-	}
-
-	if(dspWidth != pDspDstRect->iWidth)
-	{
-		if(dspWidth > pDspDstRect->iWidth)
-		{
-			pDspDstRect->iX = (dspWidth - pDspDstRect->iWidth)/2;
-		}
-	}
-
-	if(dspHeight != pDspDstRect->iHeight)
-	{
-		if(dspHeight > pDspDstRect->iHeight)
-		{
-			pDspDstRect->iY = (dspHeight - pDspDstRect->iHeight)/2;
-		}
-	}
-
-    NXLOGI("%s() srcWidth(%d), srcHeight(%d), dspWidth(%d), dspWidth(%d)"
-		   " ==> iX(%d), iY(%d), iWidth(%d), iHeight(%d)"
-           , __FUNCTION__, srcWidth, srcHeight, dspWidth, dspHeight,
-           pDspDstRect->iX, pDspDstRect->iY, pDspDstRect->iWidth, pDspDstRect->iHeight);
 }
 
 NX_GST_RET set_demux_element(MP_HANDLE handle)
@@ -580,17 +569,6 @@ NX_GST_RET link_elements(MP_HANDLE handle)
 	return NX_GST_RET_OK;
 }
 
-MP_HANDLE NX_GSTMP_CreateMPHandler()
-{
-	MP_HANDLE handle;
-	handle = (MP_HANDLE)g_malloc0(sizeof(MOVIE_TYPE));
-	if(NULL == handle) {
-		NXLOGE("%s() Failed to alloc memory for handle", __func__);
-		return NULL;
-	}
-	return handle;
-}
-
 NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
 {
 	FUNC_IN();
@@ -709,6 +687,7 @@ NX_GST_RET NX_GSTMP_Open(MP_HANDLE *pHandle,
 	}
 
 	pthread_mutex_init(&handle->apiLock, NULL);
+	pthread_mutex_init(&handle->stateLock, NULL);
 
 	handle->owner = cbOwner;
 	handle->callback = cb;
@@ -786,7 +765,7 @@ NX_GST_RET NX_GSTMP_GetMediaInfo(MP_HANDLE handle, GST_MEDIA_INFO *pGstMInfo)
     return NX_GST_RET_OK;
 }
 
-NX_GST_RET NX_GSTMP_SetAspectRatio(MP_HANDLE handle, int dspWidth, int dspHeight)
+NX_GST_RET NX_GSTMP_SetDisplayInfo(MP_HANDLE handle, int dspWidth, int dspHeight, DSP_RECT rect)
 {
 	_CAutoLock lock(&handle->apiLock);
 
@@ -805,16 +784,10 @@ NX_GST_RET NX_GSTMP_SetAspectRatio(MP_HANDLE handle, int dspWidth, int dspHeight
 		return NX_GST_RET_ERROR;
 	}
 
-	DSP_RECT rect;
-	memset(&rect, 0, sizeof(DSP_RECT));
-
-    GetAspectRatio(handle->gst_media_info.iWidth,
-		  		   handle->gst_media_info.iHeight,
-                   dspWidth, dspHeight,
-                   &rect);
-
 	handle->gst_media_info.iX = rect.iX;
 	handle->gst_media_info.iY = rect.iY;
+	handle->gst_media_info.iWidth= rect.iWidth;
+	handle->gst_media_info.iHeight = rect.iHeight;
 
 	NXLOGD("%s() iX(%d), iY(%d), width(%d), height(%d), dspWidth(%d), dspHeight(%d)"
 		   , __FUNCTION__
@@ -1004,9 +977,12 @@ NX_GST_RET NX_GSTMP_Play(MP_HANDLE handle)
 		return NX_GST_RET_ERROR;
 	}
 
+	// TODO:
 	ret = gst_element_set_state(handle->pipeline, GST_STATE_PLAYING);
+	NXLOGI("%s() set_state(PLAYING) ==> ret(%s)", __FUNCTION__, get_gst_state_change_ret(ret));
+	// pthread_cond_wait( )
 	if(GST_STATE_CHANGE_FAILURE == ret)
-    {
+	{
 		NXLOGE("%s() Failed to set the pipeline to the PLAYING state(ret=%d)", __func__, ret);
 		return NX_GST_RET_ERROR;
 	}
@@ -1034,7 +1010,7 @@ NX_GST_RET NX_GSTMP_Pause(MP_HANDLE handle)
 	ret = gst_element_set_state (handle->pipeline, GST_STATE_PAUSED);
 	if(GST_STATE_CHANGE_FAILURE == ret)
     {
-		NXLOGE("%s() Failed to set the pipeline to the PLAYING state(ret=%d)", __func__, ret);
+		NXLOGE("%s() Failed to set the pipeline to the PAUSED state(ret=%d)", __func__, ret);
 		return NX_GST_RET_ERROR;
 	}
 
@@ -1059,9 +1035,10 @@ NX_GST_RET NX_GSTMP_Stop(MP_HANDLE handle)
 	}
 
 	ret = gst_element_set_state (handle->pipeline, GST_STATE_NULL);
+	NXLOGI("%s() set_state(NULL) ret(%s)", __FUNCTION__, get_gst_state_change_ret(ret));
 	if(GST_STATE_CHANGE_FAILURE == ret)
     {
-		NXLOGE("%s() Failed to set the pipeline to the PLAYING state(ret=%d)", __FUNCTION__, ret);
+		NXLOGE("%s() Failed to set the pipeline to the NULL state(ret=%d)", __FUNCTION__, ret);
 		return NX_GST_RET_ERROR;
 	}
 
@@ -1074,19 +1051,21 @@ NX_MEDIA_STATE NX_GSTMP_GetState(MP_HANDLE handle)
 {
 	_CAutoLock lock(&handle->apiLock);
 
-	if(!handle || !handle->pipeline_is_linked)
+	if (!handle || !handle->pipeline_is_linked)
 	{
         NXLOGE("%s() invalid state or invalid operation.(%p,%d)\n",
                 __FUNCTION__, handle, handle->pipeline_is_linked);
-		return MP_STATE_UNKNOWN;
+		return MP_STATE_STOPPED;
 	}
 
 	FUNC_IN();
 
 	GstState state, pending;
-	NX_MEDIA_STATE nx_state = MP_STATE_UNKNOWN;
+	NX_MEDIA_STATE nx_state = MP_STATE_STOPPED;
 	GstStateChangeReturn ret;
 	ret = gst_element_get_state(handle->pipeline, &state, &pending, 500000000);		//	wait 500 msec
+	NXLOGI("%s() ret(%s) state(%s), pending(%s)",
+		   __FUNCTION__, get_gst_state_change_ret(ret), get_gst_state(state), get_gst_state(pending));
 	if(GST_STATE_CHANGE_FAILURE != ret)
 	{
 		if (state == GST_STATE_NULL)
@@ -1102,11 +1081,97 @@ NX_MEDIA_STATE NX_GSTMP_GetState(MP_HANDLE handle)
 	}
 	else
 	{
-        NXLOGE("%s() Failed to query POSITION", __func__);
+        NXLOGE("%s() Failed to get state", __func__);
 		nx_state = MP_STATE_UNKNOWN;
 	}
 
 	FUNC_OUT();
 	return nx_state;
 }
+
+NX_GST_RET NX_GSTMP_VideoMute(MP_HANDLE handle, int32_t bOnoff)
+{
+	FUNC_IN();
+
+	if(!handle || !handle->pipeline_is_linked)
+	{
+        NXLOGE("%s() invalid state or invalid operation.(%p,%d)\n",
+                __FUNCTION__, handle, handle->pipeline_is_linked);
+		return NX_GST_RET_ERROR;
+	}
+
+	NXLOGI("%s bOnoff(%s) dst-y(%d)", __FUNCTION__
+		   , bOnoff ? "Enable video mute":"Disable video mute"
+		   , bOnoff ? (handle->gst_media_info.iHeight):(handle->gst_media_info.iY));
+
+	_CAutoLock lock(&handle->apiLock);
+
+	if (bOnoff)
+	{
+		g_object_set (G_OBJECT (handle->nxvideosink), "dst-y", handle->gst_media_info.iHeight, NULL);
+	}
+	else
+	{
+		g_object_set (G_OBJECT (handle->nxvideosink), "dst-y", handle->gst_media_info.iY, NULL);
+	}
+	return	NX_GST_RET_OK;
+
+	FUNC_OUT();
+}
+
+NX_MEDIA_STATE gst_state_to_nx_mp_state(GstState state)
+{
+	switch(state) {
+		case GST_STATE_VOID_PENDING:
+			return MP_STATE_VOID_PENDING;
+		case GST_STATE_NULL:
+			return MP_STATE_STOPPED;
+		case GST_STATE_READY:
+			return MP_STATE_READY;
+		case GST_STATE_PAUSED:
+			return MP_STATE_PAUSED;
+		case GST_STATE_PLAYING:
+			return MP_STATE_PLAYING;
+		default:
+			break;
+	}
+	return MP_STATE_UNKNOWN;
+}
+
+const char* get_gst_state(GstState gstState)
+{
+	switch(gstState) {
+		case GST_STATE_VOID_PENDING:
+			return "GST_STATE_VOID_PENDING";
+		case GST_STATE_NULL:
+			return "GST_STATE_NULL";
+		case GST_STATE_READY:
+			return "GST_STATE_READY";
+		case GST_STATE_PAUSED:
+			return "GST_STATE_PAUSED";
+		case GST_STATE_PLAYING:
+			return "GST_STATE_PLAYING";
+		default:
+			break;
+	}
+	return NULL;
+}
+
+const char* get_gst_state_change_ret(GstStateChangeReturn gstStateChangeRet)
+{
+	switch(gstStateChangeRet) {
+		case GST_STATE_CHANGE_FAILURE:
+			return "GST_STATE_CHANGE_FAILURE";
+		case GST_STATE_CHANGE_SUCCESS:
+			return "GST_STATE_CHANGE_SUCCESS";
+		case GST_STATE_CHANGE_ASYNC:
+			return "GST_STATE_CHANGE_ASYNC";
+		case GST_STATE_CHANGE_NO_PREROLL:
+			return "GST_STATE_CHANGE_NO_PREROLL";
+		default:
+			break;
+	}
+	return NULL;
+}
+
 

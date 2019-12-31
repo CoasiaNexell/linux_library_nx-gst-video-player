@@ -50,7 +50,8 @@
 #include <gst/gstpad.h>
 #include <gst/app/gstappsink.h>
 
-bool isSupportedMedia(const gchar* mimeType);
+const char* get_gst_state(GstState gstState);
+const char* get_gst_state_change_ret(GstStateChangeReturn gstStateChangeRet);
 
 #endif	// __NX_GST_MOVIEPLAY_H__
 
