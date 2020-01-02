@@ -110,19 +110,19 @@ static void print_stream_info (GstDiscovererStreamInfo *info, gint depth, struct
 		}
 	} else if (g_strcmp0(stream_type, TOPOLOGY_TYPE_VIDEO) == 0) {
 		if (desc) {
-			if (pMediaInfo->video_codec) {
-				g_free (pMediaInfo->video_codec);
-				pMediaInfo->video_codec = NULL;
+			if (pMediaInfo->video_mime_type) {
+				g_free (pMediaInfo->video_mime_type);
+				pMediaInfo->video_mime_type = NULL;
 			}
-			pMediaInfo->video_codec = g_strdup(mime_type);
+			pMediaInfo->video_mime_type = g_strdup(mime_type);
 		}
 	} else if (g_strcmp0(stream_type, TOPOLOGY_TYPE_AUDIO) == 0) {
 		if (desc) {
-			if (pMediaInfo->audio_codec) {
-				g_free (pMediaInfo->audio_codec);
-				pMediaInfo->audio_codec = NULL;
+			if (pMediaInfo->audio_mime_type) {
+				g_free (pMediaInfo->audio_mime_type);
+				pMediaInfo->audio_mime_type = NULL;
 			}
-			pMediaInfo->audio_codec = g_strdup(mime_type);
+			pMediaInfo->audio_mime_type = g_strdup(mime_type);
 		}
 	}
 

@@ -38,14 +38,13 @@
 **
 ****************************************************************************/
 
-#ifndef CNX_MoviePlayer_H
-#define CNX_MoviePlayer_H
+#ifndef CNX_GstMoviePlayer_H
+#define CNX_GstMoviePlayer_H
 
 #include <QTime>
 #include <QDebug>
 #include "CNX_Util.h"
-#include "NX_MediaInfo.h"
-#include "CNX_Discover.h"
+#include <NX_GstMovie.h>
 
 #include <gst/gst.h>
 #include <glib.h>
@@ -53,58 +52,21 @@
 #include <gst/gstpad.h>
 #include <gst/app/gstappsink.h>
 
-typedef struct DSP_RECT {
-    int32_t     iX;
-    int32_t     iY;
-    int32_t     iWidth;
-    int32_t     iHeight;
-} DSP_RECT;
-
-typedef struct _MovieData {
-	GstElement *source;
-
-	GstElement *filesrc_typefind;
-
-	GstElement *audio_queue;
-	GstElement *video_queue;
-
-	GstElement *demuxer;
-	GstElement *video_parser;
-	GstElement *nxdecoder;
-	GstElement *nxvideosink;
-
-	GstElement *decodebin;
-	GstElement *audio_parser;
-	GstElement *audio_decoder;
-	GstElement *audioconvert;
-	GstElement *audioresample;
-	GstElement *autoaudiosink;
-
-	GstElement *volume;
-} MovieData;
-
-class CNX_MoviePlayer
+class CNX_GstMoviePlayer
 {
 
 public:
-	CNX_MoviePlayer();
-	~CNX_MoviePlayer();
+	CNX_GstMoviePlayer();
+	~CNX_GstMoviePlayer();
 
 public:
 	//
 	//MediaPlayer commomn Initialize , close
 	//mediaType is MP_TRACK_VIDEO or MP_TRACK_AUDIO
-	int InitMediaPlayer(	void (*pCbEventCallback)( void *privateDesc, unsigned int EventType, unsigned int /*EventData*/, unsigned int /*param*/ ),
-							void *pCbPrivate,
-							const char *pUri,
-							int mediaType,
-							int DspWidth,
-							int DspHeight,
-							char *pAudioDeviceName,
-							void (*pCbQtUpdateImg)(void *pImg)
-							);
-    int SetupGStreamer(void (*pCbEventCallback)(void *privateDesc, unsigned int EventType, unsigned int EventData, unsigned int param),
-                       const char *uri, int DspWidth, int DspHeight);
+	int InitMediaPlayer(void (*pCbEventCallback)(void *privateDesc, unsigned int EventType, unsigned int EventData, unsigned int param),
+							void *pCbPrivate, const char *pUri,
+							int DspWidth, int DspHeight,
+							char *pAudioDeviceName);
 
 	int CloseHandle();
 
@@ -117,42 +79,27 @@ public:
 
 	//MediaPlayer common information
     void PrintMediaInfo(const char* pUri);
-	qint64 GetMediaPosition();
-	qint64 GetMediaDuration();
-
-    //NX_MediaStatus GetState();
-    GstState GetState();
-
-	//MediaPlayer video information
-	void DrmVideoMute(int bOnOff);
-
-    void registerCb(void (*pCbEventCallback)(void *, unsigned int EventType, unsigned int EventData, unsigned int param));
+	gint64 GetMediaPosition();
+	gint64 GetMediaDuration();
+	NX_MEDIA_STATE GetState();
+	int SetDisplayInfo(int dspWidth, int dspHeight, DSP_RECT rect);
+	int DrmVideoMute(int bOnOff);
 
 private:
-	//
 	//MediaPlayer InitMediaPlayer
-	int OpenHandle( void (*pCbEventCallback)( void *privateDesc, unsigned int EventType, unsigned int /*EventData*/, unsigned int /*param*/ ),
-					void *cbPrivate );
-	int GetMediaInfo(const char* uri);
-
+	int OpenHandle(void (*pCbEventCallback)(void *privateDesc, unsigned int EventType, unsigned int EventData, unsigned int param),
+					void *cbPrivate);
+	int SetUri(const char *pUri);
+	
+	int GetMediaInfo();
 	void GetAspectRatio(int srcWidth, int srcHeight,
 						int dspWidth, int dspHeight,
-                        DSP_RECT *pDspDstRect);
+						DSP_RECT *pDspDstRect);
 
-    int initialize();
-    int deinitialize();
-
-	//
 	//vars
 	bool    debug;
 	pthread_mutex_t	m_hLock;
-
-    GMainLoop *m_Loop;
-    GstBus *m_Bus;
-    guint m_WatchId;
-	GstElement *m_Pipeline;
-
-	MovieData m_data;
+	MP_HANDLE		m_hPlayer;
 
     int m_X, m_Y, m_Width, m_Height;
 
@@ -160,14 +107,13 @@ private:
 	int             m_bVideoMute;
 
 	GST_MEDIA_INFO	m_MediaInfo;
-    DSP_RECT m_dstDspRect;
-
-    CNX_Discover    *m_pDiscover;
+	DSP_RECT m_dstDspRect;
 
 	char			*m_pAudioDeviceName;
 
 public:
 	int IsCbQtUpdateImg();
+
 };
 
-#endif // CNX_MoviePlayer_H
+#endif // CNX_GstMoviePlayer_H

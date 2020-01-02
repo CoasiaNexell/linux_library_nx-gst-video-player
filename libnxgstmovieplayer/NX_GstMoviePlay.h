@@ -52,6 +52,7 @@
 
 const char* get_gst_state(GstState gstState);
 const char* get_gst_state_change_ret(GstStateChangeReturn gstStateChangeRet);
+NX_MEDIA_STATE GstState2NxState(GstState state);
 
 #endif	// __NX_GST_MOVIEPLAY_H__
 

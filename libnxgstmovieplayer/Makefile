@@ -4,17 +4,11 @@ include ../../../env.mk
 
 ######################################################################
 # Includes
-#INCLUDE += -I$(GLIB_INC) -I$(GLIB_LIB)/include
-#INCLUDE += -I$(GST_INC)
-#INCLUDE += -I./ -I$(LIBSDIR)/include
 INCLUDE		+= -I. -I../../prebuilt/include
 
 ######################################################################
 # Libraries
 LIBRARY	+= -lstdc++ -lpthread -lm
-#LIBRARY += -L$(GLIB_LIB) -lglib-2.0 
-#LIBRARY += -L$(GST_LIB) -lgstreamer-1.0 -lgstreamer-pbutils-1.0
-#LIBRARY += -L$(LIBSDIR)/lib -lnxtypefind
 
 ######################################################################
 # Target

@@ -67,7 +67,6 @@ typedef enum
 
 typedef enum
 {
-	MP_STATE_UNKNOWN 		= -1,
 	MP_STATE_VOID_PENDING	= 0,
 	MP_STATE_STOPPED		= 1,
 	MP_STATE_READY			= 2,
@@ -77,8 +76,8 @@ typedef enum
 
 typedef struct GST_MEDIA_INFO {
 	gchar*          container_format;
-	gchar*          video_codec;
-	gchar*          audio_codec;
+	gchar*          video_mime_type;
+	gchar*          audio_mime_type;
 	gint32          iWidth;
 	gint32          iHeight;
 	gint32          iX;

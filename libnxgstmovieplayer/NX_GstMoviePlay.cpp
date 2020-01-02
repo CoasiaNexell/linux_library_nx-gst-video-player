@@ -74,7 +74,7 @@ class _CAutoLock
 		pthread_mutex_t *m_pLock;
 };
 
-NX_MEDIA_STATE gst_state_to_nx_mp_state(GstState state);
+NX_MEDIA_STATE GstState2NxState(GstState state);
 static gpointer loop_func(gpointer data);
 static void start_loop_thread(MP_HANDLE handle);
 static void stop_my_thread(MP_HANDLE handle);
@@ -286,7 +286,7 @@ static gboolean gst_bus_callback (GstBus *bus, GstMessage *msg, MP_HANDLE handle
 					   , gst_element_state_get_name (old_state)
 					   , gst_element_state_get_name (new_state));
 				//	Send Message
-				handle->callback(NULL, (int)MP_EVENT_STATE_CHANGED, (int)gst_state_to_nx_mp_state(new_state), 0);
+				handle->callback(NULL, (int)MP_EVENT_STATE_CHANGED, (int)GstState2NxState(new_state), 0);
             }
             break;
         }
@@ -328,14 +328,14 @@ void PrintMediaInfo(MP_HANDLE handle, const char *pUri)
 
 	FUNC_IN();
 
-	NXLOGI("%s() [%s] container(%s), video codec(%s)"
-		   ", audio codec(%s), seekable(%s), width(%d), height(%d)"
+	NXLOGI("%s() [%s] container(%s), video mime-type(%s)"
+		   ", audio mime-type(%s), seekable(%s), width(%d), height(%d)"
 		   ", duration: (%" GST_TIME_FORMAT ")\r"
 		   , __FUNCTION__
 		   , pUri
 		   , handle->gst_media_info.container_format
-		   , handle->gst_media_info.video_codec
-		   , handle->gst_media_info.audio_codec
+		   , handle->gst_media_info.video_mime_type
+		   , handle->gst_media_info.audio_mime_type
 		   , handle->gst_media_info.isSeekable ? "yes":"no"
 		   , handle->gst_media_info.iWidth
 		   , handle->gst_media_info.iHeight
@@ -422,7 +422,7 @@ NX_GST_RET set_video_elements(MP_HANDLE handle)
 	}
 
     handle->video_queue = gst_element_factory_make ("queue2", "video_queue");
-	if (g_strcmp0(handle->gst_media_info.video_codec, "video/x-h264") == 0)
+	if (g_strcmp0(handle->gst_media_info.video_mime_type, "video/x-h264") == 0)
 	{
 		handle->video_parser = gst_element_factory_make ("h264parse", "parser");
 		if (!handle->video_parser) {
@@ -430,7 +430,7 @@ NX_GST_RET set_video_elements(MP_HANDLE handle)
 			return NX_GST_RET_ERROR;
 		}
 	}
-	else if ((g_strcmp0(handle->gst_media_info.video_codec, "video/mpeg") == 0) &&
+	else if ((g_strcmp0(handle->gst_media_info.video_mime_type, "video/mpeg") == 0) &&
 		     (handle->gst_media_info.video_mpegversion <= 2))
 	{
 		handle->video_parser = gst_element_factory_make ("mpegvideoparse", "parser");
@@ -487,8 +487,8 @@ NX_GST_RET add_elements_to_bin(MP_HANDLE handle)
 		return NX_GST_RET_ERROR;
 	}
 
-	if ((g_strcmp0(handle->gst_media_info.video_codec, "video/x-h264") == 0) ||
-		 ((g_strcmp0(handle->gst_media_info.video_codec, "video/mpeg") == 0) && (handle->gst_media_info.video_mpegversion <= 2)) )
+	if ((g_strcmp0(handle->gst_media_info.video_mime_type, "video/x-h264") == 0) ||
+		 ((g_strcmp0(handle->gst_media_info.video_mime_type, "video/mpeg") == 0) && (handle->gst_media_info.video_mpegversion <= 2)) )
 	{
 		gst_bin_add_many(GST_BIN(handle->pipeline)
 						 , handle->source, handle->demuxer
@@ -532,8 +532,8 @@ NX_GST_RET link_elements(MP_HANDLE handle)
 				gst_element_get_name(handle->source), gst_element_get_name(handle->demuxer));
 	}
 
-	if((g_strcmp0(handle->gst_media_info.video_codec, "video/x-h264") == 0) ||
-	    ((g_strcmp0(handle->gst_media_info.video_codec, "video/mpeg") == 0) && (handle->gst_media_info.video_mpegversion <= 2)) )
+	if((g_strcmp0(handle->gst_media_info.video_mime_type, "video/x-h264") == 0) ||
+	    ((g_strcmp0(handle->gst_media_info.video_mime_type, "video/mpeg") == 0) && (handle->gst_media_info.video_mpegversion <= 2)) )
 	{
 		if (!gst_element_link_many(handle->video_queue, handle->video_parser, handle->nxdecoder, handle->nxvideosink, NULL)) {
 			NXLOGE("%s() Failed to link video elements with video_parser", __func__);
@@ -605,8 +605,8 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
 		   ", duration: (%" GST_TIME_FORMAT ")\r"
 		   , __FUNCTION__
 		   , pGstMInfo->container_format
-		   , pGstMInfo->video_codec
-		   , pGstMInfo->audio_codec
+		   , pGstMInfo->video_mime_type
+		   , pGstMInfo->audio_mime_type
 		   , pGstMInfo->isSeekable ? "yes":"no"
 		   , pGstMInfo->iWidth
 		   , pGstMInfo->iHeight
@@ -753,8 +753,8 @@ NX_GST_RET NX_GSTMP_GetMediaInfo(MP_HANDLE handle, GST_MEDIA_INFO *pGstMInfo)
 		   ", duration: (%" GST_TIME_FORMAT ")\r"
 		   , __FUNCTION__
 		   , pGstMInfo->container_format
-		   , pGstMInfo->video_codec
-		   , pGstMInfo->audio_codec
+		   , pGstMInfo->video_mime_type
+		   , pGstMInfo->audio_mime_type
 		   , pGstMInfo->isSeekable ? "yes":"no"
 		   , pGstMInfo->iWidth
 		   , pGstMInfo->iHeight
@@ -813,7 +813,7 @@ gint64 NX_GSTMP_GetPosition(MP_HANDLE handle)
 	GstStateChangeReturn ret;
 	gint64 position;
 
-	FUNC_IN();
+	//FUNC_IN();
 
 	if (NULL == handle)
 		return -1;
@@ -842,7 +842,7 @@ gint64 NX_GSTMP_GetPosition(MP_HANDLE handle)
 		return -1;
 	}
 
-	FUNC_OUT();
+	//FUNC_OUT();
 
 	return position;
 }
@@ -855,7 +855,7 @@ gint64 NX_GSTMP_GetDuration(MP_HANDLE handle)
 	GstStateChangeReturn ret;
 	gint64 duration;
 
-	FUNC_IN();
+	//FUNC_IN();
 
 	if(!handle || !handle->pipeline_is_linked)
 	{
@@ -888,7 +888,7 @@ gint64 NX_GSTMP_GetDuration(MP_HANDLE handle)
 		return -1;
 	}
 
-	FUNC_OUT();
+	//FUNC_OUT();
 
 	return duration;
 }
@@ -977,10 +977,8 @@ NX_GST_RET NX_GSTMP_Play(MP_HANDLE handle)
 		return NX_GST_RET_ERROR;
 	}
 
-	// TODO:
 	ret = gst_element_set_state(handle->pipeline, GST_STATE_PLAYING);
 	NXLOGI("%s() set_state(PLAYING) ==> ret(%s)", __FUNCTION__, get_gst_state_change_ret(ret));
-	// pthread_cond_wait( )
 	if(GST_STATE_CHANGE_FAILURE == ret)
 	{
 		NXLOGE("%s() Failed to set the pipeline to the PLAYING state(ret=%d)", __func__, ret);
@@ -1066,24 +1064,21 @@ NX_MEDIA_STATE NX_GSTMP_GetState(MP_HANDLE handle)
 	ret = gst_element_get_state(handle->pipeline, &state, &pending, 500000000);		//	wait 500 msec
 	NXLOGI("%s() ret(%s) state(%s), pending(%s)",
 		   __FUNCTION__, get_gst_state_change_ret(ret), get_gst_state(state), get_gst_state(pending));
-	if(GST_STATE_CHANGE_FAILURE != ret)
+	if (GST_STATE_CHANGE_SUCCESS == ret || GST_STATE_CHANGE_NO_PREROLL == ret)
 	{
-		if (state == GST_STATE_NULL)
-			nx_state = MP_STATE_STOPPED;
-		else if (state == GST_STATE_READY)
-			nx_state = MP_STATE_READY;
-		else if (state == GST_STATE_PAUSED)
-			nx_state = MP_STATE_PAUSED;
-		else if (state == GST_STATE_PLAYING)
-			nx_state = MP_STATE_PLAYING;
-		else
-			nx_state = MP_STATE_UNKNOWN;
+		nx_state = GstState2NxState(state);
+	}
+	else if (GST_STATE_CHANGE_ASYNC == ret)
+	{
+		nx_state = GstState2NxState(pending);
 	}
 	else
 	{
         NXLOGE("%s() Failed to get state", __func__);
-		nx_state = MP_STATE_UNKNOWN;
+		nx_state = MP_STATE_STOPPED;
 	}
+
+	NXLOGI("%s() nx_state(%s)", __FUNCTION__, get_nx_media_state(nx_state));
 
 	FUNC_OUT();
 	return nx_state;
@@ -1119,7 +1114,7 @@ NX_GST_RET NX_GSTMP_VideoMute(MP_HANDLE handle, int32_t bOnoff)
 	FUNC_OUT();
 }
 
-NX_MEDIA_STATE gst_state_to_nx_mp_state(GstState state)
+NX_MEDIA_STATE GstState2NxState(GstState state)
 {
 	switch(state) {
 		case GST_STATE_VOID_PENDING:
@@ -1135,7 +1130,8 @@ NX_MEDIA_STATE gst_state_to_nx_mp_state(GstState state)
 		default:
 			break;
 	}
-	return MP_STATE_UNKNOWN;
+	NXLOGE("%s() No matched state", __FUNCTION__);
+	return MP_STATE_STOPPED;
 }
 
 const char* get_gst_state(GstState gstState)
@@ -1154,6 +1150,7 @@ const char* get_gst_state(GstState gstState)
 		default:
 			break;
 	}
+	NXLOGE("%s() No matched state", __FUNCTION__);
 	return NULL;
 }
 
@@ -1173,5 +1170,3 @@ const char* get_gst_state_change_ret(GstStateChangeReturn gstStateChangeRet)
 	}
 	return NULL;
 }
-
-

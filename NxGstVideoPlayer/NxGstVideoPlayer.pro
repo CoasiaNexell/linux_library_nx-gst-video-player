@@ -30,6 +30,8 @@ CONFIG += plugin
     # Add icu libraries
     LIBS += -licuuc -licui18n
 
+    LIBS += -L$$PWD/../../library/prebuilt/lib -lnxgstmovplayer
+
     INCLUDEPATH += $$PWD/../../library/include
     INCLUDEPATH += $$PWD/../../library/prebuilt/include
 
@@ -37,25 +39,22 @@ CONFIG += link_pkgconfig
 PKGCONFIG += glib-2.0 gstreamer-1.0 gstreamer-pbutils-1.0
 
 SOURCES += \
-    CNX_MoviePlayer.cpp \
     CNX_FileList.cpp \
     MainFrame.cpp \
     DAudioIface_Impl.cpp \
     PlayerVideoFrame.cpp \
     PlayListVideoFrame.cpp \
-    CNX_Discover.cpp
+    CNX_GstMoviePlayer.cpp
 
 HEADERS  += \
     CNX_Util.h \
     CNX_Util.h \
-    CNX_MoviePlayer.h \
     CNX_FileList.h \
     MainFrame.h \
     NxEvent.h \
     PlayListVideoFrame.h \
     PlayerVideoFrame.h \
-    CNX_Discover.h \
-    NX_MediaInfo.h
+    CNX_GstMoviePlayer.h
 
 FORMS    += \
     MainFrame.ui \

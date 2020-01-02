@@ -12,7 +12,7 @@
 #include <CNX_StatusBar.h>
 
 #include "CNX_FileList.h"
-#include "CNX_MoviePlayer.h"
+#include "CNX_GstMoviePlayer.h"
 
 #include "CNX_Util.h"
 #include "PlayListVideoFrame.h"
@@ -30,6 +30,9 @@
 #include <NX_DAudioUtils.h>
 #define VOLUME_MIN  0
 #define VOLUME_MAX  100
+
+#include <NX_GstMovie.h>
+
 
 #include <QObject>
 class CallBackSignal : public QObject
@@ -129,7 +132,7 @@ public:
 
 private:
     bool            dbg;
-	CNX_MoviePlayer	*m_pNxPlayer;
+	CNX_GstMoviePlayer	*m_pNxPlayer;
 	QTextCodec*		m_pCodec;
 	bool			m_bSubThreadFlag;
 	int				m_iVolValue;
