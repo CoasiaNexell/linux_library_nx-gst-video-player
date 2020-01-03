@@ -56,7 +56,7 @@ class CNX_GstMoviePlayer
 {
 
 public:
-	CNX_GstMoviePlayer();
+	CNX_GstMoviePlayer(QWidget *parent = 0);
 	~CNX_GstMoviePlayer();
 
 public:

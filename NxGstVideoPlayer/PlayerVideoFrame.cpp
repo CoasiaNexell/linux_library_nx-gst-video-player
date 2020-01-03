@@ -3,6 +3,8 @@
 #include <QTextCodec>
 #include <QDesktopWidget>
 
+#include <NX_GstMovie.h>
+
 //Display Mode
 #define DSP_FULL   0
 #define DSP_HALF   1
@@ -66,20 +68,20 @@ static	CallBackSignal mediaStateCb;
 static	PlayerVideoFrame *pPlayFrame = NULL;
 
 //CallBack Eos, Error
-static void cbEventCallback( void */*privateDesc*/, unsigned int EventType, unsigned int /*EventData*/, unsigned int /*param*/ )
+static void cbEventCallback(void *privateDesc, unsigned int EventType, unsigned int EventData, unsigned int param)
 {
-	mediaStateCb.statusChanged(EventType);
+	mediaStateCb.statusChanged(EventType, EventData);
 }
 
 //CallBack Qt
-static void cbStatusHome( void *pObj )
+static void cbStatusHome(void *pObj)
 {
 	(void)pObj;
 	PlayerVideoFrame *p = (PlayerVideoFrame *)pObj;
 	QApplication::postEvent(p, new NxStatusHomeEvent());
 }
 
-static void cbStatusBack( void *pObj )
+static void cbStatusBack(void *pObj)
 {
 	PlayerVideoFrame *pW = (PlayerVideoFrame *)pObj;
 	pW->SaveInfo();
@@ -157,13 +159,13 @@ PlayerVideoFrame::PlayerVideoFrame(QWidget *parent)
 	}
 
 
-	m_pNxPlayer = new CNX_GstMoviePlayer();
+	m_pNxPlayer = new CNX_GstMoviePlayer(this);
 
 	UpdateFileList();
 	m_pIConfig = GetConfigHandle();
 
 	//	Connect Solt Functions
-	connect(&mediaStateCb, SIGNAL(mediaStatusChanged(int)), SLOT(statusChanged(int)));
+	connect(&mediaStateCb, SIGNAL(mediaStatusChanged(int, int)), SLOT(statusChanged(int, int)));
 	pPlayFrame = this;
 
 	ui->graphicsView->viewport()->installEventFilter(this);
@@ -173,8 +175,6 @@ PlayerVideoFrame::PlayerVideoFrame(QWidget *parent)
 	connect(&m_PosUpdateTimer, SIGNAL(timeout()), this, SLOT(DoPositionUpdate()));
 
 	setAttribute(Qt::WA_AcceptTouchEvents, true);
-
-	m_PosUpdateTimer.start(300);
 
 	//
 	//	Initialize UI Controls
@@ -692,14 +692,22 @@ void PlayerVideoFrame::DoPositionUpdate()
 
 	if(m_bIsInitialized)
 	{
-		int64_t iDuration = m_pNxPlayer->GetMediaDuration();
-		int64_t iPosition = m_pNxPlayer->GetMediaPosition();
+		int64_t iDuration = 0;
+		int64_t iPosition = 0;
+
+		if (m_pNxPlayer->GetState() != MP_STATE_READY &&
+			m_pNxPlayer->GetState() != MP_STATE_STOPPED)
+		{
+			iDuration = m_pNxPlayer->GetMediaDuration();
+			iPosition = m_pNxPlayer->GetMediaPosition();
+		}
 
 		if( (0 > iDuration) || (0 > iPosition) )
 		{
 			iPosition = 0;
 			iDuration = 0;
 		}
+
 		//	ProgressBar
 		ui->progressBar->setValue(NANOSEC_TO_SEC(iPosition));
         UpdateDurationInfo(iPosition, iDuration);
@@ -728,7 +736,27 @@ void PlayerVideoFrame::UpdateDurationInfo(int64_t position, int64_t duration)
 	//NXLOGD("%s() %s", __FUNCTION__, tStr.toStdString().c_str());
 }
 
-void PlayerVideoFrame::statusChanged(int eventType)
+const char *NxGstEvent2String(NX_GST_EVENT event)
+{
+	switch(event)
+	{
+		case MP_EVENT_EOS:
+			return "MP_EVENT_EOS";
+		case MP_EVENT_DEMUX_LINK_FAILED:
+			return "MP_EVENT_DEMUX_LINK_FAILED";
+		case MP_EVENT_NOT_SUPPORTED:
+			return "MP_EVENT_NOT_SUPPORTED";
+		case MP_EVENT_GST_ERROR:
+			return "MP_EVENT_GST_ERROR";
+		case MP_EVENT_STATE_CHANGED:
+			return "MP_EVENT_STATE_CHANGED";
+		default:
+			return NULL;
+	};
+	return NULL;
+}
+
+void PlayerVideoFrame::statusChanged(int eventType, int eventData)
 {
 	if(m_bTurnOffFlag)
 	{
@@ -736,29 +764,44 @@ void PlayerVideoFrame::statusChanged(int eventType)
 		return;
 	}
 
-    NXLOGI("%s() eventType(%d) ", __FUNCTION__, eventType);
+    NXLOGI("%s() eventType '%s'", __FUNCTION__, NxGstEvent2String((NX_GST_EVENT)eventType));
+
 	switch (eventType)
 	{
     case MP_EVENT_EOS:
 	{
-		NXLOGI("******** End-Of-Stream !!!");
 		PlayNextVideo();
 		break;
 	}
 	case MP_EVENT_DEMUX_LINK_FAILED:
 	{
-		NXLOGE("******** MP_EVENT_DEMUX_LINK_FAILED !!!");
 		PlayNextVideo();
 		break;
 	}
 	case MP_EVENT_GST_ERROR:
 	{
-		NXLOGE("******** MP_EVENT_GST_ERROR !!!");
 		break;
 	}
 	case MP_EVENT_STATE_CHANGED:
 	{
-		NXLOGE("******** MP_EVENT_STATE_CHANGED !!!");
+		NX_MEDIA_STATE new_state = (NX_MEDIA_STATE)eventData;
+		ui->playButton->setEnabled(new_state != MP_STATE_PLAYING);
+		ui->pauseButton->setEnabled(new_state == MP_STATE_PLAYING);
+		ui->stopButton->setEnabled(new_state != MP_STATE_STOPPED);
+
+		if (new_state == MP_STATE_PLAYING)
+		{
+			m_PosUpdateTimer.start(100);
+		}
+		else if (new_state == MP_STATE_PAUSED)
+		{
+			m_PosUpdateTimer.stop();
+		}
+
+		if (new_state == MP_STATE_STOPPED)
+		{
+			DoPositionUpdate();
+		}
 		break;
 	}
 	default:
@@ -784,7 +827,11 @@ bool PlayerVideoFrame::StopVideo()
 	m_bStopRenderingFlag = true;
 	m_statusMutex.Unlock();
 
-	m_pNxPlayer->Stop();
+	if (-1 < m_pNxPlayer->Stop())
+	{
+		NXLOGI("%s() send MP_EVENT_STATE_CHANGED with stopped", __FUNCTION__);
+		statusChanged((int)MP_EVENT_STATE_CHANGED, (int)MP_STATE_STOPPED);
+	}
 	CloseVideo();
 
 	m_fSpeed = 1.0;

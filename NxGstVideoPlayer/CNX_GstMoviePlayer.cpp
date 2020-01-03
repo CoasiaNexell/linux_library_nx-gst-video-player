@@ -10,7 +10,7 @@
 #include <math.h>
 
 //------------------------------------------------------------------------------
-CNX_GstMoviePlayer::CNX_GstMoviePlayer()
+CNX_GstMoviePlayer::CNX_GstMoviePlayer(QWidget *parent)
     : debug(false)
     , m_hPlayer(NULL)
 	, m_pAudioDeviceName(NULL)

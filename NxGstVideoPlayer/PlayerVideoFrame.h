@@ -43,13 +43,13 @@ public:
 	CallBackSignal() {}
 
 public slots:
-	void statusChanged(int eventType)
+	void statusChanged(int eventType, int eventData)
 	{
-		emit mediaStatusChanged(eventType);
+		emit mediaStatusChanged(eventType, eventData);
 	}
 
 signals:
-	void mediaStatusChanged(int newValue);
+	void mediaStatusChanged(int eventType, int eventData);
 };
 
 namespace Ui {
@@ -66,7 +66,7 @@ signals:
 private slots:
 	void slotPlayListFrameAccept();
 	void slotPlayListFrameReject();
-	void statusChanged(int eventType);
+	void statusChanged(int eventType, int eventData);
 	void DoPositionUpdate();
 
 	void on_prevButton_released();

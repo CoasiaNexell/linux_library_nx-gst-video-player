@@ -399,7 +399,7 @@ NX_GST_RET set_audio_elements(MP_HANDLE handle)
     handle->audioresample = gst_element_factory_make ("audioresample", "audioresample");
     handle->autoaudiosink = gst_element_factory_make ("autoaudiosink", "autoaudiosink");
 
-	if (!handle->audio_queue || !handle->decodebin || !handle->audioconvert ||
+	if (!handle->audio_queue || 		!handle->decodebin || !handle->audioconvert ||
 		!handle->audioresample || !handle->autoaudiosink)
 	{
 		NXLOGE("%s() Failed to create audio elements", __func__);
@@ -666,8 +666,8 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
 }
 
 NX_GST_RET NX_GSTMP_Open(MP_HANDLE *pHandle,
-						  	   void (*cb)(void *owner, unsigned int msg,
-                  				          unsigned int param1, unsigned int param2),
+						  	   void (*cb)(void *owner, unsigned int eventType,
+                  				          unsigned int eventData, unsigned int param2),
            					   void *cbOwner)
 {
 	FUNC_IN();
@@ -748,8 +748,8 @@ NX_GST_RET NX_GSTMP_GetMediaInfo(MP_HANDLE handle, GST_MEDIA_INFO *pGstMInfo)
 
 	memcpy(pGstMInfo, &handle->gst_media_info, sizeof(GST_MEDIA_INFO));
  
-	NXLOGI("%s() container(%s), video codec(%s)"
-		   ", audio codec(%s), seekable(%s), width(%d), height(%d)"
+	NXLOGI("%s() container(%s), video mime-type(%s)"
+		   ", audio mime-type(%s), seekable(%s), width(%d), height(%d)"
 		   ", duration: (%" GST_TIME_FORMAT ")\r"
 		   , __FUNCTION__
 		   , pGstMInfo->container_format
@@ -832,13 +832,13 @@ gint64 NX_GSTMP_GetPosition(MP_HANDLE handle)
 		}
 		else
 		{
-            //NXLOGE("%s() Invalid state to query POSITION", __func__);
+            NXLOGE("%s() Invalid state to query POSITION", __func__);
 			return -1;
 		}
 	}
 	else
 	{
-        //NXLOGE("%s() Failed to query POSITION", __func__);
+        NXLOGE("%s() Failed to query POSITION", __func__);
 		return -1;
 	}
 
@@ -872,19 +872,19 @@ gint64 NX_GSTMP_GetDuration(MP_HANDLE handle)
 			GstFormat format = GST_FORMAT_TIME;
 			if(gst_element_query_duration(handle->pipeline, format, &duration))
 			{
-				//NXLOGI("%s() Duration: %" GST_TIME_FORMAT "\r",
+				//NXLOGV("%s() Duration: %" GST_TIME_FORMAT "\r",
                 //        __func__, GST_TIME_ARGS (duration));
 			}
 		}
 		else
 		{
-			//NXLOGE("%s() Invalid state to query DURATION", __func__);
+			NXLOGE("%s() Invalid state to query DURATION", __func__);
 			return -1;
 		}
 	}
 	else
 	{
-		//NXLOGE("%s() Failed to query DURATION", __func__);
+		NXLOGE("%s() Failed to query DURATION", __func__);
 		return -1;
 	}
 
@@ -1062,8 +1062,8 @@ NX_MEDIA_STATE NX_GSTMP_GetState(MP_HANDLE handle)
 	NX_MEDIA_STATE nx_state = MP_STATE_STOPPED;
 	GstStateChangeReturn ret;
 	ret = gst_element_get_state(handle->pipeline, &state, &pending, 500000000);		//	wait 500 msec
-	NXLOGI("%s() ret(%s) state(%s), pending(%s)",
-		   __FUNCTION__, get_gst_state_change_ret(ret), get_gst_state(state), get_gst_state(pending));
+	//NXLOGI("%s() ret(%s) state(%s), pending(%s)",
+	//	   __FUNCTION__, get_gst_state_change_ret(ret), get_gst_state(state), get_gst_state(pending));
 	if (GST_STATE_CHANGE_SUCCESS == ret || GST_STATE_CHANGE_NO_PREROLL == ret)
 	{
 		nx_state = GstState2NxState(state);
@@ -1078,7 +1078,7 @@ NX_MEDIA_STATE NX_GSTMP_GetState(MP_HANDLE handle)
 		nx_state = MP_STATE_STOPPED;
 	}
 
-	NXLOGI("%s() nx_state(%s)", __FUNCTION__, get_nx_media_state(nx_state));
+	//NXLOGI("%s() nx_state(%s)", __FUNCTION__, get_nx_media_state(nx_state));
 
 	FUNC_OUT();
 	return nx_state;
