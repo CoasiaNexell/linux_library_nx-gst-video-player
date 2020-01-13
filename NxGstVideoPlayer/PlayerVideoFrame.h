@@ -180,7 +180,7 @@ private:
 	void (*m_pRequestVolume)(void);
 
 	// Video Speed
-	float m_fSpeed;
+	gdouble m_fSpeed;
 	bool m_bNotSupportSpeed;
 
 	//Message

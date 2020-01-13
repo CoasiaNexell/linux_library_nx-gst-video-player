@@ -143,7 +143,6 @@ PlayerVideoFrame::PlayerVideoFrame(QWidget *parent)
 	, m_pRequestLauncherShow(NULL)
 	, m_pRequestVolume(NULL)
 	, m_fSpeed(1.0)
-	, m_bNotSupportSpeed (false)
 	, m_pMessageFrame(NULL)
 	, m_pMessageLabel(NULL)
 	, m_pMessageButton(NULL)
@@ -385,7 +384,8 @@ bool PlayerVideoFrame::SeekToPrev(int* iSavedPosition, int* iFileIdx)
 		if(qFile.remove())
 		{
 			NXLOGE("config.xml is removed because of open err\n");
-		}else
+		}
+		else
 		{
 			NXLOGE("Deleting config.xml is failed!\n");
 		}
@@ -594,6 +594,18 @@ void PlayerVideoFrame::updateProgressBar(QMouseEvent *event, bool bReleased)
                 qint64 position = ratio * NANOSEC_TO_MSEC(m_iDuration);
                 NXLOGI("%s() ratio: %lf, m_iDuration: %lld, conv_msec:%lld",
                        __FUNCTION__, ratio, m_iDuration, NANOSEC_TO_SEC(m_iDuration));
+				if (m_fSpeed > 1.0)
+				{
+					if (0 > m_pNxPlayer->SetVideoSpeed(1.0))
+					{
+
+					}
+					else
+					{
+						m_fSpeed = 1.0;
+						ui->speedButton->setText("x 1");
+					}
+				}
                 SeekVideo(position);
 
 				//seek subtitle
@@ -603,7 +615,7 @@ void PlayerVideoFrame::updateProgressBar(QMouseEvent *event, bool bReleased)
 				NXLOGD("Position = %lld", position);
 			}
 			NXLOGD("Do Seek !!!");
-			m_PosUpdateTimer.start(300);
+			DoPositionUpdate();
 		}
 		m_bSeekReady = false;
 	}
@@ -785,7 +797,7 @@ void PlayerVideoFrame::statusChanged(int eventType, int eventData)
 	case MP_EVENT_STATE_CHANGED:
 	{
 		NX_MEDIA_STATE new_state = (NX_MEDIA_STATE)eventData;
-		ui->playButton->setEnabled(new_state != MP_STATE_PLAYING);
+		ui->playButton->setEnabled((new_state != MP_STATE_PLAYING) || (m_fSpeed != 1.0));
 		ui->pauseButton->setEnabled(new_state == MP_STATE_PLAYING);
 		ui->stopButton->setEnabled(new_state != MP_STATE_STOPPED);
 
@@ -836,25 +848,6 @@ bool PlayerVideoFrame::StopVideo()
 
 	m_fSpeed = 1.0;
 	ui->speedButton->setText("x 1");
-	QString style;
-	style += "QProgressBar {";
-	style += "  border: 2px solid grey;";
-	style += "  border-radius: 5px;";
-	style += "  background: white;";
-	style += "}";
-
-	style += "QProgressBar::chunk {";
-	style += "  background-color: rgb(37, 86, 201);";
-	style += "width: 20px;";
-	style += "}";
-	ui->progressBar->setStyleSheet(style);
-
-	if(m_bNotSupportSpeed)
-	{
-		m_bNotSupportSpeed = false;
-		m_pMessageFrame->hide();
-	}
-
 	return true;
 }
 
@@ -938,6 +931,18 @@ void PlayerVideoFrame::PlaySeek()
 
 	if(seekflag)
 	{
+		if (m_fSpeed > 1.0)
+		{
+			if (0 > m_pNxPlayer->SetVideoSpeed(1.0))
+			{
+				
+			}
+			else
+			{
+				m_fSpeed = 1.0;
+				ui->speedButton->setText("x 1");
+			}
+		}
 		//seek video
 		SeekVideo( iSavedPosition );
 
@@ -956,31 +961,46 @@ bool PlayerVideoFrame::PlayVideo()
 		return false;
 	}
 
+	gdouble video_speed = m_pNxPlayer->GetVideoSpeed();
 	NX_MEDIA_STATE state = m_pNxPlayer->GetState();
-	NXLOGI("%s() state: %s", __FUNCTION__, get_nx_media_state(state));
+	NXLOGI("%s() The previous state before playing is %s",
+			__FUNCTION__, get_nx_media_state(state));
 
+	if(MP_STATE_PLAYING == state)
+	{
+		NXLOGW("%s() The current video speed(%f) in PLYAING state", __FUNCTION__, video_speed);
+		if(1.0 == video_speed)
+		{
+			NXLOGW("%s() already playing", __FUNCTION__);
+			return true;
+		}
+		else
+		{
+			/* When pressing 'play' button while playing the video with the speed x2, x4, ..., x16,
+			 * play the video with the normal speed (x1).
+			 */
+			if (0 > m_pNxPlayer->SetVideoSpeed(1.0))
+			{
+				NXLOGE("%s() Failed to set video speed as 1.0", __FUNCTION__);
+				return false;
+			}
+			else
+			{
+				m_fSpeed = 1.0;
+				ui->speedButton->setText("x 1");
+				m_pNxPlayer->Play();
+			}
+			return true;
+		}
+	}
+
+	/* When pressing 'play' button in the paused state with the specific playback speed,
+	 * it needs to play with the same playback speed.
+	 */
 	if((MP_STATE_PAUSED == state) || (MP_STATE_READY == state))
 	{
+		NXLOGI("%s m_fSPeed(%f), video_speed(%f)", __FUNCTION__, m_fSpeed, video_speed);
 		m_pNxPlayer->Play();
-
-		//if(1.0 == m_pNxPlayer->GetVideoSpeed())
-		{
-			m_fSpeed = 1.0;
-			ui->speedButton->setText("x 1");
-			QString style;
-			style += "QProgressBar {";
-			style += "  border: 2px solid grey;";
-			style += "  border-radius: 5px;";
-			style += "  background: white;";
-			style += "}";
-
-			style += "QProgressBar::chunk {";
-			style += "  background-color: rgb(37, 86, 201);";
-			style += "width: 20px;";
-			style += "}";
-
-			ui->progressBar->setStyleSheet(style);
-		}
 		return true;
 	}
 	else if(MP_STATE_STOPPED == state)
@@ -1002,7 +1022,7 @@ bool PlayerVideoFrame::PlayVideo()
 					m_statusMutex.Unlock();
 				}
 
-				m_fSpeed = 1.0;
+				m_fSpeed = video_speed;
 				ui->speedButton->setText("x 1");
 
 				iResult = m_pNxPlayer->InitMediaPlayer(cbEventCallback, NULL,
@@ -1037,22 +1057,9 @@ bool PlayerVideoFrame::PlayVideo()
 						}
 						ui->appNameLabel->setText(m_FileList.GetList(m_iCurFileListIdx));
 
-						//if(1.0 == m_pNxPlayer->GetVideoSpeed())
+						if(1.0 == m_pNxPlayer->GetVideoSpeed())
 						{
 							ui->speedButton->setText("x 1");
-							QString style;
-							style += "QProgressBar {";
-							style += "  border: 2px solid grey;";
-							style += "  border-radius: 5px;";
-							style += "  background: white;";
-							style += "}";
-
-							style += "QProgressBar::chunk {";
-							style += "  background-color: rgb(37, 86, 201);";
-							style += "width: 20px;";
-							style += "}";
-
-							ui->progressBar->setStyleSheet(style);
 						}
 
 						NXLOGI("%s() *********** media play done! *********** ", __FUNCTION__);
@@ -1167,12 +1174,6 @@ bool PlayerVideoFrame::GetVideoMuteStatus()
 
 bool PlayerVideoFrame::VideoMuteStart()
 {
-	if(m_fSpeed > 1.0)
-	{
-		StopVideo();
-		return true;
-	}
-
 	SetVideoMute(true);
 	m_pNxPlayer->DrmVideoMute(true);
 
@@ -1181,12 +1182,6 @@ bool PlayerVideoFrame::VideoMuteStart()
 
 bool PlayerVideoFrame::VideoMuteStop()
 {
-	if(m_fSpeed > 1.0)
-	{
-		StopVideo();
-		return true;
-	}
-
 	m_pNxPlayer->DrmVideoMute(false);
 	SetVideoMute(false);
 
@@ -1517,36 +1512,39 @@ void PlayerVideoFrame::on_speedButton_released()
 		return;
 	}
 
-	//if ( m_pNxPlayer->GetVideoSpeedSupport() < 0)
-	if (1)
+	if (0 > m_pNxPlayer->GetVideoSpeedSupport())
 	{
-		if(m_bNotSupportSpeed)
+		m_pMessageFrame->show();
+		m_pMessageLabel->setText("\n  Not Support Speed !!\n  -Support file(.mp4,.mkv,.avi)\n  -Support Codec(h264, mpeg4)\n");
+		return;
+	}
+
+	gdouble old_speed = 1.0;
+	gdouble new_speed = 1.0;
+
+	old_speed = m_fSpeed;
+	new_speed = m_fSpeed * 2;
+	if(new_speed > 16)
+		new_speed = 1.0;
+
+	if (0 > m_pNxPlayer->SetVideoSpeed(new_speed))
+	{
+		m_fSpeed = old_speed;
+	}
+	else
+	{
+		m_fSpeed = new_speed;
+		if (MP_STATE_PLAYING == state)
 		{
-			return;
-		}
-        else
-		{
-			m_pMessageFrame->show();
-			m_pMessageLabel->setText("\n  Not Support Speed !!\n  -Support file(.mp4,.mkv,.avi)\n  -Support Codec(h264, mpeg4)\n");
-			m_bNotSupportSpeed = true;
-			return;
+			m_pNxPlayer->Play();
 		}
 	}
 
-	m_fSpeed = m_fSpeed * 2;
-
-	if(m_fSpeed > 16)
-	{
-		m_fSpeed = 1.0;
-	}
-
-	if(m_fSpeed ==1.0) ui->speedButton->setText("x 1");
-	else if(m_fSpeed ==2.0) ui->speedButton->setText("x 2");
-	else if(m_fSpeed ==4.0) ui->speedButton->setText("x 4");
-	else if(m_fSpeed ==8.0) ui->speedButton->setText("x 8");
-	else if(m_fSpeed ==16.0) ui->speedButton->setText("x 16");
-
-	//m_pNxPlayer->SetVideoSpeed( m_fSpeed  );
+	if(m_fSpeed == 1.0) ui->speedButton->setText("x 1");
+	else if(m_fSpeed == 2.0) ui->speedButton->setText("x 2");
+	else if(m_fSpeed == 4.0) ui->speedButton->setText("x 4");
+	else if(m_fSpeed == 8.0) ui->speedButton->setText("x 8");
+	else if(m_fSpeed == 16.0) ui->speedButton->setText("x 16");
 
 	if(m_fSpeed > 1.0)
 	{

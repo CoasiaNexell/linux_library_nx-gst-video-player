@@ -13,6 +13,7 @@
 CNX_GstMoviePlayer::CNX_GstMoviePlayer(QWidget *parent)
     : debug(false)
     , m_hPlayer(NULL)
+	, m_fSpeed(1.0)
 	, m_pAudioDeviceName(NULL)
 {
 	pthread_mutex_init(&m_hLock, NULL);
@@ -358,3 +359,56 @@ void CNX_GstMoviePlayer::GetAspectRatio(int srcWidth, int srcHeight,
 	}
 }
 
+gdouble CNX_GstMoviePlayer::GetVideoSpeed()
+{
+	gdouble speed = 1.0;
+
+	if(NULL == m_hPlayer)
+	{
+		NXLOGE("%s: Error! Handle is not initialized!", __FUNCTION__);
+		return speed;
+	}
+
+	speed = NX_GSTMP_GetVideoSpeed(m_hPlayer);
+	NXLOGI("%s() GetVideoSpeed(%f)", __FUNCTION__, speed);
+	return speed;
+}
+
+int CNX_GstMoviePlayer::SetVideoSpeed(gdouble speed)
+{
+	if(NULL == m_hPlayer)
+	{
+		NXLOGE("%s: Error! Handle is not initialized!", __FUNCTION__);
+		return -1;
+	}
+
+	NXLOGI("%s() SetVideoSpeed(%f)", __FUNCTION__, speed);
+	NX_GST_RET iResult = NX_GSTMP_SetVideoSpeed(m_hPlayer, speed);
+	if(NX_GST_RET_OK != iResult)
+	{
+		NXLOGE("%s(): Error! NX_GSTMP_SetVideoSpeed() Failed! (ret = %d)\n", __FUNCTION__, iResult);
+		return -1;
+	}
+
+	return 0;
+}
+
+int	CNX_GstMoviePlayer::GetVideoSpeedSupport()
+{
+	int ret = 0;
+
+	if(NULL == m_hPlayer)
+	{
+		NXLOGE("%s: Error! Handle is not initialized!", __FUNCTION__);
+		return -1;
+	}
+
+	bool iResult = NX_MPGetVideoSpeedSupport(m_hPlayer);
+	if(true != iResult)
+	{
+		NXLOGE( "%s: Error! This file doesn't support changing playback speed!", __FUNCTION__);
+		return -1;
+	}
+
+	return ret;
+}

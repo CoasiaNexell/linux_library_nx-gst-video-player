@@ -84,6 +84,9 @@ public:
 	NX_MEDIA_STATE GetState();
 	int SetDisplayInfo(int dspWidth, int dspHeight, DSP_RECT rect);
 	int DrmVideoMute(int bOnOff);
+	int SetVideoSpeed(gdouble speed);
+	gdouble GetVideoSpeed();
+	int GetVideoSpeedSupport();
 
 private:
 	//MediaPlayer InitMediaPlayer
@@ -110,7 +113,7 @@ private:
 	DSP_RECT m_dstDspRect;
 
 	char			*m_pAudioDeviceName;
-
+	gdouble 		m_fSpeed;
 public:
 	int IsCbQtUpdateImg();
 

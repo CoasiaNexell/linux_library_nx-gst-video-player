@@ -33,6 +33,7 @@ struct MOVIE_TYPE {
 	GstElement *autoaudiosink;
 
 	GstElement *volume;
+	gdouble rate;                 /* Current playback rate (can be negative) */
 
 	GMainLoop *loop;
 	GThread *thread;
@@ -79,6 +80,7 @@ static gpointer loop_func(gpointer data);
 static void start_loop_thread(MP_HANDLE handle);
 static void stop_my_thread(MP_HANDLE handle);
 static gboolean gst_bus_callback(GstBus *bus, GstMessage *msg, MP_HANDLE handle);
+static NX_GST_RET seek_to_time (MP_HANDLE handle, gint64 time_nanoseconds);
 
 static gpointer loop_func(gpointer data)
 {
@@ -316,6 +318,7 @@ static gboolean gst_bus_callback (GstBus *bus, GstMessage *msg, MP_HANDLE handle
 			// TODO: parse tag, latency, stream-status, reset-time, async-done, new-clock, etc
             NXLOGV("%s() Received GST_MESSAGE_TYPE [%s]",
                    __FUNCTION__, gst_message_type_get_name(type));
+			// For tags : gst_message_parse_tag(), gst_tag_list_unref()
             break;
         }
     }
@@ -644,6 +647,8 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
 		return NX_GST_RET_ERROR;
 	}
 
+	handle->rate = 1.0;
+
 	// demuxer <--> audio_queue/video_queue
 	g_signal_connect(handle->demuxer,	"pad-added", G_CALLBACK (on_pad_added_demux), handle);
 	// decodbin <--> audio_converter
@@ -911,11 +916,72 @@ NX_GST_RET NX_GSTMP_SetVolume(MP_HANDLE handle, int volume)
     return NX_GST_RET_OK;
 }
 
-static NX_GST_RET seek_to_time (GstElement *pipeline, gint64 time_nanoseconds)
+static gboolean send_step_event (MP_HANDLE handle)
 {
-    if(!gst_element_seek (pipeline, 1.0, GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH,
-                          GST_SEEK_TYPE_SET, time_nanoseconds,
-                          GST_SEEK_TYPE_NONE, GST_CLOCK_TIME_NONE)) {
+	gboolean ret;
+
+	if (handle->nxvideosink == NULL) {
+		/* If we have not done so, obtain the sink through which we will send the step events */
+		g_object_get (handle->pipeline, "video-sink", &handle->nxvideosink, NULL);
+	}
+
+	ret = gst_element_send_event (handle->nxvideosink,
+					gst_event_new_step (GST_FORMAT_BUFFERS, 1, ABS (handle->rate), TRUE, FALSE));
+
+	NXLOGI("%s() Stepping one frame", __FUNCTION__);
+
+	return ret;
+}
+
+static int send_seek_event (MP_HANDLE handle)
+{
+	gint64 position;
+	GstEvent *seek_event;
+	GstFormat format = GST_FORMAT_TIME;
+	GstSeekFlags flags = (GstSeekFlags)(GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_SNAP_AFTER | GST_SEEK_FLAG_KEY_UNIT);
+
+	/* Obtain the current position, needed for the seek event */
+	if (!gst_element_query_position (handle->pipeline, format, &position)) {
+		NXLOGE("s() Unable to retrieve current position", __FUNCTION__);
+		return -1;
+	}
+
+	/* Create the seek event */
+	if (handle->rate > 0) {
+		seek_event =
+			gst_event_new_seek (handle->rate, format, flags,
+								GST_SEEK_TYPE_SET, position,
+								GST_SEEK_TYPE_END, 0);
+	} else {
+		seek_event =
+			gst_event_new_seek (handle->rate, format, flags,
+								GST_SEEK_TYPE_SET, 0,
+								GST_SEEK_TYPE_SET, position);
+	}
+
+	if (handle->nxvideosink == NULL) {
+		/* If we have not done so, obtain the sink through which we will send the seek events */
+		g_object_get (handle->pipeline, "video-sink", &handle->nxvideosink, NULL);
+	}
+
+	/* Send the event */
+	gst_element_send_event (handle->nxvideosink, seek_event);
+
+	NXLOGI("%s() Current rate: %g\n", __FUNCTION__, handle->rate);
+	return 0;
+}
+
+static NX_GST_RET seek_to_time (MP_HANDLE handle, gint64 time_nanoseconds)
+{
+	GstFormat format = GST_FORMAT_TIME;
+
+    if(!gst_element_seek (handle->pipeline, handle->rate, format,
+						  GST_SEEK_FLAG_FLUSH,		/* gdouble rate */
+                          GST_SEEK_TYPE_SET,		/* GstSeekType start_type */
+						  time_nanoseconds,			/* gint64 start */
+                          GST_SEEK_TYPE_NONE,		/* GstSeekType stop_type */
+						  GST_CLOCK_TIME_NONE))		/* gint64 stop */
+	{
         NXLOGE("%s() Failed to seek %lld!", __func__, time_nanoseconds);
         return NX_GST_RET_ERROR;
     }
@@ -926,40 +992,40 @@ NX_GST_RET NX_GSTMP_Seek(MP_HANDLE handle, gint64 seekTime)
 {
 	_CAutoLock lock(&handle->apiLock);
 
-	GstState state, pending;
-	GstStateChangeReturn ret;
-
 	FUNC_IN();
 
+	NX_GST_RET ret = NX_GST_RET_ERROR;
+	
 	if(!handle || !handle->pipeline_is_linked)
 	{
 		NXLOGE("%s() : invalid state or invalid operation.(%p,%d)\n",
                 __func__, handle, handle->pipeline_is_linked);
-		return NX_GST_RET_ERROR;
+		return ret;
 	}
 
-	ret = gst_element_get_state(handle->pipeline, &state, &pending, 500000000);		//	wait 500 msec
-	if(GST_STATE_CHANGE_FAILURE != ret)
+	GstState state, pending;
+	if(GST_STATE_CHANGE_FAILURE != gst_element_get_state(handle->pipeline, &state, &pending, 500000000))	
 	{
 		if(state == GST_STATE_PLAYING || state == GST_STATE_PAUSED || state == GST_STATE_READY)
 		{
-            return seek_to_time(handle->pipeline, seekTime*(1000*1000)); /*mSec to NanoSec*/
+			NXLOGI("%s() state(%s) with the rate %f", __FUNCTION__, gst_element_state_get_name (state), handle->rate);
+            ret = seek_to_time(handle, seekTime*(1000*1000)); /*mSec to NanoSec*/
 		}
 		else
 		{
 			NXLOGE("%s() Invalid state to seek", __func__);
-			return NX_GST_RET_ERROR;
+			ret = NX_GST_RET_ERROR;
 		}
 	}
 	else
 	{
 		NXLOGE("%s() Failed to seek", __func__);
-		return NX_GST_RET_ERROR;
+		ret = NX_GST_RET_ERROR;
 	}
 
 	FUNC_OUT();
 
-	return NX_GST_RET_ERROR;
+	return ret;
 }
 
 NX_GST_RET NX_GSTMP_Play(MP_HANDLE handle)
@@ -977,11 +1043,32 @@ NX_GST_RET NX_GSTMP_Play(MP_HANDLE handle)
 		return NX_GST_RET_ERROR;
 	}
 
-	ret = gst_element_set_state(handle->pipeline, GST_STATE_PLAYING);
-	NXLOGI("%s() set_state(PLAYING) ==> ret(%s)", __FUNCTION__, get_gst_state_change_ret(ret));
-	if(GST_STATE_CHANGE_FAILURE == ret)
+	GstState state, pending;
+	if(GST_STATE_CHANGE_FAILURE != gst_element_get_state(handle->pipeline, &state, &pending, 500000000))
 	{
-		NXLOGE("%s() Failed to set the pipeline to the PLAYING state(ret=%d)", __func__, ret);
+		NXLOGI("%s previous state '%s' with (x%d)", __FUNCTION__, gst_element_state_get_name (state), int(handle->rate));
+		if(GST_STATE_PLAYING == state)
+		{
+			if (0 > send_seek_event(handle))
+			{
+				NXLOGE("%s() Failed to send seek event", __FUNCTION__);
+				return NX_GST_RET_ERROR;
+			}
+			//send_step_event(handle);
+		}
+		else
+		{
+			ret = gst_element_set_state(handle->pipeline, GST_STATE_PLAYING);
+			NXLOGI("%s() set_state(PLAYING) ==> ret(%s)", __FUNCTION__, get_gst_state_change_ret(ret));
+			if(GST_STATE_CHANGE_FAILURE == ret)
+			{
+				NXLOGE("%s() Failed to set the pipeline to the PLAYING state(ret=%d)", __func__, ret);
+				return NX_GST_RET_ERROR;
+			}
+		}
+	}
+	else {
+		NXLOGE("%s() Failed to get state", __FUNCTION__);
 		return NX_GST_RET_ERROR;
 	}
 
@@ -1032,6 +1119,7 @@ NX_GST_RET NX_GSTMP_Stop(MP_HANDLE handle)
 		return NX_GST_RET_ERROR;
 	}
 
+	handle->rate = 1.0;
 	ret = gst_element_set_state (handle->pipeline, GST_STATE_NULL);
 	NXLOGI("%s() set_state(NULL) ret(%s)", __FUNCTION__, get_gst_state_change_ret(ret));
 	if(GST_STATE_CHANGE_FAILURE == ret)
@@ -1056,7 +1144,7 @@ NX_MEDIA_STATE NX_GSTMP_GetState(MP_HANDLE handle)
 		return MP_STATE_STOPPED;
 	}
 
-	FUNC_IN();
+	//FUNC_IN();
 
 	GstState state, pending;
 	NX_MEDIA_STATE nx_state = MP_STATE_STOPPED;
@@ -1080,7 +1168,7 @@ NX_MEDIA_STATE NX_GSTMP_GetState(MP_HANDLE handle)
 
 	//NXLOGI("%s() nx_state(%s)", __FUNCTION__, get_nx_media_state(nx_state));
 
-	FUNC_OUT();
+	//FUNC_OUT();
 	return nx_state;
 }
 
@@ -1112,6 +1200,60 @@ NX_GST_RET NX_GSTMP_VideoMute(MP_HANDLE handle, int32_t bOnoff)
 	return	NX_GST_RET_OK;
 
 	FUNC_OUT();
+}
+
+gdouble NX_GSTMP_GetVideoSpeed(MP_HANDLE handle)
+{
+	gdouble speed = 1.0;
+
+	if(!handle || !handle->pipeline_is_linked)
+	{
+        NXLOGE("%s() Return the default video speed since it's not ready");
+		return speed;
+	}
+
+	NXLOGI("%s() rate: %d", __FUNCTION__, (int)handle->rate);
+	if ((int)handle->rate == 0)
+		speed = 1.0;
+	else
+		speed = handle->rate;
+
+	NXLOGI("%s() current playback speed (%f)", __FUNCTION__, speed);
+	return speed;
+}
+
+/* It's available in PAUSED or PLAYING state */
+NX_GST_RET NX_GSTMP_SetVideoSpeed(MP_HANDLE handle, gdouble speed)
+{
+	FUNC_IN();
+
+	if(!handle || !handle->pipeline_is_linked)
+	{
+        NXLOGE("%s() invalid state or invalid operation.(%p,%d)\n",
+                __FUNCTION__, handle, handle->pipeline_is_linked);
+		return NX_GST_RET_ERROR;
+	}
+
+	if(false == handle->gst_media_info.isSeekable)
+	{
+		NXLOGE("%s This video doesn't support 'seekable'", __FUNCTION__);
+		return NX_GST_RET_ERROR;
+	}
+
+	handle->rate = speed;
+	return NX_GST_RET_OK;
+}
+
+gboolean NX_MPGetVideoSpeedSupport(MP_HANDLE handle)
+{
+	if(!handle || !handle->pipeline_is_linked)
+	{
+        NXLOGE("%s() invalid state or invalid operation.(%p,%d)\n",
+                __FUNCTION__, handle, handle->pipeline_is_linked);
+		return NX_GST_RET_ERROR;
+	}
+
+	return handle->gst_media_info.isSeekable;
 }
 
 NX_MEDIA_STATE GstState2NxState(GstState state)
