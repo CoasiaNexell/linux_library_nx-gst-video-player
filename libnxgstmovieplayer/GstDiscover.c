@@ -8,6 +8,7 @@
 #include <NX_Log.h>
 
 //#define ASYNC_DISCOVER
+static gboolean dbg = FALSE;
 
 /* Structure to contain all our information, so we can pass it around */
 typedef struct _DiscoverData {
@@ -18,7 +19,7 @@ typedef struct _DiscoverData {
 /* Print a tag in a human-readable format (name: value) */
 static void print_tag_foreach (const GstTagList *tags, const gchar *tag, gpointer user_data)
 {
-	FUNC_IN();
+	//FUNC_IN();
 
 	GValue val = { 0, };
 	gchar *str;
@@ -31,12 +32,12 @@ static void print_tag_foreach (const GstTagList *tags, const gchar *tag, gpointe
 	else
 		str = gst_value_serialize (&val);
 
-	NXLOGI("%s(): %*s%s: %s", __FUNCTION__, 2 * depth, " ", gst_tag_get_nick (tag), str);
+	NXLOGI("%*s%s: %s", 2 * depth, " ", gst_tag_get_nick (tag), str);
 
 	g_free (str);
 	g_value_unset (&val);
 
-	FUNC_OUT();
+	//FUNC_OUT();
 }
 
 /* Print information regarding a stream */
@@ -51,7 +52,6 @@ static void print_stream_info (GstDiscovererStreamInfo *info, gint depth, struct
 	gint audio_mpegversion = 0;
 	const gchar *stream_type = NULL;
 	gchar *dbg_msg = NULL;
-	const gchar *mime_type;
 
 	FUNC_IN();
 
@@ -63,68 +63,12 @@ static void print_stream_info (GstDiscovererStreamInfo *info, gint depth, struct
 			desc = gst_pb_utils_get_codec_description (caps);
 		else
 			desc = gst_caps_to_string (caps);
-
-		GstStructure *structure = gst_caps_get_structure(caps, 0);
-		if (structure == NULL) {
-			NXLOGE("%s() Failed to get current caps", __FUNCTION__);
-			return;
-		}
-		mime_type = gst_structure_get_name(structure);
-
-		gboolean res;
-		res = gst_structure_get_int (structure, "width", &width);
-		res |= gst_structure_get_int (structure, "height", &height);
-		if (!res) {
-			//NXLOGI("%s() no dimensions", __FUNCTION__);
-		} else {
-			pMediaInfo->iWidth = width;
-			pMediaInfo->iHeight = height;
-		}
-		if (g_str_has_prefix(mime_type, "video/mpeg"))
-		{
-			gst_structure_get_int (structure, "mpegversion", &video_mpegversion);
-			pMediaInfo->video_mpegversion = video_mpegversion;
-			NXLOGI("%s() video_mpegversion:%d", __FUNCTION__, video_mpegversion);
-		}
-		if (g_str_has_prefix(mime_type, "audio/mpeg"))
-		{
-			gst_structure_get_int (structure, "mpegversion", &audio_mpegversion);
-			pMediaInfo->audio_mpegversion = audio_mpegversion;
-			NXLOGI("%s() audio_mpegversion:%d", __FUNCTION__, audio_mpegversion);
-		}
 		gst_caps_unref (caps);
 	}
 
-	NXLOGI("## %s() %*s%s: %s ==> %s"
-		   , __FUNCTION__, 2 * depth, " "
-		   , (stream_type ? stream_type : ""), (desc ? desc : "")
-		   , (mime_type ? mime_type : ""));
-
-	if (g_strcmp0(stream_type, TOPOLOGY_TYPE_CONTAINER) == 0) {
-		if (desc) {
-			if (pMediaInfo->container_format) {
-				g_free (pMediaInfo->container_format);
-				pMediaInfo->container_format = NULL;
-			}
-			pMediaInfo->container_format = g_strdup(mime_type);
-		}
-	} else if (g_strcmp0(stream_type, TOPOLOGY_TYPE_VIDEO) == 0) {
-		if (desc) {
-			if (pMediaInfo->video_mime_type) {
-				g_free (pMediaInfo->video_mime_type);
-				pMediaInfo->video_mime_type = NULL;
-			}
-			pMediaInfo->video_mime_type = g_strdup(mime_type);
-		}
-	} else if (g_strcmp0(stream_type, TOPOLOGY_TYPE_AUDIO) == 0) {
-		if (desc) {
-			if (pMediaInfo->audio_mime_type) {
-				g_free (pMediaInfo->audio_mime_type);
-				pMediaInfo->audio_mime_type = NULL;
-			}
-			pMediaInfo->audio_mime_type = g_strdup(mime_type);
-		}
-	}
+	NXLOGI("## %*s%s: %s ==> %s"
+		   , 2 * depth, " "
+		   , (stream_type ? stream_type : ""), (desc ? desc : ""));
 
 	if (desc) {
 		g_free (desc);
@@ -133,62 +77,162 @@ static void print_stream_info (GstDiscovererStreamInfo *info, gint depth, struct
 
 	tags = gst_discoverer_stream_info_get_tags (info);
 	if (tags) {
-		NXLOGI("** %s() %*sTags:", __FUNCTION__, 2 * (depth + 1), " ");
+		NXLOGI("** %*sTags:", 2 * (depth + 1), " ");
 		gst_tag_list_foreach (tags, print_tag_foreach, GINT_TO_POINTER (depth + 2));
 	}
 
 	FUNC_OUT();
+}
 
-	/*
-	// https://git.collabora.com/cgit/user/kakaroto/gst-plugins-base.git/plain/tools/gst-discoverer.c
-	if (1) {
-	  if (GST_IS_DISCOVERER_AUDIO_INFO (info))
-		dbg_msg =
-			gst_stream_audio_information_to_string (info,
-			GPOINTER_TO_INT (depth) + 1);
-	  else if (GST_IS_DISCOVERER_VIDEO_INFO (info))
-		dbg_msg =
-			gst_stream_video_information_to_string (info,
-			GPOINTER_TO_INT (depth) + 1);
-	  else if (GST_IS_DISCOVERER_SUBTITLE_INFO (info))
-		dbg_msg =
-			gst_stream_subtitle_information_to_string (info,
-			GPOINTER_TO_INT (depth) + 1);
-	  if (desc) {
-		NXLOGE ("%s() %s", __FUNCTION__, dbg_msg);
-		g_free (dbg_msg);
-	  }
-	*/
+static void get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth, struct GST_MEDIA_INFO* pMediaInfo)
+{
+	gchar *desc = NULL;
+	GstCaps *caps;
+	const GstTagList *tags;
+	gint width = -1;
+	gint height = -1;
+	gint video_mpegversion = 0;
+	gint audio_mpegversion = 0;
+	const gchar *stream_type = NULL;
+	gchar *dbg_msg = NULL;
+	const gchar *mime_type;
+
+	//FUNC_IN();
+
+	stream_type = gst_discoverer_stream_info_get_stream_type_nick (sinfo);
+	caps = gst_discoverer_stream_info_get_caps (sinfo);
+	if (caps) {
+		if (gst_caps_is_fixed (caps))
+			desc = gst_pb_utils_get_codec_description (caps);
+		else
+			desc = gst_caps_to_string (caps);
+	}
+
+	GstStructure *structure = gst_caps_get_structure(caps, 0);
+	if (structure == NULL) {
+		NXLOGE("%s() Failed to get current caps", __FUNCTION__);
+		gst_caps_unref (caps);
+		return;
+	}
+	gst_caps_unref (caps);
+
+	mime_type = gst_structure_get_name(structure);
+	if (dbg)
+		NXLOGI("%s() %*s%s: %s ==> %s"
+		   , __FUNCTION__, 2 * 1, " "
+		   , (stream_type ? stream_type : ""), (desc ? desc : "")
+		   , (mime_type ? mime_type : ""));
+
+	if (desc) {
+		g_free (desc);
+		desc = NULL;
+	}
+
+/*	tags = gst_discoverer_stream_info_get_tags (sinfo);
+	if (tags) {
+		NXLOGI("** %s() %*sTags:", __FUNCTION__, 2 * (depth + 1), " ");
+		gst_tag_list_foreach (tags, print_tag_foreach, GINT_TO_POINTER (depth + 2));
+	}
+*/
+	if (GST_IS_DISCOVERER_CONTAINER_INFO (sinfo))
+	{
+		pMediaInfo->n_container++;
+		//gst_stream_container_information(sinfo, pMediaInfo);
+		if (pMediaInfo->container_format) {
+			g_free (pMediaInfo->container_format);
+			pMediaInfo->container_format = NULL;
+		}
+		pMediaInfo->container_format = g_strdup(mime_type);
+		gchar *container_format;
+		//if (tags) gst_tag_list_get_string (tags, GST_TAG_CONTAINER_FORMAT, &container_format);
+
+		NXLOGI("%s() n_container(%d) container_format(%s)"
+				, __FUNCTION__, pMediaInfo->n_container
+				, pMediaInfo->container_format);
+
+		if (container_format)
+			g_free(container_format);
+	}
+	else if (GST_IS_DISCOVERER_VIDEO_INFO (sinfo))
+	{
+		pMediaInfo->n_video++;
+		//gst_stream_video_information(sinfo, pMediaInfo);
+		if (pMediaInfo->video_mime_type) {
+			g_free (pMediaInfo->video_mime_type);
+			pMediaInfo->video_mime_type = NULL;
+		}
+		pMediaInfo->video_mime_type = g_strdup(mime_type);
+
+		GstDiscovererVideoInfo *video_info = (GstDiscovererVideoInfo *) sinfo;
+		pMediaInfo->iWidth = gst_discoverer_video_info_get_width (video_info);
+		pMediaInfo->iHeight = gst_discoverer_video_info_get_height (video_info);
+
+		if ((structure != NULL) && (g_str_has_prefix(mime_type, "video/mpeg")))
+		{
+			gst_structure_get_int (structure, "mpegversion", &video_mpegversion);
+			pMediaInfo->video_mpegversion = video_mpegversion;
+		}
+
+		NXLOGI("%s() n_video(%u), video_mime_type(%s)(%d), iWidth(%d), iHeight(%d)"
+				, __FUNCTION__, pMediaInfo->n_video, pMediaInfo->video_mime_type
+				, pMediaInfo->video_mpegversion
+				, pMediaInfo->iWidth, pMediaInfo->iHeight);
+	}
+	else if (GST_IS_DISCOVERER_AUDIO_INFO (sinfo))
+	{
+		pMediaInfo->n_audio++;
+		//gst_stream_audio_information(sinfo, pMediaInfo);
+		if (pMediaInfo->audio_mime_type) {
+			g_free (pMediaInfo->audio_mime_type);
+			pMediaInfo->audio_mime_type = NULL;
+		}
+		pMediaInfo->audio_mime_type = g_strdup(mime_type);
+
+		if ((structure != NULL) && (g_str_has_prefix(mime_type, "audio/mpeg")))
+		{
+			gst_structure_get_int (structure, "mpegversion", &audio_mpegversion);
+			pMediaInfo->audio_mpegversion = audio_mpegversion;
+		}
+		NXLOGI("%s() n_audio(%d) audio_mime_type(%s)(%d)"
+				, __FUNCTION__, pMediaInfo->n_audio
+				, pMediaInfo->audio_mime_type, pMediaInfo->audio_mpegversion);
+	}
+	else if (GST_IS_DISCOVERER_SUBTITLE_INFO (sinfo))
+	{
+		pMediaInfo->n_subtitle++;
+		//gst_stream_subtitle_information(sinfo, pMediaInfo);
+		NXLOGI("%s() n_subtitle(%d)", __FUNCTION__, pMediaInfo->n_subtitle);
+	}
+
+	//FUNC_OUT();
 }
 
 /* Print information regarding a stream and its substreams, if any */
-static void print_topology (GstDiscovererStreamInfo *info, gint depth, struct GST_MEDIA_INFO* pMediaInfo)
+static void print_topology (GstDiscovererStreamInfo *sinfo, gint depth, struct GST_MEDIA_INFO* pMediaInfo)
 {
-	FUNC_IN();
-
-	if (!info) {
+	if (!sinfo) {
 		NXLOGE("%s() GstDiscovererStreamInfo is NULL", __FUNCTION__);
 		return;
 	}
 
-	print_stream_info (info, depth, pMediaInfo);
+	if (dbg)	print_stream_info (sinfo, depth, pMediaInfo);
 
-	GstDiscovererStreamInfo *next = gst_discoverer_stream_info_get_next (info);
+	get_gst_stream_info(sinfo, depth, pMediaInfo);
+
+	GstDiscovererStreamInfo *next = gst_discoverer_stream_info_get_next (sinfo);
 	if (next) {
 		print_topology (next, depth + 1, pMediaInfo);
 		gst_discoverer_stream_info_unref (next);
-	} else if (GST_IS_DISCOVERER_CONTAINER_INFO (info)) {
+	} else if (GST_IS_DISCOVERER_CONTAINER_INFO (sinfo)) {
 		GList *tmp, *streams;
 
-		streams = gst_discoverer_container_info_get_streams (GST_DISCOVERER_CONTAINER_INFO (info));
+		streams = gst_discoverer_container_info_get_streams (GST_DISCOVERER_CONTAINER_INFO (sinfo));
 		for (tmp = streams; tmp; tmp = tmp->next) {
 			GstDiscovererStreamInfo *tmpinf = (GstDiscovererStreamInfo *) tmp->data;
 			print_topology (tmpinf, depth + 1, pMediaInfo);
 		}
 		gst_discoverer_stream_info_list_free (streams);
 	}
-
-	FUNC_OUT();
 }
 
 void parse_GstDiscovererInfo(GstDiscovererInfo *info, GError *err, struct GST_MEDIA_INFO* pMediaInfo)

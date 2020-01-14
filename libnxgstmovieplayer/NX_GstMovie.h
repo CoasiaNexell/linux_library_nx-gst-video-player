@@ -31,6 +31,23 @@ typedef enum
 	NX_GST_ERROR_NUM_ERRORS	
 } NX_GST_ERROR;
 
+typedef enum
+{
+	URI_TYPE_FILE,
+	URI_TYPE_URL
+} NX_URI_TYPE;
+
+typedef enum
+{
+	MP_STATE_VOID_PENDING	= 0,
+	MP_STATE_STOPPED		= 1,
+	MP_STATE_READY			= 2,
+	MP_STATE_PAUSED 		= 3,
+	MP_STATE_PLAYING		= 4,
+} NX_MEDIA_STATE;
+
+#define	MAX_STREAM_INFO		20
+
 struct _GST_TRACK_INFO {
 	gint32			iTrackIndex;	// Track Index
 	gint32			iTrackType;		// MP_TRACK_VIDEO, ...
@@ -50,7 +67,7 @@ struct _GST_TRACK_INFO {
 
 typedef struct _GST_TRACK_INFO	GST_TRACK_INFO;
 
-struct GST_PROGRAM_INFO {
+struct _GST_STREAM_INFO {
 	gint32			iAudioNum;      // total audio number
 	gint32			iVideoNum;
 	gint32			iSubTitleNum;
@@ -58,34 +75,34 @@ struct GST_PROGRAM_INFO {
 	gint64			iDuration;
 	GST_TRACK_INFO 	TrackInfo[MAX_TRACK_NUM];
 };
-
-typedef enum
-{
-	URI_TYPE_FILE,
-	URI_TYPE_URL
-} NX_URI_TYPE;
-
-typedef enum
-{
-	MP_STATE_VOID_PENDING	= 0,
-	MP_STATE_STOPPED		= 1,
-	MP_STATE_READY			= 2,
-	MP_STATE_PAUSED 		= 3,
-	MP_STATE_PLAYING		= 4,
-} NX_MEDIA_STATE;
+typedef struct _GST_STREAM_INFO	GST_STREAM_INFO;
 
 typedef struct GST_MEDIA_INFO {
 	gchar*          container_format;
-	gchar*          video_mime_type;
-	gchar*          audio_mime_type;
-	gint32          iWidth;
-	gint32          iHeight;
-	gint32          iX;
-	gint32          iY;
-	gint32			video_mpegversion;
-	gint32			audio_mpegversion;
+
+	gint32			n_container;
+	gint32			n_video;
+	gint32			n_audio;
+	gint32			n_subtitle;
+
 	gboolean        isSeekable;
 	gint64          iDuration;
+
+	GST_STREAM_INFO	StreamInfo[MAX_STREAM_INFO];
+
+	gint32          iX;
+	gint32          iY;
+
+	gchar*          video_mime_type;
+	gint32			video_mpegversion;
+	gint32          iWidth;
+	gint32          iHeight;
+
+	gchar*          audio_mime_type;
+	gint32			audio_mpegversion;
+
+	gchar*			subtitle_codec;
+
 	NX_URI_TYPE		uriType;
 } GST_MEDIA_INFO;
 

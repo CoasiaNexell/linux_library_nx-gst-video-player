@@ -190,6 +190,7 @@ on_pad_added_demux (GstElement *element,
 	GstElement *target_sink_pad = NULL;
 	gint width = 0, height = 0;
 	MP_HANDLE handle = NULL;
+	gboolean isLinkFailed = FALSE;
 
 	FUNC_IN();
 
@@ -235,18 +236,24 @@ on_pad_added_demux (GstElement *element,
                     __FUNCTION__,
                     GST_DEBUG_PAD_NAME(pad),
                     GST_DEBUG_PAD_NAME(sinkpad));
-			handle->callback(NULL, (int)MP_EVENT_DEMUX_LINK_FAILED, 0, 0);
+			isLinkFailed = TRUE;
         }
-
-        NXLOGI("%s() Succeed to create dynamic pad link %s:%s to %s:%s",
-                __FUNCTION__,
-                GST_DEBUG_PAD_NAME(pad),
-                GST_DEBUG_PAD_NAME(sinkpad));
-
+		else
+		{
+	        NXLOGI("%s() Succeed to create dynamic pad link %s:%s to %s:%s",
+                    __FUNCTION__,
+                    GST_DEBUG_PAD_NAME(pad),
+                    GST_DEBUG_PAD_NAME(sinkpad));
+		}
         gst_object_unref (sinkpad);
     }
 
 	gst_caps_unref (caps);
+
+	if (isLinkFailed) {
+		handle->callback(NULL, (int)MP_EVENT_DEMUX_LINK_FAILED, 0, 0);
+	}
+
 	FUNC_OUT();
 }
 
