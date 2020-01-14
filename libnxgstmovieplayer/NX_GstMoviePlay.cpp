@@ -826,7 +826,7 @@ gint64 NX_GSTMP_GetPosition(MP_HANDLE handle)
 	ret = gst_element_get_state(handle->pipeline, &state, &pending, 500000000);		//	wait 500 msec
 	if(GST_STATE_CHANGE_FAILURE != ret)
 	{
-		if(state == GST_STATE_PLAYING || state == GST_STATE_PAUSED)
+		if((GST_STATE_PLAYING == state) || (GST_STATE_PAUSED == state))
 		{
 			GstFormat format = GST_FORMAT_TIME;
 			if(gst_element_query_position(handle->pipeline, format, &position))
@@ -939,6 +939,7 @@ static int send_seek_event (MP_HANDLE handle)
 	GstEvent *seek_event;
 	GstFormat format = GST_FORMAT_TIME;
 	GstSeekFlags flags = (GstSeekFlags)(GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_SNAP_AFTER | GST_SEEK_FLAG_KEY_UNIT);
+	//GstSeekFlags flags = (GstSeekFlags)(GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_ACCURATE);
 
 	/* Obtain the current position, needed for the seek event */
 	if (!gst_element_query_position (handle->pipeline, format, &position)) {

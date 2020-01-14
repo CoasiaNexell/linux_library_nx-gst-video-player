@@ -40,6 +40,7 @@ PKGCONFIG += glib-2.0 gstreamer-1.0 gstreamer-pbutils-1.0
 
 SOURCES += \
     CNX_FileList.cpp \
+    CNX_SubtitleParser.cpp \
     MainFrame.cpp \
     DAudioIface_Impl.cpp \
     PlayerVideoFrame.cpp \
@@ -50,6 +51,7 @@ HEADERS  += \
     CNX_Util.h \
     CNX_Util.h \
     CNX_FileList.h \
+    CNX_SubtitleParser.h \
     MainFrame.h \
     NxEvent.h \
     PlayListVideoFrame.h \

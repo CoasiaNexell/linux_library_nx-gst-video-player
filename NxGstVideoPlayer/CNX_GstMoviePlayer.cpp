@@ -14,16 +14,27 @@ CNX_GstMoviePlayer::CNX_GstMoviePlayer(QWidget *parent)
     : debug(false)
     , m_hPlayer(NULL)
 	, m_fSpeed(1.0)
+	, m_pSubtitleParser(NULL)
+	, m_iSubtitleSeekTime( 0 )
 	, m_pAudioDeviceName(NULL)
 {
 	pthread_mutex_init(&m_hLock, NULL);
+	pthread_mutex_init( &m_SubtitleLock, NULL );
 
     memset(&m_MediaInfo, 0, sizeof(GST_MEDIA_INFO));
+
+	m_pSubtitleParser = new CNX_SubtitleParser();
 }
 
 CNX_GstMoviePlayer::~CNX_GstMoviePlayer()
 {
 	pthread_mutex_destroy( &m_hLock );
+	pthread_mutex_destroy( &m_SubtitleLock );
+	if(m_pSubtitleParser)
+	{
+		delete m_pSubtitleParser;
+		m_pSubtitleParser = NULL;
+	}
 }
 
 //================================================================================================================
@@ -323,6 +334,166 @@ int CNX_GstMoviePlayer::DrmVideoMute(int bOnOff)
 	}
 }
 
+//================================================================================================================
+// subtitle routine
+void CNX_GstMoviePlayer::CloseSubtitle()
+{
+	CNX_AutoLock lock( &m_SubtitleLock );
+	if(m_pSubtitleParser)
+	{
+		if(m_pSubtitleParser->NX_SPIsParsed())
+		{
+			m_pSubtitleParser->NX_SPClose();
+		}
+	}
+}
+
+int CNX_GstMoviePlayer::OpenSubtitle(char * subtitlePath)
+{
+	CNX_AutoLock lock( &m_SubtitleLock );
+	if(m_pSubtitleParser)
+	{
+		return m_pSubtitleParser->NX_SPOpen(subtitlePath);
+	}else
+	{
+		NXLOGW("in OpenSubtitle no parser instance\n");
+		return 0;
+	}
+}
+
+int CNX_GstMoviePlayer::GetSubtitleStartTime()
+{
+	CNX_AutoLock lock( &m_SubtitleLock );
+	if(m_pSubtitleParser->NX_SPIsParsed())
+	{
+		return m_pSubtitleParser->NX_SPGetStartTime();
+	}else
+	{
+		return 0;
+	}
+}
+
+void CNX_GstMoviePlayer::SetSubtitleIndex(int idx)
+{
+	CNX_AutoLock lock( &m_SubtitleLock );
+	if(m_pSubtitleParser->NX_SPIsParsed())
+	{
+		m_pSubtitleParser->NX_SPSetIndex(idx);
+	}
+}
+
+int CNX_GstMoviePlayer::GetSubtitleIndex()
+{
+	CNX_AutoLock lock( &m_SubtitleLock );
+	if(m_pSubtitleParser->NX_SPIsParsed())
+	{
+		return m_pSubtitleParser->NX_SPGetIndex();
+	}
+	else
+	{
+		return 0;
+	}
+}
+
+int CNX_GstMoviePlayer::GetSubtitleMaxIndex()
+{
+	CNX_AutoLock lock( &m_SubtitleLock );
+	if(m_pSubtitleParser->NX_SPIsParsed())
+	{
+		return m_pSubtitleParser->NX_SPGetMaxIndex();
+	}
+	else
+	{
+		return 0;
+	}
+}
+
+void CNX_GstMoviePlayer::IncreaseSubtitleIndex()
+{
+	CNX_AutoLock lock( &m_SubtitleLock );
+	if(m_pSubtitleParser->NX_SPIsParsed())
+	{
+		m_pSubtitleParser->NX_SPIncreaseIndex();
+	}
+}
+
+char* CNX_GstMoviePlayer::GetSubtitleText()
+{
+	CNX_AutoLock lock( &m_SubtitleLock );
+	if(m_pSubtitleParser->NX_SPIsParsed())
+	{
+		return m_pSubtitleParser->NX_SPGetSubtitle();
+	}
+	else
+	{
+		return NULL;
+	}
+}
+
+bool CNX_GstMoviePlayer::IsSubtitleAvailable()
+{
+	return m_pSubtitleParser->NX_SPIsParsed();
+}
+
+const char *CNX_GstMoviePlayer::GetBestSubtitleEncode()
+{
+	CNX_AutoLock lock( &m_SubtitleLock );
+	if(m_pSubtitleParser->NX_SPIsParsed())
+	{
+		return m_pSubtitleParser->NX_SPGetBestTextEncode();
+	}else
+	{
+		return NULL;
+	}
+}
+
+const char *CNX_GstMoviePlayer::GetBestStringEncode(const char *str)
+{
+	if(!m_pSubtitleParser)
+	{
+		NXLOGW("GetBestStringEncode no parser instance\n");
+		return "EUC-KR";
+	}else
+	{
+		return m_pSubtitleParser->NX_SPFindStringEncode(str);
+	}
+}
+
+void CNX_GstMoviePlayer::SeekSubtitle(int milliseconds)
+{
+	if (0 > pthread_create(&m_subtitleThread, NULL, ThreadWrapForSubtitleSeek, this) )
+	{
+		NXLOGE("SeekSubtitle creating Thread err\n");
+		m_pSubtitleParser->NX_SPSetIndex(0);
+		return;
+	}
+
+	m_iSubtitleSeekTime = milliseconds;
+	NXLOGD("seek input  : %d\n",milliseconds);
+
+	pthread_join(m_subtitleThread, NULL);
+}
+
+void* CNX_GstMoviePlayer::ThreadWrapForSubtitleSeek(void *Obj)
+{
+	if( NULL != Obj )
+	{
+		NXLOGD("ThreadWrapForSubtitleSeek ok\n");
+		( (CNX_GstMoviePlayer*)Obj )->SeekSubtitleThread();
+	}
+	else
+	{
+		NXLOGE("ThreadWrapForSubtitleSeek err\n");
+		return (void*)0xDEADDEAD;
+	}
+	return (void*)1;
+}
+
+void CNX_GstMoviePlayer::SeekSubtitleThread(void)
+{
+	CNX_AutoLock lock( &m_SubtitleLock );
+	m_pSubtitleParser->NX_SPSetIndex(m_pSubtitleParser->NX_SPSeekSubtitleIndex(m_iSubtitleSeekTime));
+}
 void CNX_GstMoviePlayer::GetAspectRatio(int srcWidth, int srcHeight,
 									 int dspWidth, int dspHeight,
 									 DSP_RECT *pDspDstRect)

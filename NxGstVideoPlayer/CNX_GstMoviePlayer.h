@@ -45,6 +45,7 @@
 #include <QDebug>
 #include "CNX_Util.h"
 #include <NX_GstMovie.h>
+#include "CNX_SubtitleParser.h"
 
 #include <gst/gst.h>
 #include <glib.h>
@@ -117,6 +118,30 @@ private:
 public:
 	int IsCbQtUpdateImg();
 
+	// Subtitle
+	CNX_SubtitleParser* m_pSubtitleParser;
+	pthread_mutex_t m_SubtitleLock;
+	pthread_t m_subtitleThread;
+	int m_iSubtitleSeekTime;
+
+	void	CloseSubtitle();
+	int		OpenSubtitle(char * subtitlePath);
+	int		GetSubtitleStartTime();
+	void	SetSubtitleIndex(int idx);
+	int		GetSubtitleIndex();
+	int		GetSubtitleMaxIndex();
+	void	IncreaseSubtitleIndex();
+	void	SeekSubtitle(int milliseconds);
+	char*	GetSubtitleText();
+	bool	IsSubtitleAvailable();
+	const char*	GetBestSubtitleEncode();
+	const char* GetBestStringEncode(const char* str);
+
+private:
+	//
+	// Subtitle
+	static void* ThreadWrapForSubtitleSeek(void *Obj);
+	void SeekSubtitleThread(void);
 };
 
 #endif // CNX_GstMoviePlayer_H

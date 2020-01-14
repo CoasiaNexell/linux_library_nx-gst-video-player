@@ -172,6 +172,8 @@ PlayerVideoFrame::PlayerVideoFrame(QWidget *parent)
 
 	//Update position timer
 	connect(&m_PosUpdateTimer, SIGNAL(timeout()), this, SLOT(DoPositionUpdate()));
+	//Update Subtitle
+	connect(&m_PosUpdateTimer, SIGNAL(timeout()), this, SLOT(subTitleDisplayUpdate()));
 
 	setAttribute(Qt::WA_AcceptTouchEvents, true);
 
@@ -341,7 +343,7 @@ int32_t PlayerVideoFrame::SaveInfo()
 		qint64 iCurPos = m_pNxPlayer->GetMediaPosition();
 		if(0 > iCurPos)
 		{
-			NXLOGW("current position is not valid  iCurPos : %lld is set to 0\n",iCurPos);
+			NXLOGW("current position is not valid  iCurPos : %lld is set to 0\n", iCurPos);
 			iCurPos = 0;
 		}
 		sprintf(pCurPos, "%lld", NANOSEC_TO_MSEC(iCurPos));
@@ -582,6 +584,7 @@ bool PlayerVideoFrame::eventFilter(QObject *watched, QEvent *event)
 ////////////////////////////////////////////////////////////////////
 void PlayerVideoFrame::updateProgressBar(QMouseEvent *event, bool bReleased)
 {
+	NXLOGI("%s() %s", __FUNCTION__, bReleased ? "button_released":"button_pressed");
     if(bReleased)
 	{
 		//	 Do Seek
@@ -611,6 +614,7 @@ void PlayerVideoFrame::updateProgressBar(QMouseEvent *event, bool bReleased)
 				//seek subtitle
 				ui->subTitleLabel->setText("");
 				ui->subTitleLabel2->setText("");
+				m_pNxPlayer->SeekSubtitle(position);
 
 				NXLOGD("Position = %lld", position);
 			}
@@ -862,6 +866,8 @@ bool PlayerVideoFrame::CloseVideo()
 	}
 	m_bIsInitialized = false;
 
+	StopSubTitle();
+
 	if(0 > m_pNxPlayer->CloseHandle())
 	{
 		NXLOGE("%s(), line: %d, CloseHandle failed \n", __FUNCTION__, __LINE__);
@@ -949,6 +955,7 @@ void PlayerVideoFrame::PlaySeek()
 		//seek subtitle
 		ui->subTitleLabel->setText("");
 		ui->subTitleLabel2->setText("");
+		m_pNxPlayer->SeekSubtitle(iSavedPosition);
 	}
 }
 
@@ -1014,7 +1021,6 @@ bool PlayerVideoFrame::PlayVideo()
 			int iMaxCount = m_FileList.GetSize();
 			while(0 > iResult)
 			{
-				NXLOGI("%s retry!!!!", __FUNCTION__);
 				if(m_bIsVideoFocus)
 				{
 					m_statusMutex.Lock();
@@ -1039,6 +1045,11 @@ bool PlayerVideoFrame::PlayVideo()
 				{
                     NXLOGI("%s() *********** media init done! *********** ", __FUNCTION__);
 					m_bIsInitialized = true;
+
+					if( 0 == OpenSubTitle() )
+					{
+						PlaySubTitle();
+					}
 
 					if(0 > m_pNxPlayer->Play())
 					{
@@ -1120,6 +1131,12 @@ bool PlayerVideoFrame::PauseVideo()
 		return false;
 	}
 
+	NX_MEDIA_STATE state = m_pNxPlayer->GetState();
+	if((MP_STATE_STOPPED == state) || (MP_STATE_READY == state))
+	{
+		return false;
+	}
+
     if(0 > m_pNxPlayer->Pause()) {
         NXLOGE( "%s(): Error! Failed to pause", __FUNCTION__);
 		return false;
@@ -1167,10 +1184,6 @@ bool PlayerVideoFrame::SetVideoMute(bool iStopRendering)
 	return true;
 }
 
-bool PlayerVideoFrame::GetVideoMuteStatus()
-{
-	return m_bStopRenderingFlag;
-}
 
 bool PlayerVideoFrame::VideoMuteStart()
 {
@@ -1200,6 +1213,11 @@ bool PlayerVideoFrame::VideoMute()
 	}
 
 	return true;
+}
+
+bool PlayerVideoFrame::GetVideoMuteStatus()
+{
+	return m_bStopRenderingFlag;
 }
 
 void PlayerVideoFrame::displayTouchEvent()
@@ -1500,6 +1518,129 @@ void PlayerVideoFrame::RegisterRequestLauncherShow(void (*cbFunc)(bool *bOk))
 	{
 		m_pRequestLauncherShow = cbFunc;
 	}
+}
+
+//
+// Subtitle Display Routine
+//
+
+void PlayerVideoFrame::subTitleDisplayUpdate()
+{
+	if (m_bSubThreadFlag)
+	{
+		if ((m_pNxPlayer) && (MP_STATE_STOPPED != m_pNxPlayer->GetState()))
+		{
+			QString encResult;
+			int idx;
+			qint64 curPos = m_pNxPlayer->GetMediaPosition();
+			for (idx = m_pNxPlayer->GetSubtitleIndex(); idx <= m_pNxPlayer->GetSubtitleMaxIndex(); idx++)
+			{
+				if (dbg) {
+					NXLOGD("%s GetSubtitleStartTime(%d) curPos: %lld",
+							__FUNCTION__, m_pNxPlayer->GetSubtitleStartTime(), NANOSEC_TO_MSEC(curPos));
+				}
+
+				if (m_pNxPlayer->GetSubtitleStartTime() < NANOSEC_TO_MSEC(curPos))
+				{
+					char *pBuf = m_pNxPlayer->GetSubtitleText();
+					encResult = m_pCodec->toUnicode(pBuf);
+					if (dbg) {
+						NXLOGD("%s m_bButtonHide(%d) subtitle: '%s'",
+										__FUNCTION__, m_bButtonHide, encResult.toStdString().c_str());
+					}
+
+					//HTML
+					//encResult = QString("%1").arg(m_pCodec->toUnicode(pBuf));	//&nbsp; not detected
+					//encResult.replace( QString("<br>"), QString("\n")  );		//detected
+					encResult.replace(QString("&nbsp;"), QString(" "));
+					if (m_bButtonHide == false)
+					{
+						ui->subTitleLabel->setText(encResult);
+						ui->subTitleLabel2->setText("");
+					}
+					else
+					{
+						ui->subTitleLabel->setText("");
+						ui->subTitleLabel2->setText(encResult);
+					}
+				}
+				else
+				{
+					break;
+				}
+				m_pNxPlayer->IncreaseSubtitleIndex();
+			}
+		}
+	}
+}
+
+int PlayerVideoFrame::OpenSubTitle()
+{
+	QString path = m_FileList.GetList(m_iCurFileListIdx);
+	int lastIndex = path.lastIndexOf(".");
+	char tmpStr[1024]={0};
+	if((lastIndex == 0))
+	{
+		return -1;  //this case means there is no file that has an extension..
+	}
+	strncpy(tmpStr, (const char*)path.toStdString().c_str(), lastIndex);
+	QString pathPrefix(tmpStr);
+	QString subtitlePath;
+
+	subtitlePath = pathPrefix + ".smi";
+
+	//call library method
+	int openResult = m_pNxPlayer->OpenSubtitle( (char *)subtitlePath.toStdString().c_str() );
+
+	if ( 1 == openResult )
+	{
+		// case of open succeed
+		m_pCodec = QTextCodec::codecForName(m_pNxPlayer->GetBestSubtitleEncode());
+		if (NULL == m_pCodec)
+			m_pCodec = QTextCodec::codecForName("EUC-KR");
+		return 0;
+	}else if( -1 == openResult )
+	{
+		//smi open tried but failed while fopen (maybe smi file does not exist)
+		//should try opening srt
+		subtitlePath = pathPrefix + ".srt";
+		if( 1 == m_pNxPlayer->OpenSubtitle( (char *)subtitlePath.toStdString().c_str() ) )
+		{
+			m_pCodec = QTextCodec::codecForName(m_pNxPlayer->GetBestSubtitleEncode());
+			if (NULL == m_pCodec)
+				m_pCodec = QTextCodec::codecForName("EUC-KR");
+			return 0;
+		}else
+		{
+			//smi and srt both cases are tried, but open failed
+			return -1;
+		}
+	}else
+	{
+		NXLOGE("parser lib OpenResult : %d\n",openResult);
+		//other err cases
+		//should check later....
+		return -1;
+	}
+	return -1;
+}
+
+void PlayerVideoFrame::PlaySubTitle()
+{
+	m_bSubThreadFlag = true;
+}
+
+void PlayerVideoFrame::StopSubTitle()
+{
+	if(m_bSubThreadFlag)
+	{
+		m_bSubThreadFlag = false;
+	}
+
+	m_pNxPlayer->CloseSubtitle();
+
+	ui->subTitleLabel->setText("");
+	ui->subTitleLabel2->setText("");
 }
 
 void PlayerVideoFrame::on_speedButton_released()

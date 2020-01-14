@@ -66,6 +66,7 @@ signals:
 private slots:
 	void slotPlayListFrameAccept();
 	void slotPlayListFrameReject();
+	void subTitleDisplayUpdate();
 	void statusChanged(int eventType, int eventData);
 	void DoPositionUpdate();
 
@@ -129,6 +130,11 @@ public:
 	bool VideoMuteStart();
 	bool VideoMuteStop();
 	void PlaySeek();
+
+	//	SubTitle
+	int	 OpenSubTitle();
+	void PlaySubTitle();
+	void StopSubTitle();
 
 private:
     bool            dbg;
