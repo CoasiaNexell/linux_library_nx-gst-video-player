@@ -11,9 +11,11 @@ QT       += multimedia  \
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET = NxGstVideoPlayer
-TEMPLATE = lib
-CONFIG += plugin
+TEMPLATE = app
 
+equals (TEMPLATE, lib) {
+    CONFIG += plugin
+}
     # Add Graphic tool libraries
     LIBS += -lnx_video_api
     #LIBS += -L$$PWD/../../library/prebuilt/lib -lnxmpmanager -lnxfilterhelper -lnxfilter
@@ -47,8 +49,12 @@ SOURCES += \
     PlayListVideoFrame.cpp \
     CNX_GstMoviePlayer.cpp
 
+equals (TEMPLATE, app) {
+    SOURCES -= DAudioIface_Impl.cpp
+    SOURCES += main.cpp
+}
+
 HEADERS  += \
-    CNX_Util.h \
     CNX_Util.h \
     CNX_FileList.h \
     CNX_SubtitleParser.h \

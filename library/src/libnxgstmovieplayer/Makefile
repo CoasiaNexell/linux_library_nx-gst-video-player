@@ -39,15 +39,15 @@ $(TARGET): depend $(OBJS)
 	$(CC) $(LDFLAGS) -shared -Wl,-soname,$(TARGET) -o $@ $(OBJS) $(LIBRARY)
 
 install:
-	cp -av $(TARGET) ../../prebuilt/lib/
-	cp -av NX_GstMovie.h ../../prebuilt/include
+	cp -av $(TARGET) ../../lib/
+	cp -av NX_GstMovie.h ../../include
 
 clean:
 	rm -rf $(TARGET) *.o .depend
 
 distclean: clean
-	rm -rf ../../prebuilt/lib/$(TARGET)
-	rm -rf ../../prebuilt/include/NX_GstMoviePlay.h
+	rm -rf ../../lib/$(TARGET)
+	rm -rf ../../include/NX_GstMoviePlay.h
 
 #########################################################################
 # Dependency
