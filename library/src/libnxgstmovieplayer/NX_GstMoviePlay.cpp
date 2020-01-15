@@ -12,6 +12,8 @@
 
 #include <math.h>
 
+static gboolean hasSubTitles = FALSE;
+
 struct MOVIE_TYPE {
 	GstElement *pipeline;
 
@@ -19,11 +21,16 @@ struct MOVIE_TYPE {
 
 	GstElement *audio_queue;
 	GstElement *video_queue;
+	GstElement *subtitle_queue;
+	GstElement *subtitle_overlay;
 
 	GstElement *demuxer;
 	GstElement *video_parser;
 	GstElement *nxdecoder;
 	GstElement *nxvideosink;
+
+	GstElement *appsink;
+	GstElement *capsfilter;
 
 	GstElement *decodebin;
 	GstElement *audio_parser;
@@ -179,6 +186,57 @@ static void on_decodebin_pad_added_demux (GstElement *element,
 	FUNC_OUT();
 }
 
+NX_GST_RET set_subtitle_element(MP_HANDLE handle)
+{
+	FUNC_IN();
+
+	if (!handle) {
+		NXLOGE("%s() handle is NULL", __func__);
+		return NX_GST_RET_ERROR;
+	}
+
+	handle->subtitle_queue = gst_element_factory_make ("queue2", "subtitle_queue");
+
+	handle->capsfilter = gst_element_factory_make ("capsfilter", "ContentFilter");
+	GstCaps* cap = gst_caps_new_simple("text/x-raw", NULL, NULL);	// subtitle caps
+	g_object_set(G_OBJECT(handle->capsfilter), "caps", cap, NULL);
+
+	handle->appsink = gst_element_factory_make ("appsink", "appsink");
+
+	if (!handle->capsfilter || 
+		!handle->subtitle_queue || !handle->appsink)
+	{
+		NXLOGE("%s() Failed to create subtitle elements", __func__);
+		return NX_GST_RET_ERROR;
+	}
+
+	return NX_GST_RET_OK;
+}
+
+static GstPadProbeReturn
+cb_have_data (GstPad          *pad,
+              GstPadProbeInfo *info,
+              gpointer         user_data)
+{
+	GstBuffer *buffer;
+	char text_msg[128];
+	MP_HANDLE handle = NULL;
+
+	gint sz, sz2;
+	memset(text_msg, 0, sizeof(text_msg));
+	buffer = GST_PAD_PROBE_INFO_BUFFER (info);
+	sz = gst_buffer_get_size(buffer);
+
+	sz2 = gst_buffer_extract(buffer, 0, text_msg, sz);
+	NXLOGI ("%s() Buffer Size is %d, read %d, data: %s", __FUNCTION__, sz, sz2, text_msg);
+
+	handle = (MP_HANDLE)user_data;
+	if (handle)
+		handle->callback(NULL, (int)MP_EVENT_SUBTITLE_UPDATED, 0, 0);
+
+	return GST_PAD_PROBE_OK;
+}
+
 static void
 on_pad_added_demux (GstElement *element,
                         GstPad *pad, gpointer data)
@@ -191,12 +249,12 @@ on_pad_added_demux (GstElement *element,
 	gint width = 0, height = 0;
 	MP_HANDLE handle = NULL;
 	gboolean isLinkFailed = FALSE;
-
-	FUNC_IN();
+	gchar* padName = NULL;
 
 	handle = (MP_HANDLE)data;
+	padName = gst_pad_get_name(pad);
+	NXLOGI("%s() padName(%s)", __FUNCTION__, padName);
 
-	NXLOGI("%s()", __FUNCTION__);
     caps = gst_pad_get_current_caps(pad);
     if (caps == NULL) {
         NXLOGE("%s() Failed to get current caps", __FUNCTION__);
@@ -221,9 +279,12 @@ on_pad_added_demux (GstElement *element,
 	} else if (g_str_has_prefix(mime_type, "audio/")) {
 	    target_sink_pad = handle->audio_queue;
         sinkpad = gst_element_get_static_pad (target_sink_pad, "sink");
-    }
+    } else if (g_str_has_prefix(padName, "subtitle")) {
+		target_sink_pad = handle->subtitle_queue;
+		sinkpad = gst_element_get_static_pad (target_sink_pad, "sink");
+	}
 
-	if (g_str_has_prefix(mime_type, "video/") || g_str_has_prefix(mime_type, "audio/"))
+	if (g_str_has_prefix(mime_type, "video/") || g_str_has_prefix(mime_type, "audio/") || g_str_has_prefix(padName, "subtitle_0"))
     {
         if (NULL == sinkpad) {
             NXLOGE("%s() Failed to get static pad", __FUNCTION__);
@@ -247,10 +308,19 @@ on_pad_added_demux (GstElement *element,
 		}
         gst_object_unref (sinkpad);
     }
+	if (hasSubTitles && g_str_has_prefix(padName, "subtitle"))
+	{
+		NXLOGI("%s Add probe to pad", __FUNCTION__);
+		/*gulong gst_pad_add_probe(GstPad*, GstPadProbeType,
+								   GstPadProbeCallback, gpointer, GDestroyNotify)*/
+		gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback) cb_have_data, handle, NULL);
+	}
 
+	if (padName)	g_free(padName);
 	gst_caps_unref (caps);
 
-	if (isLinkFailed) {
+	/* Need to check subtitle_1, 2, etc*/
+	if (TRUE == isLinkFailed) {
 		handle->callback(NULL, (int)MP_EVENT_DEMUX_LINK_FAILED, 0, 0);
 	}
 
@@ -500,19 +570,43 @@ NX_GST_RET add_elements_to_bin(MP_HANDLE handle)
 	if ((g_strcmp0(handle->gst_media_info.video_mime_type, "video/x-h264") == 0) ||
 		 ((g_strcmp0(handle->gst_media_info.video_mime_type, "video/mpeg") == 0) && (handle->gst_media_info.video_mpegversion <= 2)) )
 	{
+		if (hasSubTitles)
+		{
 		gst_bin_add_many(GST_BIN(handle->pipeline)
 						 , handle->source, handle->demuxer
 						 , handle->audio_queue, handle->decodebin, handle->audioconvert, handle->audioresample, handle->autoaudiosink
 						 , handle->video_queue, handle->video_parser, handle->nxdecoder, handle->nxvideosink
+						 , handle->subtitle_queue, handle->capsfilter, handle->appsink
 						 , NULL);
+		}
+		else
+		{
+					gst_bin_add_many(GST_BIN(handle->pipeline)
+						 , handle->source, handle->demuxer
+						 , handle->audio_queue, handle->decodebin, handle->audioconvert, handle->audioresample, handle->autoaudiosink
+						 , handle->video_queue, handle->video_parser, handle->nxdecoder, handle->nxvideosink
+						 , NULL);
+		}
 	}
 	else
 	{
+		if (hasSubTitles)
+		{
 		gst_bin_add_many(GST_BIN(handle->pipeline)
 						 , handle->source, handle->demuxer
 						 , handle->audio_queue, handle->decodebin, handle->audioconvert, handle->audioresample, handle->autoaudiosink
 						 , handle->video_queue, handle->nxdecoder, handle->nxvideosink
+						 , handle->subtitle_queue, handle->capsfilter, handle->appsink
 						 , NULL);
+		}
+		else
+		{
+		gst_bin_add_many(GST_BIN(handle->pipeline)
+						, handle->source, handle->demuxer
+						, handle->audio_queue, handle->decodebin, handle->audioconvert, handle->audioresample, handle->autoaudiosink
+						, handle->video_queue, handle->nxdecoder, handle->nxvideosink
+						, NULL);
+		}
 	}
 
 	FUNC_OUT();
@@ -538,7 +632,7 @@ NX_GST_RET link_elements(MP_HANDLE handle)
     }
 	else
 	{
-        NXLOGE("%s() Succeed to link %s<-->%s", __FUNCTION__,
+        NXLOGI("%s() Succeed to link %s<-->%s", __FUNCTION__,
 				gst_element_get_name(handle->source), gst_element_get_name(handle->demuxer));
 	}
 
@@ -558,7 +652,16 @@ NX_GST_RET link_elements(MP_HANDLE handle)
 		}
 		else
 		{
-			NXLOGE("%s() Succeed to link video_queue<-->nxdecoder<-->nxvideosink", __FUNCTION__);
+			NXLOGI("%s() Succeed to link video_queue<-->nxdecoder<-->nxvideosink", __FUNCTION__);
+		}
+	}
+
+	if (hasSubTitles)
+	{
+		if (!gst_element_link_many(handle->subtitle_queue, handle->capsfilter, handle->appsink, NULL))
+		{
+			NXLOGE("%s() Failed to link subtitle_queue<-->capsfilter<-->appsink", __FUNCTION__);
+			return NX_GST_RET_ERROR;
 		}
 	}
 
@@ -623,7 +726,7 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
 		   , GST_TIME_ARGS (pGstMInfo->iDuration));
 
 	if(handle->pipeline_is_linked) {
-		NXLOGI("%s() pipeline is already linked", __func__);
+		NXLOGE("%s() pipeline is already linked", __func__);
 		// TODO:
 		return NX_GST_RET_OK;
 	}
@@ -637,6 +740,13 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
 	handle->bus = gst_pipeline_get_bus(GST_PIPELINE(handle->pipeline));
 	gst_bus_add_watch(handle->bus, (GstBusFunc)gst_bus_callback, handle);
 	gst_object_unref(GST_OBJECT(handle->bus));
+
+	hasSubTitles = FALSE;
+	if (pGstMInfo->n_subtitle > 0)
+	{
+		hasSubTitles = TRUE;
+		set_subtitle_element(handle);
+	}
 
 	if (NX_GST_RET_ERROR == set_source_element(handle) ||
 		NX_GST_RET_ERROR == set_demux_element(handle) ||
@@ -756,7 +866,10 @@ NX_GST_RET NX_GSTMP_GetMediaInfo(MP_HANDLE handle, GST_MEDIA_INFO *pGstMInfo)
 	FUNC_IN();
 
 	if (NULL == pGstMInfo)
+	{
+		NXLOGE("%s pGstMInfo is NULL", __FUNCTION__);
 		return NX_GST_RET_ERROR;
+	}
 
 	memcpy(pGstMInfo, &handle->gst_media_info, sizeof(GST_MEDIA_INFO));
  

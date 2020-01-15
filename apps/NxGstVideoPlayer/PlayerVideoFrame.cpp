@@ -820,6 +820,11 @@ void PlayerVideoFrame::statusChanged(int eventType, int eventData)
 		}
 		break;
 	}
+	case MP_EVENT_SUBTITLE_UPDATED:
+	{
+		NXLOGI("%s()", __FUNCTION__);
+		break;
+	}
 	default:
 		break;
 	}
