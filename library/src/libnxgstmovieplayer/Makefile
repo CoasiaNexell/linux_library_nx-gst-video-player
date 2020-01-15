@@ -39,6 +39,7 @@ $(TARGET): depend $(OBJS)
 	$(CC) $(LDFLAGS) -shared -Wl,-soname,$(TARGET) -o $@ $(OBJS) $(LIBRARY)
 
 install:
+	mkdir -p ../../lib/
 	cp -av $(TARGET) ../../lib/
 	cp -av NX_GstMovie.h ../../include
 
