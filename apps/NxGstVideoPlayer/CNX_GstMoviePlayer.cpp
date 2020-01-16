@@ -6,8 +6,8 @@
 
 #define LOG_TAG "[NxGstVideoPlayer]"
 #include <NX_Log.h>
-
 #include <math.h>
+#include <media/CNX_Base.h>
 
 //------------------------------------------------------------------------------
 CNX_GstMoviePlayer::CNX_GstMoviePlayer(QWidget *parent)

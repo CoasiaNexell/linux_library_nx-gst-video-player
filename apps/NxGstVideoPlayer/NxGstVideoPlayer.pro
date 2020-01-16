@@ -15,6 +15,28 @@ TEMPLATE = app
 
 equals (TEMPLATE, lib) {
     CONFIG += plugin
+} else {
+    DEFINES += CONFIG_APPLICATION
+}
+
+CONFIG += CONFIG_NXP4330
+
+socname = $$getenv(OECORE_SOCNAME)
+equals(socname, "") {
+    message("OECORE_SOCNAME is empty")
+} else {
+    message($$socname)
+
+    equals(socname, nxp3220) {
+        CONFIG += CONFIG_NXP3220
+        CONFIG -= CONFIG_NXP4330
+    }
+}
+
+contains(CONFIG, CONFIG_NXP3220) {
+    DEFINES += CONFIG_NXP3220
+} else {
+    DEFINES += CONFIG_NXP4330
 }
     # Add Graphic tool libraries
     LIBS += -lnx_video_api
@@ -24,7 +46,7 @@ equals (TEMPLATE, lib) {
     LIBS += -L$$PWD/../../library/lib -lnxdaudioutils
 
     # Add xml config library
-    LIBS += -L$$PWD/../../library/lib -lnx_config -lxml2
+    LIBS += -L$$PWD/../../library/lib -lnx_config -lxml2 -lsqlite3 -ludev -lcrypto
 
     # Add Common UI Module
     LIBS += -L$$PWD/../../library/lib -lnxbaseui
@@ -49,11 +71,6 @@ SOURCES += \
     PlayListVideoFrame.cpp \
     CNX_GstMoviePlayer.cpp
 
-equals (TEMPLATE, app) {
-    SOURCES -= DAudioIface_Impl.cpp
-    SOURCES += main.cpp
-}
-
 HEADERS  += \
     CNX_Util.h \
     CNX_FileList.h \
@@ -63,6 +80,32 @@ HEADERS  += \
     PlayListVideoFrame.h \
     PlayerVideoFrame.h \
     CNX_GstMoviePlayer.h
+
+equals (TEMPLATE, app) {
+    SOURCES -= DAudioIface_Impl.cpp
+    SOURCES += \
+        main.cpp \
+        media/CNX_UeventManager.cpp \
+        media/CNX_MediaScanner.cpp \
+        media/CNX_MediaDatabase.cpp \
+        media/uevent.c \
+        media/CNX_File.cpp \
+        media/MediaScanner.cpp \
+        media/CNX_VolumeManager.cpp \
+        media/CNX_DiskManager.cpp
+
+    HEADERS += \
+        media/CNX_UeventManager.h \
+        media/CNX_MediaScanner.h \
+        media/CNX_MediaDatabase.h \
+        media/uevent.h \
+        media/CNX_Base.h \
+        media/CNX_File.h \
+        media/MediaScanner.h \
+        media/CNX_VolumeManager.h \
+        media/MediaConf.h \
+        media/CNX_DiskManager.h
+}
 
 FORMS    += \
     MainFrame.ui \

@@ -17,7 +17,9 @@
    <bool>false</bool>
   </property>
   <property name="styleSheet">
-   <string notr="true">color: rgb(1, 1, 1);</string>
+   <string notr="true">background: rgba(0, 0, 0, 0%);
+color: rgb(1, 1, 1);
+</string>
   </property>
   <property name="frameShape">
    <enum>QFrame::StyledPanel</enum>
@@ -41,7 +43,7 @@
     </size>
    </property>
    <property name="styleSheet">
-    <string notr="true">background-color: rgb(255, 255, 255);
+    <string notr="true">background-color: rgba(255, 255, 255, 50%);
 color: rgba(1, 1, 1);</string>
    </property>
    <property name="text">
@@ -64,7 +66,7 @@ color: rgba(1, 1, 1);</string>
     </size>
    </property>
    <property name="styleSheet">
-    <string notr="true">background-color: rgb(255, 255, 255);
+    <string notr="true">background-color: rgb(255, 255, 255, 50%);
 color: rgba(1, 1, 1);</string>
    </property>
    <property name="text">
@@ -88,12 +90,12 @@ color: rgba(1, 1, 1);</string>
    </property>
    <property name="styleSheet">
     <string notr="true">QProgressBar {
-border: 2px solid grey;
+border: 2px solid rgba(128, 128, 128, 50%);
 border-radius: 5px;
 }
 
 QProgressBar::chunk {
-background-color: rgb(37, 86, 201);
+background-color: rgba(37, 86, 201, 50%);
 /*background-color: #05B8CC;*/
 width: 20px;
 /*margin: 0.5px;*/
@@ -133,7 +135,7 @@ width: 20px;
     </size>
    </property>
    <property name="styleSheet">
-    <string notr="true">background-color: rgb(255, 255, 255);
+    <string notr="true">background-color: rgba(255, 255, 255, 50%);
 color: rgba(1, 1, 1);</string>
    </property>
    <property name="text">
@@ -174,7 +176,7 @@ color: rgba(1, 1, 1);</string>
     </size>
    </property>
    <property name="styleSheet">
-    <string notr="true">background-color: rgb(255, 255, 255);
+    <string notr="true">background-color: rgba(255, 255, 255, 50%);
 color: rgba(1, 1, 1);</string>
    </property>
    <property name="text">
@@ -202,7 +204,7 @@ color: rgba(1, 1, 1);</string>
     </font>
    </property>
    <property name="styleSheet">
-    <string notr="true">background-color: rgb(255, 255, 255);
+    <string notr="true">background-color: rgba(255, 255, 255, 50%);
 color: rgba(1, 1, 1);</string>
    </property>
    <property name="text">
@@ -258,7 +260,7 @@ color: rgba(1, 1, 1);</string>
     </size>
    </property>
    <property name="styleSheet">
-    <string notr="true">background-color: rgb(255, 255, 255);
+    <string notr="true">background-color: rgba(255, 255, 255, 50%);
 color: rgba(1, 1, 1);</string>
    </property>
    <property name="text">
@@ -453,7 +455,7 @@ color: rgba(1, 1, 1);</string>
     </palette>
    </property>
    <property name="styleSheet">
-    <string notr="true">background-color: rgba(0, 0, 0, 0%);</string>
+    <string notr="true">background: rgba(0, 0, 0, 0%);</string>
    </property>
   </widget>
   <widget class="QLabel" name="subTitleLabel">
@@ -508,7 +510,7 @@ color: rgba(1, 1, 1);</string>
     </rect>
    </property>
    <property name="styleSheet">
-    <string notr="true">background-color: rgb(255, 255, 255);
+    <string notr="true">background-color: rgba(255, 255, 255, 50%);
 color: rgba(1, 1, 1);</string>
    </property>
    <property name="text">

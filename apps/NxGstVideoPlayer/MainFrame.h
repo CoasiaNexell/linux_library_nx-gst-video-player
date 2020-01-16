@@ -6,6 +6,7 @@
 
 //	Base UI
 #include <CNX_StatusBar.h>
+#include <media/MediaScanner.h>
 #include "NxEvent.h"
 
 namespace Ui {
@@ -15,7 +16,10 @@ class MainFrame;
 class MainFrame : public QFrame
 {
 	Q_OBJECT
-
+#ifdef CONFIG_APPLICATION
+private slots:
+	void slotMediaEvent(NxEventTypes eType);
+#endif
 public:
 	static MainFrame *GetInstance(void *pObj);
 	static MainFrame *GetInstance();
@@ -99,7 +103,9 @@ private:
 
 	//	UI Status Bar
 	CNX_StatusBar* m_pStatusBar;
-
+#ifdef CONFIG_APPLICATION
+	MediaScanner *m_pMediaScanner;
+#endif
 private:
 	Ui::MainFrame *ui;
 };

@@ -86,6 +86,10 @@ MainFrame::MainFrame(QWidget *parent) :
 	ui->m_PlayerFrame->RegisterRequestTerminate(m_pRequestTerminate);
 	ui->m_PlayerFrame->RegisterRequestLauncherShow(m_pRequestLauncherShow);
 	ui->m_PlayerFrame->RegisterRequestVolume(m_pRequestVolume);
+#ifdef CONFIG_APPLICATION
+	m_pMediaScanner = new MediaScanner();
+	connect(m_pMediaScanner, SIGNAL(signalMediaEvent(NxEventTypes)), this, SLOT(slotMediaEvent(NxEventTypes)));
+#endif
 }
 
 MainFrame::~MainFrame()
@@ -465,3 +469,42 @@ void MainFrame::MediaEventChanged(NxMediaEvent eEvent)
 		break;
 	}
 }
+#ifdef CONFIG_APPLICATION
+void MainFrame::slotMediaEvent(NxEventTypes eType)
+{
+	NxMediaEvent eEvent = NX_EVENT_MEDIA_UNKNOWN;
+
+	switch (eType) {
+	case E_NX_EVENT_SDCARD_INSERT:
+		eEvent = NX_EVENT_MEDIA_SDCARD_INSERT;
+		NXLOGI("[%s] NX_EVENT_MEDIA_SDCARD_INSERT", __FUNCTION__);
+		break;
+
+	case E_NX_EVENT_SDCARD_REMOVE:
+		eEvent = NX_EVENT_MEDIA_SDCARD_REMOVE;
+		NXLOGI("[%s] NX_EVENT_MEDIA_SDCARD_REMOVE", __FUNCTION__);
+		break;
+
+	case E_NX_EVENT_USB_INSERT:
+		eEvent = NX_EVENT_MEDIA_USB_INSERT;
+		NXLOGI("[%s] NX_EVENT_MEDIA_USB_INSERT", __FUNCTION__);
+		break;
+
+	case E_NX_EVENT_USB_REMOVE:
+		eEvent = NX_EVENT_MEDIA_USB_REMOVE;
+		NXLOGI("[%s] NX_EVENT_MEDIA_USB_REMOVE", __FUNCTION__);
+		break;
+
+	case E_NX_EVENT_MEDIA_SCAN_DONE:
+		eEvent = NX_EVENT_MEDIA_SCAN_DONE;
+		NXLOGI("[%s] NX_EVENT_MEDIA_SCAN_DONE", __FUNCTION__);
+		break;
+
+	default:
+		eEvent = NX_EVENT_MEDIA_UNKNOWN;
+		break;
+	}
+
+	MediaEventChanged(eEvent);
+}
+#endif

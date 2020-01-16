@@ -1698,11 +1698,11 @@ void PlayerVideoFrame::on_speedButton_released()
 		style += "QProgressBar {";
 		style += "  border: 2px solid grey;";
 		style += "  border-radius: 5px;";
-		style += "  background: grey;";
+		style += "  background: rgba(128, 128, 128, 50%);";
 		style += "}";
 
 		style += "QProgressBar::chunk {";
-		style += "  background-color: rgb(37, 86, 201);";
+		style += "  background-color: rgba(37, 86, 201, 50%);";
 		style += "width: 20px;";
 		style += "}";
 
@@ -1714,11 +1714,11 @@ void PlayerVideoFrame::on_speedButton_released()
 		style += "QProgressBar {";
 		style += "  border: 2px solid grey;";
 		style += "  border-radius: 5px;";
-		style += "  background: white;";
+		style += "  background: rgba(255, 255, 255, 50%);";
 		style += "}";
 
 		style += "QProgressBar::chunk {";
-		style += "  background-color: rgb(37, 86, 201);";
+		style += "  background-color: rgba(37, 86, 201, 50%);";
 		style += "width: 20px;";
 		style += "}";
 
