@@ -68,9 +68,9 @@ static	CallBackSignal mediaStateCb;
 static	PlayerVideoFrame *pPlayFrame = NULL;
 
 //CallBack Eos, Error
-static void cbEventCallback(void *privateDesc, unsigned int EventType, unsigned int EventData, unsigned int param)
+static void cbEventCallback(void *privateDesc, unsigned int EventType, unsigned int EventData, void* param)
 {
-	mediaStateCb.statusChanged(EventType, EventData);
+	mediaStateCb.statusChanged(EventType, EventData, param);
 }
 
 //CallBack Qt
@@ -164,7 +164,7 @@ PlayerVideoFrame::PlayerVideoFrame(QWidget *parent)
 	m_pIConfig = GetConfigHandle();
 
 	//	Connect Solt Functions
-	connect(&mediaStateCb, SIGNAL(mediaStatusChanged(int, int)), SLOT(statusChanged(int, int)));
+	connect(&mediaStateCb, SIGNAL(mediaStatusChanged(int, int, void*)), SLOT(statusChanged(int, int, void*)));
 	pPlayFrame = this;
 
 	ui->graphicsView->viewport()->installEventFilter(this);
@@ -173,7 +173,10 @@ PlayerVideoFrame::PlayerVideoFrame(QWidget *parent)
 	//Update position timer
 	connect(&m_PosUpdateTimer, SIGNAL(timeout()), this, SLOT(DoPositionUpdate()));
 	//Update Subtitle
-	connect(&m_PosUpdateTimer, SIGNAL(timeout()), this, SLOT(subTitleDisplayUpdate()));
+	connect(&m_PosUpdateTimer, SIGNAL(timeout()), this, SLOT(updateSubTitle()));
+
+	m_SubtitleDismissTimer = new QTimer();
+	connect(m_SubtitleDismissTimer, SIGNAL(timeout()), this, SLOT(dismissSubtitle()));
 
 	setAttribute(Qt::WA_AcceptTouchEvents, true);
 
@@ -772,7 +775,7 @@ const char *NxGstEvent2String(NX_GST_EVENT event)
 	return NULL;
 }
 
-void PlayerVideoFrame::statusChanged(int eventType, int eventData)
+void PlayerVideoFrame::statusChanged(int eventType, int eventData, void* param)
 {
 	if(m_bTurnOffFlag)
 	{
@@ -807,7 +810,7 @@ void PlayerVideoFrame::statusChanged(int eventType, int eventData)
 
 		if (new_state == MP_STATE_PLAYING)
 		{
-			m_PosUpdateTimer.start(100);
+			m_PosUpdateTimer.start(300);
 		}
 		else if (new_state == MP_STATE_PAUSED)
 		{
@@ -822,12 +825,38 @@ void PlayerVideoFrame::statusChanged(int eventType, int eventData)
 	}
 	case MP_EVENT_SUBTITLE_UPDATED:
 	{
-		NXLOGI("%s()", __FUNCTION__);
+		m_pSubtitle = (SUBTITLE_INFO*)param;
+		ui->subTitleLabel->setText(m_pSubtitle->subtitleText);
+
+		qint64 curPos = m_pNxPlayer->GetMediaPosition();
+		int time_msec = (int)(m_pSubtitle->duration / (1000000));
+		//NXLOGI("%s show subtitle!!! startTime:%" GST_TIME_FORMAT ", curPos:%" GST_TIME_FORMAT ", duration(%lld) / (%lld), time_msec%" GST_TIME_FORMAT "/(%d)",
+		//		__FUNCTION__, GST_TIME_ARGS(m_pSubtitle->startTime),  GST_TIME_ARGS(curPos), m_pSubtitle->duration, m_pSubtitle->duration/1000000, GST_TIME_ARGS(time_msec), time_msec);
+
+		m_SubtitleDismissTimer->setSingleShot(true);
+		m_SubtitleDismissTimer->setInterval(time_msec);
+		m_SubtitleDismissTimer->start();
+
+		g_free(m_pSubtitle->subtitleText);
+		g_free(m_pSubtitle);
 		break;
 	}
 	default:
 		break;
 	}
+}
+
+void PlayerVideoFrame::dismissSubtitle()
+{
+	NXLOGI("%s", __FUNCTION__);
+
+	//qint64 curPos = m_pNxPlayer->GetMediaPosition();
+	//NXLOGI("%s dismiss subtitle!!! curPos:%" GST_TIME_FORMAT, __FUNCTION__, GST_TIME_ARGS(curPos));
+
+	ui->subTitleLabel->setText("");
+	ui->subTitleLabel2->setText("");
+
+	m_SubtitleDismissTimer->stop();
 }
 
 bool PlayerVideoFrame::StopVideo()
@@ -851,7 +880,7 @@ bool PlayerVideoFrame::StopVideo()
 	if (-1 < m_pNxPlayer->Stop())
 	{
 		NXLOGI("%s() send MP_EVENT_STATE_CHANGED with stopped", __FUNCTION__);
-		statusChanged((int)MP_EVENT_STATE_CHANGED, (int)MP_STATE_STOPPED);
+		statusChanged((int)MP_EVENT_STATE_CHANGED, (int)MP_STATE_STOPPED, NULL);
 	}
 	CloseVideo();
 
@@ -1132,7 +1161,7 @@ bool PlayerVideoFrame::PauseVideo()
 	NXLOGI("%s()", __FUNCTION__);
 	if(NULL == m_pNxPlayer)
 	{
-		NXLOGE("%s(), line: %d, m_pNxPlayer is NULL \n", __FUNCTION__, __LINE__);
+		NXLOGE("%s(), line: %d, m_pNxPlayer is NULL", __FUNCTION__, __LINE__);
 		return false;
 	}
 
@@ -1529,7 +1558,7 @@ void PlayerVideoFrame::RegisterRequestLauncherShow(void (*cbFunc)(bool *bOk))
 // Subtitle Display Routine
 //
 
-void PlayerVideoFrame::subTitleDisplayUpdate()
+void PlayerVideoFrame::updateSubTitle()
 {
 	if (m_bSubThreadFlag)
 	{

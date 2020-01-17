@@ -43,13 +43,13 @@ public:
 	CallBackSignal() {}
 
 public slots:
-	void statusChanged(int eventType, int eventData)
+	void statusChanged(int eventType, int eventData, void* param)
 	{
-		emit mediaStatusChanged(eventType, eventData);
+		emit mediaStatusChanged(eventType, eventData, param);
 	}
 
 signals:
-	void mediaStatusChanged(int eventType, int eventData);
+	void mediaStatusChanged(int eventType, int eventData, void* param);
 };
 
 namespace Ui {
@@ -66,8 +66,8 @@ signals:
 private slots:
 	void slotPlayListFrameAccept();
 	void slotPlayListFrameReject();
-	void subTitleDisplayUpdate();
-	void statusChanged(int eventType, int eventData);
+	void updateSubTitle();
+	void statusChanged(int eventType, int eventData, void* param);
 	void DoPositionUpdate();
 
 	void on_prevButton_released();
@@ -81,6 +81,7 @@ private slots:
 
 	void slotOk();
 
+	void dismissSubtitle();
 public:
 	explicit PlayerVideoFrame(QWidget *parent = 0);
 	~PlayerVideoFrame();
@@ -144,6 +145,7 @@ private:
 	int				m_iVolValue;
 	qint64			m_iDuration;
 	QTimer			m_PosUpdateTimer;
+	QTimer			*m_SubtitleDismissTimer;
 	bool			m_bIsInitialized;
 	NX_CMutex		m_statusMutex;
 	//	UI Status Bar
@@ -195,6 +197,9 @@ private:
 	QPushButton *m_pMessageButton;
 
 	char m_audioDeviceName[20];
+
+	// Subtitle
+	SUBTITLE_INFO* m_pSubtitle;
 
 private:
 	Ui::PlayerVideoFrame *ui;

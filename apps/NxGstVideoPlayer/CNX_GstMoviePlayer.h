@@ -64,10 +64,11 @@ public:
 	//
 	//MediaPlayer commomn Initialize , close
 	//mediaType is MP_TRACK_VIDEO or MP_TRACK_AUDIO
-	int InitMediaPlayer(void (*pCbEventCallback)(void *privateDesc, unsigned int EventType, unsigned int EventData, unsigned int param),
-							void *pCbPrivate, const char *pUri,
-							int DspWidth, int DspHeight,
-							char *pAudioDeviceName);
+	int InitMediaPlayer(void (*pCbEventCallback)(void *privateDesc, unsigned int EventType,
+												 unsigned int EventData, void* param),
+						void *pCbPrivate, const char *pUri,
+						int DspWidth, int DspHeight,
+						char *pAudioDeviceName);
 
 	int CloseHandle();
 
@@ -88,11 +89,13 @@ public:
 	int SetVideoSpeed(gdouble speed);
 	gdouble GetVideoSpeed();
 	int GetVideoSpeedSupport();
+	bool HasSubTitleStream();
 
 private:
 	//MediaPlayer InitMediaPlayer
-	int OpenHandle(void (*pCbEventCallback)(void *privateDesc, unsigned int EventType, unsigned int EventData, unsigned int param),
-					void *cbPrivate);
+	int OpenHandle(void (*pCbEventCallback)(void *privateDesc, unsigned int EventType,
+											unsigned int EventData, void* param),
+				   void *cbPrivate);
 	int SetUri(const char *pUri);
 	
 	int GetMediaInfo();

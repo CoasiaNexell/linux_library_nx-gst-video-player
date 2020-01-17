@@ -29,7 +29,7 @@ struct MOVIE_TYPE {
 	GstElement *nxdecoder;
 	GstElement *nxvideosink;
 
-	GstElement *appsink;
+	GstElement *fakesink;
 	GstElement *capsfilter;
 
 	GstElement *decodebin;
@@ -37,7 +37,7 @@ struct MOVIE_TYPE {
 	GstElement *audio_decoder;
 	GstElement *audioconvert;
 	GstElement *audioresample;
-	GstElement *autoaudiosink;
+	GstElement *alsasink;
 
 	GstElement *volume;
 	gdouble rate;                 /* Current playback rate (can be negative) */
@@ -62,7 +62,7 @@ struct MOVIE_TYPE {
 	gboolean pending;
 
 	//	Callback
-	void (*callback)(void *, unsigned int EventType, unsigned int EventData, unsigned int param);
+	void (*callback)(void *, unsigned int EventType, unsigned int EventData, void* param);
 	void *owner;
 } ;
 
@@ -186,6 +186,51 @@ static void on_decodebin_pad_added_demux (GstElement *element,
 	FUNC_OUT();
 }
 
+SUBTITLE_INFO* setSubtitleInfo(GstClockTime startTime, GstClockTime endTime, GstClockTime duration, const char* subtitle)
+{
+	SUBTITLE_INFO*	m_pSubtitleInfo = (SUBTITLE_INFO*) g_malloc0(sizeof(SUBTITLE_INFO));
+
+	m_pSubtitleInfo->startTime = (gint64) startTime;
+	m_pSubtitleInfo->endTime = (gint64) endTime;
+	m_pSubtitleInfo->duration = (gint64) duration;
+	m_pSubtitleInfo->subtitleText = g_strdup(subtitle);
+
+	NXLOGI("%s() startTime:%lld, endTime: %lld duration: %lld subtitleTex:%s"
+			, __FUNCTION__, startTime, endTime, duration, subtitle);
+	return m_pSubtitleInfo;
+}
+
+void on_handoff (GstElement* object,
+				GstBuffer* buffer,
+				GstPad* pad,
+				gpointer user_data)
+{
+	char text_msg[128];
+	MP_HANDLE handle = (MP_HANDLE) user_data;
+
+	gint buffer_size, extracted_size;
+	memset(text_msg, 0, sizeof(text_msg));
+
+	buffer_size = gst_buffer_get_size(buffer);
+
+	extracted_size = gst_buffer_extract(buffer, 0, text_msg, buffer_size);
+	NXLOGI ("%s() Buffer Size is %d, read %d, data: %s", __FUNCTION__, buffer_size, extracted_size, text_msg);
+
+	static GstClockTime startTime, duration, endTime, timestamp;
+	startTime = GST_BUFFER_PTS (buffer);
+	duration = GST_BUFFER_DURATION (buffer);
+	timestamp = GST_BUFFER_TIMESTAMP (buffer);
+	endTime = startTime + duration;
+	NXLOGI("%s() startTime:%" GST_TIME_FORMAT ", duration: %" GST_TIME_FORMAT ", endTime: %" GST_TIME_FORMAT ", timestamp: %" GST_TIME_FORMAT
+					, __FUNCTION__, GST_TIME_ARGS(startTime), GST_TIME_ARGS(duration), GST_TIME_ARGS(endTime), GST_TIME_ARGS(timestamp));
+
+	SUBTITLE_INFO* subtitleInfo = setSubtitleInfo(startTime, endTime, duration, text_msg);
+
+	handle = (MP_HANDLE)user_data;
+	if (handle)
+		handle->callback(NULL, (int)MP_EVENT_SUBTITLE_UPDATED, 0, subtitleInfo);
+}
+
 NX_GST_RET set_subtitle_element(MP_HANDLE handle)
 {
 	FUNC_IN();
@@ -196,19 +241,23 @@ NX_GST_RET set_subtitle_element(MP_HANDLE handle)
 	}
 
 	handle->subtitle_queue = gst_element_factory_make ("queue2", "subtitle_queue");
-
-	handle->capsfilter = gst_element_factory_make ("capsfilter", "ContentFilter");
-	GstCaps* cap = gst_caps_new_simple("text/x-raw", NULL, NULL);	// subtitle caps
+/*
+	handle->capsfilter = gst_element_factory_make ("capsfilter", "capsfilter");
+	GstCaps* cap = gst_caps_new_simple("text/x-raw", NULL, NULL);
 	g_object_set(G_OBJECT(handle->capsfilter), "caps", cap, NULL);
+*/
+	handle->fakesink = gst_element_factory_make ("fakesink", "fakesink");
 
-	handle->appsink = gst_element_factory_make ("appsink", "appsink");
-
-	if (!handle->capsfilter || 
-		!handle->subtitle_queue || !handle->appsink)
+	if (/*!handle->capsfilter ||*/
+		!handle->subtitle_queue || !handle->fakesink)
 	{
 		NXLOGE("%s() Failed to create subtitle elements", __func__);
 		return NX_GST_RET_ERROR;
 	}
+	//gst_caps_unref(cap);
+
+	g_object_set (handle->fakesink, "signal-handoffs", TRUE, NULL);
+	g_signal_connect(handle->fakesink,      "handoff", G_CALLBACK (on_handoff), handle);
 
 	return NX_GST_RET_OK;
 }
@@ -241,8 +290,8 @@ static void
 on_pad_added_demux (GstElement *element,
                         GstPad *pad, gpointer data)
 {
-    GstPad *sinkpad;
-    GstCaps *caps;
+    GstPad *sinkpad = NULL;
+    GstCaps *caps = NULL;
 	GstStructure *structure;
 	const gchar *mime_type;
 	GstElement *target_sink_pad = NULL;
@@ -253,7 +302,6 @@ on_pad_added_demux (GstElement *element,
 
 	handle = (MP_HANDLE)data;
 	padName = gst_pad_get_name(pad);
-	NXLOGI("%s() padName(%s)", __FUNCTION__, padName);
 
     caps = gst_pad_get_current_caps(pad);
     if (caps == NULL) {
@@ -269,6 +317,7 @@ on_pad_added_demux (GstElement *element,
     }
 
 	mime_type = gst_structure_get_name(structure);
+	NXLOGI("%s() padName(%s) mime_type(%s)", __FUNCTION__, padName, mime_type);
 	if (g_str_has_prefix(mime_type, "video/")) {
 		target_sink_pad = handle->video_queue;
         sinkpad = gst_element_get_static_pad (target_sink_pad, "sink");
@@ -279,12 +328,16 @@ on_pad_added_demux (GstElement *element,
 	} else if (g_str_has_prefix(mime_type, "audio/")) {
 	    target_sink_pad = handle->audio_queue;
         sinkpad = gst_element_get_static_pad (target_sink_pad, "sink");
-    } else if (g_str_has_prefix(padName, "subtitle")) {
+    } else if (hasSubTitles && g_str_has_prefix(padName, "subtitle_0")) {
 		target_sink_pad = handle->subtitle_queue;
 		sinkpad = gst_element_get_static_pad (target_sink_pad, "sink");
+	} else {
+		NXLOGI("%s() There is no available link for %s", __FUNCTION__, padName);
 	}
 
-	if (g_str_has_prefix(mime_type, "video/") || g_str_has_prefix(mime_type, "audio/") || g_str_has_prefix(padName, "subtitle_0"))
+	NXLOGI("%s() target_sink_pad:%s", __FUNCTION__, (NULL != target_sink_pad) ? GST_OBJECT_NAME(target_sink_pad):"");
+
+	if (g_str_has_prefix(mime_type, "video/") || g_str_has_prefix(mime_type, "audio/") || (hasSubTitles && g_str_has_prefix(padName, "subtitle_0")))
     {
         if (NULL == sinkpad) {
             NXLOGE("%s() Failed to get static pad", __FUNCTION__);
@@ -308,23 +361,48 @@ on_pad_added_demux (GstElement *element,
 		}
         gst_object_unref (sinkpad);
     }
-	if (hasSubTitles && g_str_has_prefix(padName, "subtitle"))
+	/*if (hasSubTitles && g_str_has_prefix(padName, "subtitle"))
 	{
 		NXLOGI("%s Add probe to pad", __FUNCTION__);
-		/*gulong gst_pad_add_probe(GstPad*, GstPadProbeType,
-								   GstPadProbeCallback, gpointer, GDestroyNotify)*/
+		//gulong gst_pad_add_probe(GstPad*, GstPadProbeType,
+		//						   GstPadProbeCallback, gpointer, GDestroyNotify)
 		gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback) cb_have_data, handle, NULL);
-	}
+	}*/
 
 	if (padName)	g_free(padName);
 	gst_caps_unref (caps);
 
 	/* Need to check subtitle_1, 2, etc*/
 	if (TRUE == isLinkFailed) {
-		handle->callback(NULL, (int)MP_EVENT_DEMUX_LINK_FAILED, 0, 0);
+		handle->callback(NULL, (int)MP_EVENT_DEMUX_LINK_FAILED, 0, NULL);
 	}
 
 	FUNC_OUT();
+}
+
+static void print_tag(const GstTagList *list, const gchar *tag, gpointer unused)
+{
+	gint i, count;
+
+	count = gst_tag_list_get_tag_size (list, tag);
+
+	for (i = 0; i < count; i++) {
+		gchar *str;
+
+		if (gst_tag_get_type (tag) == G_TYPE_STRING) {
+			g_assert (gst_tag_list_get_string_index (list, tag, i, &str));
+		} else {
+			str = g_strdup_value_contents (gst_tag_list_get_value_index (list, tag, i));
+		}
+
+		if (i == 0) {
+			NXLOGD("%15s: %s", gst_tag_get_nick (tag), str);
+		} else {
+			NXLOGD("               : %s", str);
+		}
+
+		g_free (str);
+	}
 }
 
 static gboolean gst_bus_callback (GstBus *bus, GstMessage *msg, MP_HANDLE handle)
@@ -335,16 +413,22 @@ static gboolean gst_bus_callback (GstBus *bus, GstMessage *msg, MP_HANDLE handle
     {
         case GST_MESSAGE_EOS:
             NXLOGI("%s() End-of-stream", __FUNCTION__);
-            handle->callback(NULL, (int)MP_EVENT_EOS, 0, 0);
+            handle->callback(NULL, (int)MP_EVENT_EOS, 0, NULL);
             break;
         case GST_MESSAGE_ERROR:
+		case GST_MESSAGE_WARNING:
         {
             gchar *debug = NULL;
             GError *err = NULL;
 
-            gst_message_parse_error (msg, &err, &debug);
+			if (msg->type == GST_MESSAGE_WARNING) {
+				gst_message_parse_warning (msg, &err, &debug);
+			} else {
+				gst_message_parse_error (msg, &err, &debug);
+			}
 
-            NXLOGE("%s() Gstreamer error: %s", __FUNCTION__, err->message);
+            NXLOGE("%s() Gstreamer %s: %s", __FUNCTION__,
+				   (msg->type == GST_MESSAGE_WARNING)?"warning":"error", err->message);
             g_error_free (err);
 
             NXLOGI("%s() Debug details: %s", __FUNCTION__, debug);
@@ -358,15 +442,18 @@ static gboolean gst_bus_callback (GstBus *bus, GstMessage *msg, MP_HANDLE handle
             GstState old_state, new_state;
 
             gst_message_parse_state_changed (msg, &old_state, &new_state, NULL);
-            if(g_strcmp0("NxGstMoviePlay", GST_OBJECT_NAME (msg->src)) == 0) {
+			// TODO: workaround
+            //if(g_strcmp0("NxGstMoviePlay", GST_OBJECT_NAME (msg->src)) == 0) {
                 NXLOGI("%s Element '%s' changed state from  '%s' to '%s'"
 					   , __FUNCTION__
 					   , GST_OBJECT_NAME (msg->src)
 					   , gst_element_state_get_name (old_state)
 					   , gst_element_state_get_name (new_state));
 				//	Send Message
-				handle->callback(NULL, (int)MP_EVENT_STATE_CHANGED, (int)GstState2NxState(new_state), 0);
-            }
+				//if(g_strcmp0("NxGstMoviePlay", GST_OBJECT_NAME (msg->src)) == 0)
+				if(g_strcmp0("nxvideosink", GST_OBJECT_NAME (msg->src)) == 0)
+				handle->callback(NULL, (int)MP_EVENT_STATE_CHANGED, (int)GstState2NxState(new_state), NULL);
+            //}
             break;
         }
 		case GST_MESSAGE_DURATION_CHANGED:
@@ -389,13 +476,20 @@ static gboolean gst_bus_callback (GstBus *bus, GstMessage *msg, MP_HANDLE handle
 					__FUNCTION__, GST_OBJECT_NAME (msg->src), GST_TIME_ARGS (running_time));
 			break;
 		}
+		case GST_MESSAGE_TAG:
+		{
+			GstTagList *received_tags = NULL;
+			gst_message_parse_tag (msg, &received_tags);
+			NXLOGD("%s() Got tags from element %s", __FUNCTION__, GST_OBJECT_NAME (msg->src));
+			//gst_tag_list_foreach(received_tags, print_tag, NULL);
+			gst_tag_list_unref (received_tags);
+		}
         default:
         {
             GstMessageType type = GST_MESSAGE_TYPE(msg);
 			// TODO: parse tag, latency, stream-status, reset-time, async-done, new-clock, etc
             NXLOGV("%s() Received GST_MESSAGE_TYPE [%s]",
                    __FUNCTION__, gst_message_type_get_name(type));
-			// For tags : gst_message_parse_tag(), gst_tag_list_unref()
             break;
         }
     }
@@ -477,10 +571,10 @@ NX_GST_RET set_audio_elements(MP_HANDLE handle)
 	handle->decodebin = gst_element_factory_make ("decodebin", "decodebin");
     handle->audioconvert = gst_element_factory_make ("audioconvert", "audioconvert");
     handle->audioresample = gst_element_factory_make ("audioresample", "audioresample");
-    handle->autoaudiosink = gst_element_factory_make ("autoaudiosink", "autoaudiosink");
+    handle->alsasink = gst_element_factory_make ("alsasink", "alsasink");
 
 	if (!handle->audio_queue || 		!handle->decodebin || !handle->audioconvert ||
-		!handle->audioresample || !handle->autoaudiosink)
+		!handle->audioresample || !handle->alsasink)
 	{
 		NXLOGE("%s() Failed to create audio elements", __func__);
 		return NX_GST_RET_ERROR;
@@ -572,40 +666,40 @@ NX_GST_RET add_elements_to_bin(MP_HANDLE handle)
 	{
 		if (hasSubTitles)
 		{
-		gst_bin_add_many(GST_BIN(handle->pipeline)
+			gst_bin_add_many(GST_BIN(handle->pipeline)
 						 , handle->source, handle->demuxer
-						 , handle->audio_queue, handle->decodebin, handle->audioconvert, handle->audioresample, handle->autoaudiosink
+						 , handle->audio_queue, handle->decodebin, handle->audioconvert, handle->audioresample, handle->alsasink
 						 , handle->video_queue, handle->video_parser, handle->nxdecoder, handle->nxvideosink
-						 , handle->subtitle_queue, handle->capsfilter, handle->appsink
+						 , handle->subtitle_queue, /*handle->capsfilter, */handle->fakesink
 						 , NULL);
 		}
 		else
 		{
-					gst_bin_add_many(GST_BIN(handle->pipeline)
-						 , handle->source, handle->demuxer
-						 , handle->audio_queue, handle->decodebin, handle->audioconvert, handle->audioresample, handle->autoaudiosink
-						 , handle->video_queue, handle->video_parser, handle->nxdecoder, handle->nxvideosink
-						 , NULL);
+			gst_bin_add_many(GST_BIN(handle->pipeline)
+					, handle->source, handle->demuxer
+					, handle->audio_queue, handle->decodebin, handle->audioconvert, handle->audioresample, handle->alsasink
+					, handle->video_queue, handle->video_parser, handle->nxdecoder, handle->nxvideosink
+					, NULL);
 		}
 	}
 	else
 	{
 		if (hasSubTitles)
 		{
-		gst_bin_add_many(GST_BIN(handle->pipeline)
-						 , handle->source, handle->demuxer
-						 , handle->audio_queue, handle->decodebin, handle->audioconvert, handle->audioresample, handle->autoaudiosink
-						 , handle->video_queue, handle->nxdecoder, handle->nxvideosink
-						 , handle->subtitle_queue, handle->capsfilter, handle->appsink
-						 , NULL);
+			gst_bin_add_many(GST_BIN(handle->pipeline)
+							, handle->source, handle->demuxer
+							, handle->audio_queue, handle->decodebin, handle->audioconvert, handle->audioresample, handle->alsasink
+							, handle->video_queue, handle->nxdecoder, handle->nxvideosink
+							, handle->subtitle_queue, /*handle->capsfilter, */handle->fakesink
+							, NULL);
 		}
 		else
 		{
-		gst_bin_add_many(GST_BIN(handle->pipeline)
-						, handle->source, handle->demuxer
-						, handle->audio_queue, handle->decodebin, handle->audioconvert, handle->audioresample, handle->autoaudiosink
-						, handle->video_queue, handle->nxdecoder, handle->nxvideosink
-						, NULL);
+			gst_bin_add_many(GST_BIN(handle->pipeline)
+							, handle->source, handle->demuxer
+							, handle->audio_queue, handle->decodebin, handle->audioconvert, handle->audioresample, handle->alsasink
+							, handle->video_queue, handle->nxdecoder, handle->nxvideosink
+							, NULL);
 		}
 	}
 
@@ -658,10 +752,14 @@ NX_GST_RET link_elements(MP_HANDLE handle)
 
 	if (hasSubTitles)
 	{
-		if (!gst_element_link_many(handle->subtitle_queue, handle->capsfilter, handle->appsink, NULL))
+		if (!gst_element_link_many(handle->subtitle_queue, /*handle->capsfilter, */handle->fakesink, NULL))
 		{
-			NXLOGE("%s() Failed to link subtitle_queue<-->capsfilter<-->appsink", __FUNCTION__);
+			NXLOGE("%s() Failed to link subtitle_queue<-->fakesink", __FUNCTION__);
 			return NX_GST_RET_ERROR;
+		}
+		else
+		{
+			NXLOGI("%s() Succeed to link subtitle_queue<-->fakesink", __FUNCTION__);
 		}
 	}
 
@@ -671,9 +769,9 @@ NX_GST_RET link_elements(MP_HANDLE handle)
 		return NX_GST_RET_ERROR;
 	}
 
-    if (!gst_element_link_many(handle->audioconvert, handle->audioresample, handle->autoaudiosink, NULL))
+    if (!gst_element_link_many(handle->audioconvert, handle->audioresample, handle->alsasink, NULL))
     {
-        NXLOGE("%s() Failed to link audioconvert<-->audioresample<-->autoaudiosink", __FUNCTION__);
+        NXLOGE("%s() Failed to link audioconvert<-->audioresample<-->alsasink", __FUNCTION__);
         return NX_GST_RET_ERROR;
     }
 
@@ -789,7 +887,7 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
 
 NX_GST_RET NX_GSTMP_Open(MP_HANDLE *pHandle,
 						  	   void (*cb)(void *owner, unsigned int eventType,
-                  				          unsigned int eventData, unsigned int param2),
+										unsigned int eventData, void * param),
            					   void *cbOwner)
 {
 	FUNC_IN();
@@ -1024,7 +1122,7 @@ NX_GST_RET NX_GSTMP_SetVolume(MP_HANDLE handle, int volume)
 
 	FUNC_IN();
 
-	if( !handle || !handle->autoaudiosink || !handle->volume)
+	if( !handle || !handle->alsasink || !handle->volume)
 		return NX_GST_RET_ERROR;
 
     gdouble vol = (double)volume/100.;

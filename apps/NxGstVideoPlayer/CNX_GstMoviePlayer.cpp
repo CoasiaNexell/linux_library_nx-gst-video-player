@@ -42,7 +42,7 @@ CNX_GstMoviePlayer::~CNX_GstMoviePlayer()
 int CNX_GstMoviePlayer::InitMediaPlayer(void (*pCbEventCallback)(void *privateDesc,
                                                                  unsigned int EventType,
                                                                  unsigned int EventData,
-                                                                 unsigned int param),
+                                                                 void* param),
                                      void *pCbPrivate,
                                      const char *pUri,
                                      int dspWidth,
@@ -250,7 +250,8 @@ void CNX_GstMoviePlayer::PrintMediaInfo( const char *pUri )
 }
 
 //================================================================================================================
-int CNX_GstMoviePlayer::OpenHandle(void (*pCbEventCallback)(void *privateDesc, unsigned int EventType, unsigned int EventData, unsigned int param),
+int CNX_GstMoviePlayer::OpenHandle(void (*pCbEventCallback)(void *privateDesc, unsigned int EventType,
+															unsigned int EventData, void* param),
 								 void *cbPrivate)
 {
 	NXLOGI("%s", __FUNCTION__);
@@ -354,7 +355,8 @@ int CNX_GstMoviePlayer::OpenSubtitle(char * subtitlePath)
 	if(m_pSubtitleParser)
 	{
 		return m_pSubtitleParser->NX_SPOpen(subtitlePath);
-	}else
+	}
+	else
 	{
 		NXLOGW("in OpenSubtitle no parser instance\n");
 		return 0;
@@ -367,7 +369,8 @@ int CNX_GstMoviePlayer::GetSubtitleStartTime()
 	if(m_pSubtitleParser->NX_SPIsParsed())
 	{
 		return m_pSubtitleParser->NX_SPGetStartTime();
-	}else
+	}
+	else
 	{
 		return 0;
 	}
@@ -441,7 +444,8 @@ const char *CNX_GstMoviePlayer::GetBestSubtitleEncode()
 	if(m_pSubtitleParser->NX_SPIsParsed())
 	{
 		return m_pSubtitleParser->NX_SPGetBestTextEncode();
-	}else
+	}
+	else
 	{
 		return NULL;
 	}
@@ -453,7 +457,8 @@ const char *CNX_GstMoviePlayer::GetBestStringEncode(const char *str)
 	{
 		NXLOGW("GetBestStringEncode no parser instance\n");
 		return "EUC-KR";
-	}else
+	}
+	else
 	{
 		return m_pSubtitleParser->NX_SPFindStringEncode(str);
 	}
@@ -582,4 +587,15 @@ int	CNX_GstMoviePlayer::GetVideoSpeedSupport()
 	}
 
 	return ret;
+}
+
+bool CNX_GstMoviePlayer::HasSubTitleStream()
+{
+	if(NULL == m_hPlayer)
+	{
+		NXLOGE("%s: Error! Handle is not initialized!", __FUNCTION__);
+		return false;
+	}
+	NXLOGI("%s() %s", __FUNCTION__, ((m_MediaInfo.n_subtitle > 0)?"true":"false"));
+	return (m_MediaInfo.n_subtitle > 0) ? true:false;
 }

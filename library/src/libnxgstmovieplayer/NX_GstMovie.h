@@ -118,6 +118,13 @@ typedef struct DSP_RECT {
     int32_t     iHeight;
 } DSP_RECT;
 
+typedef struct SUBTITLE_INFO {
+	gint64 startTime;
+	gint64 endTime;
+	gint64 duration;
+	char*	subtitleText;
+} SUBTITLE_INFO;
+
 #ifdef __cplusplus
 extern "C" {
 #endif	//	__cplusplus
@@ -125,7 +132,7 @@ extern "C" {
 NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pUri);
 NX_GST_RET NX_GSTMP_Open(MP_HANDLE *handle,
 					           void (*cb)(void *owner, unsigned int msg,
-				   				          unsigned int param1, unsigned int param2),
+							   unsigned int param1, void* param),
 				   			   void *cbOwner);
 void NX_GSTMP_Close(MP_HANDLE handle);
 NX_GST_RET NX_GSTMP_GetMediaInfo(MP_HANDLE handle, GST_MEDIA_INFO *pInfo);
