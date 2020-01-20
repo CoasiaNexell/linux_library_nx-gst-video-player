@@ -198,9 +198,6 @@ private:
 
 	char m_audioDeviceName[20];
 
-	// Subtitle
-	SUBTITLE_INFO* m_pSubtitle;
-
 private:
 	Ui::PlayerVideoFrame *ui;
 };

@@ -22,7 +22,6 @@ struct MOVIE_TYPE {
 	GstElement *audio_queue;
 	GstElement *video_queue;
 	GstElement *subtitle_queue;
-	GstElement *subtitle_overlay;
 
 	GstElement *demuxer;
 	GstElement *video_parser;
@@ -195,8 +194,9 @@ SUBTITLE_INFO* setSubtitleInfo(GstClockTime startTime, GstClockTime endTime, Gst
 	m_pSubtitleInfo->duration = (gint64) duration;
 	m_pSubtitleInfo->subtitleText = g_strdup(subtitle);
 
-	NXLOGI("%s() startTime:%lld, endTime: %lld duration: %lld subtitleTex:%s"
-			, __FUNCTION__, startTime, endTime, duration, subtitle);
+	NXLOGI("%s() subtitle:%s startTime:%" GST_TIME_FORMAT ", duration: %" GST_TIME_FORMAT ", endTime: %" GST_TIME_FORMAT
+			, __FUNCTION__, subtitle, GST_TIME_ARGS(startTime), GST_TIME_ARGS(duration), GST_TIME_ARGS(endTime));
+
 	return m_pSubtitleInfo;
 }
 
@@ -208,27 +208,31 @@ void on_handoff (GstElement* object,
 	char text_msg[128];
 	MP_HANDLE handle = (MP_HANDLE) user_data;
 
-	gint buffer_size, extracted_size;
+	gsize buffer_size, extracted_size;
 	memset(text_msg, 0, sizeof(text_msg));
+
+	gst_buffer_ref (buffer);
 
 	buffer_size = gst_buffer_get_size(buffer);
 
 	extracted_size = gst_buffer_extract(buffer, 0, text_msg, buffer_size);
-	NXLOGI ("%s() Buffer Size is %d, read %d, data: %s", __FUNCTION__, buffer_size, extracted_size, text_msg);
+	//NXLOGI ("%s() Buffer Size is %d, read %d, data: %s", __FUNCTION__, buffer_size, extracted_size, text_msg);
 
 	static GstClockTime startTime, duration, endTime, timestamp;
 	startTime = GST_BUFFER_PTS (buffer);
 	duration = GST_BUFFER_DURATION (buffer);
 	timestamp = GST_BUFFER_TIMESTAMP (buffer);
 	endTime = startTime + duration;
-	NXLOGI("%s() startTime:%" GST_TIME_FORMAT ", duration: %" GST_TIME_FORMAT ", endTime: %" GST_TIME_FORMAT ", timestamp: %" GST_TIME_FORMAT
-					, __FUNCTION__, GST_TIME_ARGS(startTime), GST_TIME_ARGS(duration), GST_TIME_ARGS(endTime), GST_TIME_ARGS(timestamp));
+	//NXLOGI("%s() startTime:%" GST_TIME_FORMAT ", duration: %" GST_TIME_FORMAT ", endTime: %" GST_TIME_FORMAT ", timestamp: %" GST_TIME_FORMAT
+	//				, __FUNCTION__, GST_TIME_ARGS(startTime), GST_TIME_ARGS(duration), GST_TIME_ARGS(endTime), GST_TIME_ARGS(timestamp));
 
 	SUBTITLE_INFO* subtitleInfo = setSubtitleInfo(startTime, endTime, duration, text_msg);
 
 	handle = (MP_HANDLE)user_data;
 	if (handle)
 		handle->callback(NULL, (int)MP_EVENT_SUBTITLE_UPDATED, 0, subtitleInfo);
+
+	gst_buffer_unref (buffer);
 }
 
 NX_GST_RET set_subtitle_element(MP_HANDLE handle)
@@ -241,23 +245,26 @@ NX_GST_RET set_subtitle_element(MP_HANDLE handle)
 	}
 
 	handle->subtitle_queue = gst_element_factory_make ("queue2", "subtitle_queue");
-/*
+
 	handle->capsfilter = gst_element_factory_make ("capsfilter", "capsfilter");
 	GstCaps* cap = gst_caps_new_simple("text/x-raw", NULL, NULL);
 	g_object_set(G_OBJECT(handle->capsfilter), "caps", cap, NULL);
-*/
+
 	handle->fakesink = gst_element_factory_make ("fakesink", "fakesink");
 
-	if (/*!handle->capsfilter ||*/
+	if (!handle->capsfilter ||
 		!handle->subtitle_queue || !handle->fakesink)
 	{
 		NXLOGE("%s() Failed to create subtitle elements", __func__);
 		return NX_GST_RET_ERROR;
 	}
-	//gst_caps_unref(cap);
+	gst_caps_unref(cap);
 
 	g_object_set (handle->fakesink, "signal-handoffs", TRUE, NULL);
-	g_signal_connect(handle->fakesink,      "handoff", G_CALLBACK (on_handoff), handle);
+	g_object_set (handle->fakesink, "sync", TRUE, NULL);
+	g_object_set (handle->fakesink, "preroll-queue-len", 1, NULL);
+
+	g_signal_connect(handle->fakesink, "handoff", G_CALLBACK (on_handoff), handle);
 
 	return NX_GST_RET_OK;
 }
@@ -271,13 +278,13 @@ cb_have_data (GstPad          *pad,
 	char text_msg[128];
 	MP_HANDLE handle = NULL;
 
-	gint sz, sz2;
+	gint buffer_size, read_size;
 	memset(text_msg, 0, sizeof(text_msg));
 	buffer = GST_PAD_PROBE_INFO_BUFFER (info);
-	sz = gst_buffer_get_size(buffer);
+	buffer_size = gst_buffer_get_size(buffer);
 
-	sz2 = gst_buffer_extract(buffer, 0, text_msg, sz);
-	NXLOGI ("%s() Buffer Size is %d, read %d, data: %s", __FUNCTION__, sz, sz2, text_msg);
+	read_size = gst_buffer_extract(buffer, 0, text_msg, buffer_size);
+	NXLOGI ("%s() Buffer Size is %d, read %d, data: %s", __FUNCTION__, buffer_size, read_size, text_msg);
 
 	handle = (MP_HANDLE)user_data;
 	if (handle)
@@ -443,15 +450,13 @@ static gboolean gst_bus_callback (GstBus *bus, GstMessage *msg, MP_HANDLE handle
 
             gst_message_parse_state_changed (msg, &old_state, &new_state, NULL);
 			// TODO: workaround
-            //if(g_strcmp0("NxGstMoviePlay", GST_OBJECT_NAME (msg->src)) == 0) {
+            if(g_strcmp0("NxGstMoviePlay", GST_OBJECT_NAME (msg->src)) == 0) {
                 NXLOGI("%s Element '%s' changed state from  '%s' to '%s'"
 					   , __FUNCTION__
 					   , GST_OBJECT_NAME (msg->src)
 					   , gst_element_state_get_name (old_state)
 					   , gst_element_state_get_name (new_state));
 				//	Send Message
-				//if(g_strcmp0("NxGstMoviePlay", GST_OBJECT_NAME (msg->src)) == 0)
-				if(g_strcmp0("nxvideosink", GST_OBJECT_NAME (msg->src)) == 0)
 				handle->callback(NULL, (int)MP_EVENT_STATE_CHANGED, (int)GstState2NxState(new_state), NULL);
             //}
             break;
@@ -483,11 +488,12 @@ static gboolean gst_bus_callback (GstBus *bus, GstMessage *msg, MP_HANDLE handle
 			NXLOGD("%s() Got tags from element %s", __FUNCTION__, GST_OBJECT_NAME (msg->src));
 			//gst_tag_list_foreach(received_tags, print_tag, NULL);
 			gst_tag_list_unref (received_tags);
+			break;
 		}
         default:
         {
             GstMessageType type = GST_MESSAGE_TYPE(msg);
-			// TODO: parse tag, latency, stream-status, reset-time, async-done, new-clock, etc
+			// TODO: latency, stream-status, reset-time, async-done, new-clock, etc
             NXLOGV("%s() Received GST_MESSAGE_TYPE [%s]",
                    __FUNCTION__, gst_message_type_get_name(type));
             break;
@@ -670,7 +676,7 @@ NX_GST_RET add_elements_to_bin(MP_HANDLE handle)
 						 , handle->source, handle->demuxer
 						 , handle->audio_queue, handle->decodebin, handle->audioconvert, handle->audioresample, handle->alsasink
 						 , handle->video_queue, handle->video_parser, handle->nxdecoder, handle->nxvideosink
-						 , handle->subtitle_queue, /*handle->capsfilter, */handle->fakesink
+						 , handle->subtitle_queue, handle->capsfilter, handle->fakesink
 						 , NULL);
 		}
 		else
@@ -690,7 +696,7 @@ NX_GST_RET add_elements_to_bin(MP_HANDLE handle)
 							, handle->source, handle->demuxer
 							, handle->audio_queue, handle->decodebin, handle->audioconvert, handle->audioresample, handle->alsasink
 							, handle->video_queue, handle->nxdecoder, handle->nxvideosink
-							, handle->subtitle_queue, /*handle->capsfilter, */handle->fakesink
+							, handle->subtitle_queue, handle->capsfilter, handle->fakesink
 							, NULL);
 		}
 		else
@@ -752,7 +758,7 @@ NX_GST_RET link_elements(MP_HANDLE handle)
 
 	if (hasSubTitles)
 	{
-		if (!gst_element_link_many(handle->subtitle_queue, /*handle->capsfilter, */handle->fakesink, NULL))
+		if (!gst_element_link_many(handle->subtitle_queue, handle->capsfilter, handle->fakesink, NULL))
 		{
 			NXLOGE("%s() Failed to link subtitle_queue<-->fakesink", __FUNCTION__);
 			return NX_GST_RET_ERROR;
@@ -837,7 +843,7 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
 	}
 	handle->bus = gst_pipeline_get_bus(GST_PIPELINE(handle->pipeline));
 	gst_bus_add_watch(handle->bus, (GstBusFunc)gst_bus_callback, handle);
-	gst_object_unref(GST_OBJECT(handle->bus));
+	gst_object_unref(handle->bus);
 
 	hasSubTitles = FALSE;
 	if (pGstMInfo->n_subtitle > 0)
@@ -944,7 +950,7 @@ void NX_GSTMP_Close(MP_HANDLE handle)
 		gst_element_set_state(handle->pipeline, GST_STATE_NULL);
 		if (NULL != handle->pipeline)
 		{
-			gst_object_unref(GST_OBJECT(handle->pipeline));
+			gst_object_unref(handle->pipeline);
 			handle->pipeline = NULL;
 		}
 	}
@@ -1161,7 +1167,7 @@ static int send_seek_event (MP_HANDLE handle)
 
 	/* Obtain the current position, needed for the seek event */
 	if (!gst_element_query_position (handle->pipeline, format, &position)) {
-		NXLOGE("s() Unable to retrieve current position", __FUNCTION__);
+		NXLOGE("%s() Unable to retrieve current position", __FUNCTION__);
 		return -1;
 	}
 
@@ -1265,7 +1271,7 @@ NX_GST_RET NX_GSTMP_Play(MP_HANDLE handle)
 	GstState state, pending;
 	if(GST_STATE_CHANGE_FAILURE != gst_element_get_state(handle->pipeline, &state, &pending, 500000000))
 	{
-		NXLOGI("%s previous state '%s' with (x%d)", __FUNCTION__, gst_element_state_get_name (state), int(handle->rate));
+		NXLOGI("%s() The previous state '%s' with (x%d)", __FUNCTION__, gst_element_state_get_name (state), int(handle->rate));
 		if(GST_STATE_PLAYING == state)
 		{
 			if (0 > send_seek_event(handle))
@@ -1427,7 +1433,7 @@ gdouble NX_GSTMP_GetVideoSpeed(MP_HANDLE handle)
 
 	if(!handle || !handle->pipeline_is_linked)
 	{
-        NXLOGE("%s() Return the default video speed since it's not ready");
+        NXLOGE("%s() Return the default video speed since it's not ready", __FUNCTION__);
 		return speed;
 	}
 

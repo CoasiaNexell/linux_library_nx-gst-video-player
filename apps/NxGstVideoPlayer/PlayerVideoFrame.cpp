@@ -769,6 +769,8 @@ const char *NxGstEvent2String(NX_GST_EVENT event)
 			return "MP_EVENT_GST_ERROR";
 		case MP_EVENT_STATE_CHANGED:
 			return "MP_EVENT_STATE_CHANGED";
+		case MP_EVENT_SUBTITLE_UPDATED:
+			return "MP_EVENT_SUBTITLE_UPDATED";
 		default:
 			return NULL;
 	};
@@ -804,6 +806,7 @@ void PlayerVideoFrame::statusChanged(int eventType, int eventData, void* param)
 	case MP_EVENT_STATE_CHANGED:
 	{
 		NX_MEDIA_STATE new_state = (NX_MEDIA_STATE)eventData;
+		NXLOGI("%s() New state [%s]", __FUNCTION__, get_nx_media_state(new_state));
 		ui->playButton->setEnabled((new_state != MP_STATE_PLAYING) || (m_fSpeed != 1.0));
 		ui->pauseButton->setEnabled(new_state == MP_STATE_PLAYING);
 		ui->stopButton->setEnabled(new_state != MP_STATE_STOPPED);
@@ -815,6 +818,7 @@ void PlayerVideoFrame::statusChanged(int eventType, int eventData, void* param)
 		else if (new_state == MP_STATE_PAUSED)
 		{
 			m_PosUpdateTimer.stop();
+			m_SubtitleDismissTimer->stop();
 		}
 
 		if (new_state == MP_STATE_STOPPED)
@@ -825,17 +829,21 @@ void PlayerVideoFrame::statusChanged(int eventType, int eventData, void* param)
 	}
 	case MP_EVENT_SUBTITLE_UPDATED:
 	{
-		m_pSubtitle = (SUBTITLE_INFO*)param;
-		ui->subTitleLabel->setText(m_pSubtitle->subtitleText);
+		SUBTITLE_INFO* m_pSubtitle = (SUBTITLE_INFO*)param;
 
-		qint64 curPos = m_pNxPlayer->GetMediaPosition();
+		m_pCodec = QTextCodec::codecForName("EUC-KR");
+		QString encResult = m_pCodec->toUnicode(m_pSubtitle->subtitleText);
+		encResult.replace("&apos;", "'");
+		ui->subTitleLabel->setText(encResult);
+		
 		int time_msec = (int)(m_pSubtitle->duration / (1000000));
-		//NXLOGI("%s show subtitle!!! startTime:%" GST_TIME_FORMAT ", curPos:%" GST_TIME_FORMAT ", duration(%lld) / (%lld), time_msec%" GST_TIME_FORMAT "/(%d)",
-		//		__FUNCTION__, GST_TIME_ARGS(m_pSubtitle->startTime),  GST_TIME_ARGS(curPos), m_pSubtitle->duration, m_pSubtitle->duration/1000000, GST_TIME_ARGS(time_msec), time_msec);
-
+		NXLOGI("%s [SHOW SUBTITLE] startTime:%" GST_TIME_FORMAT ", duration:%" GST_TIME_FORMAT ", time_msec:%d"
+				, __FUNCTION__, GST_TIME_ARGS(m_pSubtitle->startTime)
+				, GST_TIME_ARGS(m_pSubtitle->duration)
+				, time_msec);
+		
 		m_SubtitleDismissTimer->setSingleShot(true);
-		m_SubtitleDismissTimer->setInterval(time_msec);
-		m_SubtitleDismissTimer->start();
+		m_SubtitleDismissTimer->start(time_msec);
 
 		g_free(m_pSubtitle->subtitleText);
 		g_free(m_pSubtitle);
@@ -848,11 +856,6 @@ void PlayerVideoFrame::statusChanged(int eventType, int eventData, void* param)
 
 void PlayerVideoFrame::dismissSubtitle()
 {
-	NXLOGI("%s", __FUNCTION__);
-
-	//qint64 curPos = m_pNxPlayer->GetMediaPosition();
-	//NXLOGI("%s dismiss subtitle!!! curPos:%" GST_TIME_FORMAT, __FUNCTION__, GST_TIME_ARGS(curPos));
-
 	ui->subTitleLabel->setText("");
 	ui->subTitleLabel2->setText("");
 
@@ -1578,11 +1581,6 @@ void PlayerVideoFrame::updateSubTitle()
 				{
 					char *pBuf = m_pNxPlayer->GetSubtitleText();
 					encResult = m_pCodec->toUnicode(pBuf);
-					if (dbg) {
-						NXLOGD("%s m_bButtonHide(%d) subtitle: '%s'",
-										__FUNCTION__, m_bButtonHide, encResult.toStdString().c_str());
-					}
-
 					//HTML
 					//encResult = QString("%1").arg(m_pCodec->toUnicode(pBuf));	//&nbsp; not detected
 					//encResult.replace( QString("<br>"), QString("\n")  );		//detected
