@@ -262,7 +262,6 @@ NX_GST_RET set_subtitle_element(MP_HANDLE handle)
 
 	g_object_set (handle->fakesink, "signal-handoffs", TRUE, NULL);
 	g_object_set (handle->fakesink, "sync", TRUE, NULL);
-	g_object_set (handle->fakesink, "preroll-queue-len", 1, NULL);
 
 	g_signal_connect(handle->fakesink, "handoff", G_CALLBACK (on_handoff), handle);
 
@@ -458,7 +457,7 @@ static gboolean gst_bus_callback (GstBus *bus, GstMessage *msg, MP_HANDLE handle
 					   , gst_element_state_get_name (new_state));
 				//	Send Message
 				handle->callback(NULL, (int)MP_EVENT_STATE_CHANGED, (int)GstState2NxState(new_state), NULL);
-            //}
+            }
             break;
         }
 		case GST_MESSAGE_DURATION_CHANGED:
