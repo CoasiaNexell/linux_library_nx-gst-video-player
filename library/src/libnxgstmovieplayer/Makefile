@@ -14,15 +14,15 @@ LIBRARY	+= -lstdc++ -lpthread -lm
 # Target
 COBJS  	:= GstDiscover.o
 COBJS  	+= NX_GstUtils.o
-#COBJS  	:= NX_GstMoviePlay.o
+COBJS  	+= NX_GstThumbnail.o
 
 CPPOBJS	:=
 CPPOBJS += NX_GstMoviePlay.o
 
-CFLAGS		+= -g -Wall -Wextra `pkg-config --cflags glib-2.0 gstreamer-1.0 gstreamer-pbutils-1.0`
+CFLAGS		+= -g -Wall -Wextra `pkg-config --cflags glib-2.0 gstreamer-1.0 gstreamer-pbutils-1.0 gdk-pixbuf-2.0`
 CFLAGS		+= -fPIC
 
-LDFLAGS		=`pkg-config --libs glib-2.0 gstreamer-1.0 gstreamer-pbutils-1.0`
+LDFLAGS		=`pkg-config --libs glib-2.0 gstreamer-1.0 gstreamer-pbutils-1.0 gdk-pixbuf-2.0`
 
 CPPFLAGS	+= -fPIC
 

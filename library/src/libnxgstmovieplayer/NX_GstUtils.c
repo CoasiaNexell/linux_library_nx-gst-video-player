@@ -56,4 +56,3 @@ const char* get_nx_gst_error(NX_GST_ERROR error)
 	}
 	return NULL;
 }
-

@@ -579,7 +579,7 @@ int	CNX_GstMoviePlayer::GetVideoSpeedSupport()
 		return -1;
 	}
 
-	bool iResult = NX_MPGetVideoSpeedSupport(m_hPlayer);
+	bool iResult = NX_GSTMP_GetVideoSpeedSupport(m_hPlayer);
 	if(true != iResult)
 	{
 		NXLOGE( "%s: Error! This file doesn't support changing playback speed!", __FUNCTION__);
@@ -598,4 +598,17 @@ bool CNX_GstMoviePlayer::HasSubTitleStream()
 	}
 	NXLOGI("%s() %s", __FUNCTION__, ((m_MediaInfo.n_subtitle > 0)?"true":"false"));
 	return (m_MediaInfo.n_subtitle > 0) ? true:false;
+}
+
+const char* CNX_GstMoviePlayer::GetThumbnail(const char *pUri, gint64 pos_msec, gint width)
+{
+	NXLOGI("%s", __FUNCTION__);
+
+	const char* filepath = NX_GSTMP_GetThumbnail(pUri, pos_msec, width);
+	if (strlen(filepath) != 0)
+	{
+		NXLOGI("%s filepath:%s", __FUNCTION__, filepath);
+	}
+
+	return filepath;
 }

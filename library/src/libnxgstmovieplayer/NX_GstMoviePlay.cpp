@@ -6,6 +6,8 @@
 #include <string.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <gdk-pixbuf/gdk-pixbuf.h>
+#include "NX_GstThumbnail.h"
 
 #define LOG_TAG "[NxGstVideoPlayer]"
 #include <NX_Log.h>
@@ -211,8 +213,6 @@ void on_handoff (GstElement* object,
 	gsize buffer_size, extracted_size;
 	memset(text_msg, 0, sizeof(text_msg));
 
-	gst_buffer_ref (buffer);
-
 	buffer_size = gst_buffer_get_size(buffer);
 
 	extracted_size = gst_buffer_extract(buffer, 0, text_msg, buffer_size);
@@ -261,7 +261,7 @@ NX_GST_RET set_subtitle_element(MP_HANDLE handle)
 	gst_caps_unref(cap);
 
 	g_object_set (handle->fakesink, "signal-handoffs", TRUE, NULL);
-	g_object_set (handle->fakesink, "sync", TRUE, NULL);
+	g_object_set (handle->fakesink, "sync", FALSE, NULL);
 
 	g_signal_connect(handle->fakesink, "handoff", G_CALLBACK (on_handoff), handle);
 
@@ -1209,6 +1209,9 @@ static NX_GST_RET seek_to_time (MP_HANDLE handle, gint64 time_nanoseconds)
         NXLOGE("%s() Failed to seek %lld!", __func__, time_nanoseconds);
         return NX_GST_RET_ERROR;
     }
+	/* And wait for this seek to complete */
+	gst_element_get_state (handle->pipeline, NULL, NULL, GST_CLOCK_TIME_NONE);
+
     return NX_GST_RET_OK;
 }
 
@@ -1468,7 +1471,7 @@ NX_GST_RET NX_GSTMP_SetVideoSpeed(MP_HANDLE handle, gdouble speed)
 	return NX_GST_RET_OK;
 }
 
-gboolean NX_MPGetVideoSpeedSupport(MP_HANDLE handle)
+gboolean NX_GSTMP_GetVideoSpeedSupport(MP_HANDLE handle)
 {
 	if(!handle || !handle->pipeline_is_linked)
 	{
@@ -1478,6 +1481,11 @@ gboolean NX_MPGetVideoSpeedSupport(MP_HANDLE handle)
 	}
 
 	return handle->gst_media_info.isSeekable;
+}
+
+const char* NX_GSTMP_GetThumbnail(const gchar *uri, gint64 pos_msec, gint width)
+{
+	return makeThumbnail(uri, pos_msec, width);
 }
 
 NX_MEDIA_STATE GstState2NxState(GstState state)

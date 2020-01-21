@@ -148,7 +148,8 @@ NX_MEDIA_STATE NX_GSTMP_GetState(MP_HANDLE handle);
 NX_GST_RET NX_GSTMP_VideoMute(MP_HANDLE handle, int32_t bOnoff);
 NX_GST_RET NX_GSTMP_SetVideoSpeed(MP_HANDLE handle, gdouble speed);
 gdouble NX_GSTMP_GetVideoSpeed(MP_HANDLE handle);
-gboolean NX_MPGetVideoSpeedSupport(MP_HANDLE handle);
+gboolean NX_GSTMP_GetVideoSpeedSupport(MP_HANDLE handle);
+const char* NX_GSTMP_GetThumbnail(const gchar *uri, gint64 pos_msec, gint width);
 
 const char* get_nx_media_state(NX_MEDIA_STATE state);
 const char* get_nx_gst_event(NX_GST_EVENT event);

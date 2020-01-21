@@ -139,6 +139,7 @@ public:
 	bool	IsSubtitleAvailable();
 	const char*	GetBestSubtitleEncode();
 	const char* GetBestStringEncode(const char* str);
+	const char* GetThumbnail(const char *pUri, gint64 pos_msec, gint width);
 
 private:
 	//
