@@ -5,26 +5,29 @@ include ../../../env.mk
 ######################################################################
 # Includes
 INCLUDE		+= -I. -I../../prebuilt/include
-
-######################################################################
-# Libraries
-LIBRARY	+= -lstdc++ -lpthread -lm
+ifneq ($(SDKTARGETSYSROOT), )
+INCLUDE		+= -I$(SDKTARGETSYSROOT)/usr/include/drm \
+			   -I/$(SDKTARGETSYSROOT)/usr/include
+endif
 
 ######################################################################
 # Target
-COBJS  	:= GstDiscover.o
-COBJS  	+= NX_GstUtils.o
-COBJS  	+= NX_GstThumbnail.o
+COBJS  	:= \
+	GstDiscover.o	\
+	NX_GstUtils.o	\
+	NX_GstThumbnail.o
 
 CPPOBJS	:=
-CPPOBJS += NX_GstMoviePlay.o
+CPPOBJS += \
+	NX_GstMoviePlay.o	\
+	NX_FindDrmInfo.o
 
-CFLAGS		+= -g -Wall -Wextra `pkg-config --cflags glib-2.0 gstreamer-1.0 gstreamer-pbutils-1.0 gdk-pixbuf-2.0`
+CFLAGS		+= -g -Wall -Wextra `pkg-config --cflags glib-2.0 gstreamer-1.0 gstreamer-pbutils-1.0 gdk-pixbuf-2.0 libdrm`
 CFLAGS		+= -fPIC
 
-LDFLAGS		=`pkg-config --libs glib-2.0 gstreamer-1.0 gstreamer-pbutils-1.0 gdk-pixbuf-2.0`
+LDFLAGS		=`pkg-config --libs glib-2.0 gstreamer-1.0 gstreamer-pbutils-1.0 gdk-pixbuf-2.0 libdrm`
 
-CPPFLAGS	+= -fPIC
+CPPFLAGS	+= -fPIC `pkg-config --cflags glib-2.0 gstreamer-1.0 gstreamer-pbutils-1.0 gdk-pixbuf-2.0 libdrm`
 
 LIBNAME	:= libnxgstmovplayer
 TARGET	:= $(LIBNAME).so

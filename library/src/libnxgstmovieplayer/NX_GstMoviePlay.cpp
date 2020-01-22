@@ -6,8 +6,10 @@
 #include <string.h>
 #include <pthread.h>
 #include <unistd.h>
+
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include "NX_GstThumbnail.h"
+#include <NX_FindDrmInfo.h>
 
 #define LOG_TAG "[NxGstVideoPlayer]"
 #include <NX_Log.h>
@@ -46,6 +48,7 @@ struct MOVIE_TYPE {
 	GMainLoop *loop;
 	GThread *thread;
 	GstBus *bus;
+	guint bus_watch_id;
 
 	pthread_mutex_t apiLock;
 	pthread_mutex_t stateLock;
@@ -841,7 +844,7 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
 		return NX_GST_RET_ERROR;
 	}
 	handle->bus = gst_pipeline_get_bus(GST_PIPELINE(handle->pipeline));
-	gst_bus_add_watch(handle->bus, (GstBusFunc)gst_bus_callback, handle);
+	handle->bus_watch_id = gst_bus_add_watch(handle->bus, (GstBusFunc)gst_bus_callback, handle);
 	gst_object_unref(handle->bus);
 
 	hasSubTitles = FALSE;
@@ -879,7 +882,6 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
 	ret = gst_element_set_state(handle->pipeline, GST_STATE_READY);
     if (ret == GST_STATE_CHANGE_FAILURE) {
         NXLOGE("%s() Failed to set the pipeline to the READY state", __FUNCTION__);
-        gst_object_unref(handle->pipeline);
         return NX_GST_RET_ERROR;
     }
 	
@@ -945,13 +947,14 @@ void NX_GSTMP_Close(MP_HANDLE handle)
 
 	if(handle->pipeline_is_linked)
 	{
-		stop_my_thread(handle);
 		gst_element_set_state(handle->pipeline, GST_STATE_NULL);
 		if (NULL != handle->pipeline)
 		{
 			gst_object_unref(handle->pipeline);
 			handle->pipeline = NULL;
 		}
+		g_source_remove(handle->bus_watch_id);
+		stop_my_thread(handle);
 	}
 
 	g_free(handle->uri);
@@ -1486,6 +1489,11 @@ gboolean NX_GSTMP_GetVideoSpeedSupport(MP_HANDLE handle)
 const char* NX_GSTMP_GetThumbnail(const gchar *uri, gint64 pos_msec, gint width)
 {
 	return makeThumbnail(uri, pos_msec, width);
+}
+
+int32_t NX_GSTMP_GetPlaneForDisplay(int crtcIdx, int layerIdx, int32_t findRgb, MP_DRM_PLANE_INFO *pDrmPlaneInfo)
+{
+	return FindPlaneForDisplay(crtcIdx, findRgb, layerIdx, pDrmPlaneInfo);
 }
 
 NX_MEDIA_STATE GstState2NxState(GstState state)

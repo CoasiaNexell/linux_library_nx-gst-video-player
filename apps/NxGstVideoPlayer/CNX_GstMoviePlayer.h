@@ -61,8 +61,7 @@ public:
 	~CNX_GstMoviePlayer();
 
 public:
-	//
-	//MediaPlayer commomn Initialize , close
+	// MediaPlayer commomn Initialize , close
 	//mediaType is MP_TRACK_VIDEO or MP_TRACK_AUDIO
 	int InitMediaPlayer(void (*pCbEventCallback)(void *privateDesc, unsigned int EventType,
 												 unsigned int EventData, void* param),
@@ -72,27 +71,35 @@ public:
 
 	int CloseHandle();
 
-	//MediaPlayer common Control
+	// MediaPlayer common Control
 	int SetVolume(int volume);
 	int Play();
 	int Seek(qint64 position);
 	int Pause();
 	int Stop();
 
-	//MediaPlayer common information
+	// MediaPlayer common information
     void PrintMediaInfo(const char* pUri);
 	gint64 GetMediaPosition();
 	gint64 GetMediaDuration();
 	NX_MEDIA_STATE GetState();
 	int SetDisplayInfo(int dspWidth, int dspHeight, DSP_RECT rect);
+	// Thumbnail
+	const char* GetThumbnail(const char *pUri, gint64 pos_msec, gint width);
+	// The dual display
+	int GetVideoPlane(int crtcIdx, int layerIdx, int findRgb, MP_DRM_PLANE_INFO *pDrmPlaneInfo);
 	int DrmVideoMute(int bOnOff);
+
+	// The playback speed
 	int SetVideoSpeed(gdouble speed);
 	gdouble GetVideoSpeed();
 	int GetVideoSpeedSupport();
+
+	// The subtitle
 	bool HasSubTitleStream();
 
 private:
-	//MediaPlayer InitMediaPlayer
+	// MediaPlayer InitMediaPlayer
 	int OpenHandle(void (*pCbEventCallback)(void *privateDesc, unsigned int EventType,
 											unsigned int EventData, void* param),
 				   void *cbPrivate);
@@ -114,6 +121,9 @@ private:
 	int             m_bVideoMute;
 
 	GST_MEDIA_INFO	m_MediaInfo;
+
+	MP_DRM_PLANE_INFO m_idPrimaryDisplay;
+	MP_DRM_PLANE_INFO m_idSecondDisplay;
 	DSP_RECT m_dstDspRect;
 
 	char			*m_pAudioDeviceName;
@@ -139,7 +149,6 @@ public:
 	bool	IsSubtitleAvailable();
 	const char*	GetBestSubtitleEncode();
 	const char* GetBestStringEncode(const char* str);
-	const char* GetThumbnail(const char *pUri, gint64 pos_msec, gint width);
 
 private:
 	//

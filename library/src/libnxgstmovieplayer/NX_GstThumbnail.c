@@ -26,6 +26,7 @@
 #define LOG_TAG "[LibGst][Thumbnail]"
 #include <NX_Log.h>
 
+// Refer to https://gstreamer.freedesktop.org/documentation/application-development/advanced/pipeline-manipulation.html?gi-language=c
 const char *
 makeThumbnail(const gchar *uri, gint64 pos_msec, gint width)
 {
