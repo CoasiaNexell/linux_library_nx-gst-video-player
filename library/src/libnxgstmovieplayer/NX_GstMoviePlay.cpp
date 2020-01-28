@@ -9,7 +9,7 @@
 
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include "NX_GstThumbnail.h"
-#include <NX_FindDrmInfo.h>
+#include <NX_GstMovie.h>
 
 #define LOG_TAG "[NxGstVideoPlayer]"
 #include <NX_Log.h>
@@ -1489,11 +1489,6 @@ gboolean NX_GSTMP_GetVideoSpeedSupport(MP_HANDLE handle)
 const char* NX_GSTMP_GetThumbnail(const gchar *uri, gint64 pos_msec, gint width)
 {
 	return makeThumbnail(uri, pos_msec, width);
-}
-
-int32_t NX_GSTMP_GetPlaneForDisplay(int crtcIdx, int layerIdx, int32_t findRgb, MP_DRM_PLANE_INFO *pDrmPlaneInfo)
-{
-	return FindPlaneForDisplay(crtcIdx, findRgb, layerIdx, pDrmPlaneInfo);
 }
 
 NX_MEDIA_STATE GstState2NxState(GstState state)

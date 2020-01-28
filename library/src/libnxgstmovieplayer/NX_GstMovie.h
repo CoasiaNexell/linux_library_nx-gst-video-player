@@ -125,12 +125,6 @@ typedef struct SUBTITLE_INFO {
 	char*	subtitleText;
 } SUBTITLE_INFO;
 
-typedef struct MP_DRM_PLANE_INFO {
-	int32_t		iConnectorID;		//  Dsp Connector ID
-	int32_t		iPlaneId;			//  DRM Plane ID
-	int32_t		iCrtcId;			//  DRM CRTC ID
-} MP_DRM_PLANE_INFO;
-
 #ifdef __cplusplus
 extern "C" {
 #endif	//	__cplusplus
@@ -156,7 +150,6 @@ NX_GST_RET NX_GSTMP_SetVideoSpeed(MP_HANDLE handle, gdouble speed);
 gdouble NX_GSTMP_GetVideoSpeed(MP_HANDLE handle);
 gboolean NX_GSTMP_GetVideoSpeedSupport(MP_HANDLE handle);
 const char* NX_GSTMP_GetThumbnail(const gchar *uri, gint64 pos_msec, gint width);
-int32_t NX_GSTMP_GetPlaneForDisplay(int crtcIdx, int layerIdx, int32_t findRgb, MP_DRM_PLANE_INFO *pDrmPlaneInfo);
 
 const char* get_nx_media_state(NX_MEDIA_STATE state);
 const char* get_nx_gst_event(NX_GST_EVENT event);

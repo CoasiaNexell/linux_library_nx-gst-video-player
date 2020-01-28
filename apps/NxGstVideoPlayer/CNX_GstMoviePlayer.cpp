@@ -9,22 +9,15 @@
 #include <math.h>
 #include <media/CNX_Base.h>
 
-#define PLANE_TYPE_VIDEO		0
-#define PLANE_TYPE_RGB			1
-
-#define CRTC_IDX_PRIMARY		0
-#define CRTC_IDX_SECONDARY		1
-
-#define DEFAULT_RGB_LAYER_IDX	1
-
 //------------------------------------------------------------------------------
 CNX_GstMoviePlayer::CNX_GstMoviePlayer(QWidget *parent)
     : debug(false)
     , m_hPlayer(NULL)
 	, m_fSpeed(1.0)
 	, m_pSubtitleParser(NULL)
-	, m_iSubtitleSeekTime( 0 )
+	, m_iSubtitleSeekTime(0)
 	, m_pAudioDeviceName(NULL)
+	, m_isDrmOpen(false)
 {
 	pthread_mutex_init(&m_hLock, NULL);
 	pthread_mutex_init(&m_SubtitleLock, NULL);
@@ -38,34 +31,59 @@ CNX_GstMoviePlayer::CNX_GstMoviePlayer(QWidget *parent)
 	m_idPrimaryDisplay.iConnectorID = -1;
 	m_idPrimaryDisplay.iCrtcId      = -1;
 	m_idPrimaryDisplay.iPlaneId     = -1;
+	m_idPrimaryDisplay.iDrmFd	    = -1;
 
 	m_idSecondDisplay.iConnectorID = -1;
 	m_idSecondDisplay.iCrtcId      = -1;
 	m_idSecondDisplay.iPlaneId     = -1;
+	m_idSecondDisplay.iDrmFd	   = -1;
 
-	if(0 > GetVideoPlane(CRTC_IDX_PRIMARY, DEFAULT_RGB_LAYER_IDX, PLANE_TYPE_VIDEO, &m_idPrimaryDisplay))
-	{
-		NXLOGE("cannot found video format for %dth crtc\n", CRTC_IDX_PRIMARY);
+	m_pDrmInfo = new CNX_DrmInfo();
+	if (m_pDrmInfo) {
+		m_isDrmOpen = m_pDrmInfo->OpenDrm();
+		if (m_isDrmOpen)
+		{
+			// VIDEO : connId = 51, crtcId = 39, planeId = 40
+			if (0 > GetVideoPlane(CRTC_IDX_SECONDARY, PLANE_TYPE_VIDEO, DEFAULT_RGB_LAYER_IDX, &m_idSecondDisplay)) {
+				NXLOGE( "cannot found video format for %dth crtc\n", CRTC_IDX_SECONDARY);
+			} else {
+				m_pDrmInfo->SetCrtc(CRTC_IDX_SECONDARY,
+									m_idSecondDisplay.iCrtcId, m_idSecondDisplay.iConnectorID,
+									1920, 1080);
+			}
+		}
 	}
-	// VIDEO : connId = 49, crtcId = 26, planeId = 27
-
-	if(0 > GetVideoPlane(CRTC_IDX_SECONDARY, DEFAULT_RGB_LAYER_IDX, PLANE_TYPE_VIDEO, &m_idSecondDisplay))
-	{
-		NXLOGE( "cannot found video format for %dth crtc\n", CRTC_IDX_SECONDARY);
-	}
-	// VIDEO : connId = 51, crtcId = 39, planeId = 40
 }
 
 CNX_GstMoviePlayer::~CNX_GstMoviePlayer()
 {
-	pthread_mutex_destroy( &m_hLock );
-	pthread_mutex_destroy( &m_SubtitleLock );
-	if(m_pSubtitleParser)
-	{
+	pthread_mutex_destroy(&m_hLock);
+	pthread_mutex_destroy(&m_SubtitleLock);
+	if(m_pSubtitleParser) {
 		delete m_pSubtitleParser;
 		m_pSubtitleParser = NULL;
 	}
+	if (m_pDrmInfo) {
+		NXLOGI("%s", __FUNCTION__);
+		m_pDrmInfo->CloseDrm();
+		m_pDrmInfo = NULL;
+	}
 }
+
+int
+CNX_GstMoviePlayer::GetVideoPlane(int crtcIdx, int layerIdx,
+								  int findRgb, MP_DRM_PLANE_INFO *pDrmPlaneInfo)
+{
+	if (!m_pDrmInfo)
+		return -1;
+
+	if (!m_isDrmOpen)
+		return -1;
+
+	int ret = m_pDrmInfo->FindPlaneForDisplay(crtcIdx, layerIdx, findRgb, pDrmPlaneInfo);
+	return ret;
+}
+
 
 //================================================================================================================
 //public methods	commomn Initialize , close
@@ -528,14 +546,6 @@ void CNX_GstMoviePlayer::SeekSubtitleThread(void)
 {
 	CNX_AutoLock lock( &m_SubtitleLock );
 	m_pSubtitleParser->NX_SPSetIndex(m_pSubtitleParser->NX_SPSeekSubtitleIndex(m_iSubtitleSeekTime));
-}
-
-int CNX_GstMoviePlayer::GetVideoPlane(int crtcIdx, int layerIdx, int findRgb, MP_DRM_PLANE_INFO *pDrmPlaneInfo)
-{
-	int ret = 0;
-	ret = NX_GSTMP_GetPlaneForDisplay(crtcIdx, layerIdx, findRgb, pDrmPlaneInfo);
-
-	return ret;
 }
 
 void CNX_GstMoviePlayer::GetAspectRatio(int srcWidth, int srcHeight,

@@ -46,6 +46,7 @@
 #include "CNX_Util.h"
 #include <NX_GstMovie.h>
 #include "CNX_SubtitleParser.h"
+#include "CNX_DrmInfo.h"
 
 #include <gst/gst.h>
 #include <glib.h>
@@ -149,6 +150,10 @@ public:
 	bool	IsSubtitleAvailable();
 	const char*	GetBestSubtitleEncode();
 	const char* GetBestStringEncode(const char* str);
+
+	// Dual display
+	CNX_DrmInfo* 	m_pDrmInfo;
+	bool		 	m_isDrmOpen;
 
 private:
 	//

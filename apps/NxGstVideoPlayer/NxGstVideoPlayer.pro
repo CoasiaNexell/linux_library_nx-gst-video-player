@@ -38,10 +38,6 @@ contains(CONFIG, CONFIG_NXP3220) {
 } else {
     DEFINES += CONFIG_NXP4330
 }
-    # Add Graphic tool libraries
-    LIBS += -lnx_video_api
-    #LIBS += -L$$PWD/../../library/prebuilt/lib -lnxmpmanager -lnxfilterhelper -lnxfilter
-
     # Add SQL library
     LIBS += -L$$PWD/../../library/lib -lnxdaudioutils
 
@@ -54,13 +50,16 @@ contains(CONFIG, CONFIG_NXP3220) {
     # Add icu libraries
     LIBS += -licuuc -licui18n
 
-    LIBS += -L$$PWD/../../library/prebuilt/lib -lnxgstmovplayer
+    LIBS += -L$$PWD/../../library/prebuilt/lib -lnxgstmovplayer -lnx_renderer
 
     INCLUDEPATH += $$PWD/../../library/include
     INCLUDEPATH += $$PWD/../../library/prebuilt/include
-
+    ifneq ($(SDKTARGETSYSROOT), )
+    INCLUDEPATH += -I$(SDKTARGETSYSROOT)/usr/include/drm
+    INCLUDEPATH += -I/$(SDKTARGETSYSROOT)/usr/include
+    endif
 CONFIG += link_pkgconfig
-PKGCONFIG += glib-2.0 gstreamer-1.0 gstreamer-pbutils-1.0
+PKGCONFIG += glib-2.0 gstreamer-1.0 gstreamer-pbutils-1.0 libdrm
 
 SOURCES += \
     CNX_FileList.cpp \
@@ -69,7 +68,8 @@ SOURCES += \
     DAudioIface_Impl.cpp \
     PlayerVideoFrame.cpp \
     PlayListVideoFrame.cpp \
-    CNX_GstMoviePlayer.cpp
+    CNX_GstMoviePlayer.cpp \
+    CNX_DrmInfo.cpp
 
 HEADERS  += \
     CNX_Util.h \
@@ -79,7 +79,8 @@ HEADERS  += \
     NxEvent.h \
     PlayListVideoFrame.h \
     PlayerVideoFrame.h \
-    CNX_GstMoviePlayer.h
+    CNX_GstMoviePlayer.h \
+    CNS_DrmInfo.h
 
 equals (TEMPLATE, app) {
     SOURCES -= DAudioIface_Impl.cpp
