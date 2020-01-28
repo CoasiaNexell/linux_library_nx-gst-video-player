@@ -17,7 +17,9 @@ CNX_GstMoviePlayer::CNX_GstMoviePlayer(QWidget *parent)
 	, m_pSubtitleParser(NULL)
 	, m_iSubtitleSeekTime(0)
 	, m_pAudioDeviceName(NULL)
-	, m_isDrmOpen(false)
+	, m_bIsSecDis(false)
+	, m_iSecDspWidth(1920)
+	, m_iSecDspHeight(1080)
 {
 	pthread_mutex_init(&m_hLock, NULL);
 	pthread_mutex_init(&m_SubtitleLock, NULL);
@@ -40,16 +42,19 @@ CNX_GstMoviePlayer::CNX_GstMoviePlayer(QWidget *parent)
 
 	m_pDrmInfo = new CNX_DrmInfo();
 	if (m_pDrmInfo) {
-		m_isDrmOpen = m_pDrmInfo->OpenDrm();
-		if (m_isDrmOpen)
+		if (m_pDrmInfo->OpenDrm())
 		{
 			// VIDEO : connId = 51, crtcId = 39, planeId = 40
-			if (0 > GetVideoPlane(CRTC_IDX_SECONDARY, PLANE_TYPE_VIDEO, DEFAULT_RGB_LAYER_IDX, &m_idSecondDisplay)) {
-				NXLOGE( "cannot found video format for %dth crtc\n", CRTC_IDX_SECONDARY);
+			if (0 > GetVideoPlane(CRTC_IDX_SECONDARY, PLANE_TYPE_VIDEO,
+								  DEFAULT_RGB_LAYER_IDX, &m_idSecondDisplay)) {
+				NXLOGE("cannot found video format for %dth crtc", CRTC_IDX_SECONDARY);
 			} else {
-				m_pDrmInfo->SetCrtc(CRTC_IDX_SECONDARY,
-									m_idSecondDisplay.iCrtcId, m_idSecondDisplay.iConnectorID,
-									1920, 1080);
+				int32_t ret = m_pDrmInfo->SetCrtc(CRTC_IDX_SECONDARY,
+												  m_idSecondDisplay.iCrtcId, m_idSecondDisplay.iConnectorID,
+												  m_iSecDspWidth, m_iSecDspHeight);
+				if (ret != -1) {
+					m_bIsSecDis = true;
+				}
 			}
 		}
 	}
@@ -77,13 +82,9 @@ CNX_GstMoviePlayer::GetVideoPlane(int crtcIdx, int layerIdx,
 	if (!m_pDrmInfo)
 		return -1;
 
-	if (!m_isDrmOpen)
-		return -1;
-
 	int ret = m_pDrmInfo->FindPlaneForDisplay(crtcIdx, layerIdx, findRgb, pDrmPlaneInfo);
 	return ret;
 }
-
 
 //================================================================================================================
 //public methods	commomn Initialize , close
@@ -101,19 +102,41 @@ int CNX_GstMoviePlayer::InitMediaPlayer(void (*pCbEventCallback)(void *privateDe
 
 	NXLOGI("%s", __FUNCTION__);
 
+	DISPLAY_MODE dsp_mode = m_bIsSecDis ? DISPLAY_MODE_LCD_HDMI:DISPLAY_MODE_LCD_ONLY;
 	m_pAudioDeviceName = pAudioDeviceName;
 
 	if(0 > OpenHandle(pCbEventCallback, pCbPrivate))		return -1;
+	if(0 > SetDisplayMode(dsp_mode))						return -1;
 	if(0 > SetUri(pUri))									return -1;
 	if(0 > GetMediaInfo())									return -1;
+	if(0 > SetAspectRatio(dspWidth, dspHeight))
+
+	return 0;
+}
+
+int CNX_GstMoviePlayer::SetAspectRatio(int dspWidth, int dspHeight)
+{
+	DSP_RECT m_dstDspRect;
 
 	memset(&m_dstDspRect, 0, sizeof(DSP_RECT));
+
+	// Set aspect ratio for the primary display
 	GetAspectRatio(m_MediaInfo.iWidth, m_MediaInfo.iHeight,
-				   dspWidth,dspHeight,
+				   dspWidth, dspHeight,
 				   &m_dstDspRect);
+	if (0 > SetDisplayInfo(DISPLAY_TYPE_PRIMARY, dspWidth, dspHeight, m_dstDspRect))
+		return -1;
 
-	if(0 > SetDisplayInfo(dspWidth, dspHeight, m_dstDspRect))				return -1;
-
+	// Set aspect ratio for the secondary display
+	if (m_bIsSecDis)
+	{
+		memset(&m_dstDspRect, 0, sizeof(DSP_RECT));
+		GetAspectRatio(m_MediaInfo.iWidth, m_MediaInfo.iHeight,
+						m_iSecDspWidth, m_iSecDspHeight,
+						&m_dstDspRect);
+		if(0 > SetDisplayInfo(DISPLAY_TYPE_SECONDARY, m_iSecDspWidth, m_iSecDspHeight, m_dstDspRect))
+			return -1;
+	}
 	return 0;
 }
 
@@ -313,6 +336,25 @@ int CNX_GstMoviePlayer::OpenHandle(void (*pCbEventCallback)(void *privateDesc, u
 	return 0;
 }
 
+int CNX_GstMoviePlayer::SetDisplayMode(DISPLAY_MODE mode)
+{
+	NXLOGI("%s", __FUNCTION__);
+
+	if(NULL == m_hPlayer)
+	{
+		NXLOGE("%s: Error! Handle is not initialized!", __FUNCTION__);
+		return -1;
+	}
+
+	NX_GST_RET iResult = NX_GSTMP_SetDisplayMode(m_hPlayer, mode);
+	if(NX_GST_RET_OK != iResult)
+	{
+		NXLOGE("%s(): Error! NX_MPSetUri() Failed! (ret = %d, mode = %d)\n", __FUNCTION__, iResult, mode);
+		return -1;
+	}
+	return 0;
+}
+
 int CNX_GstMoviePlayer::SetUri(const char *pUri)
 {
 	NXLOGI("%s", __FUNCTION__);
@@ -349,14 +391,14 @@ int CNX_GstMoviePlayer::GetMediaInfo()
 	return 0;
 }
 
-int CNX_GstMoviePlayer::SetDisplayInfo(int dspWidth, int dspHeight, DSP_RECT rect)
+int CNX_GstMoviePlayer::SetDisplayInfo(DISPLAY_TYPE type, int dspWidth, int dspHeight, DSP_RECT rect)
 {
 	if(NULL == m_hPlayer)
 	{
 		NXLOGE("%s: Error! Handle is not initialized!", __FUNCTION__);
 		return -1;
 	}
-	NX_GST_RET iResult = NX_GSTMP_SetDisplayInfo(m_hPlayer, dspWidth, dspHeight, rect);
+	NX_GST_RET iResult = NX_GSTMP_SetDisplayInfo(m_hPlayer, type, dspWidth, dspHeight, rect);
 	if(NX_GST_RET_OK != iResult)
 	{
 		NXLOGE("%s(): Error! NX_GSTMP_SetAspectRatio() Failed! (ret = %d)\n", __FUNCTION__, iResult);

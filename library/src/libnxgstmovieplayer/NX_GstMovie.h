@@ -125,10 +125,24 @@ typedef struct SUBTITLE_INFO {
 	char*	subtitleText;
 } SUBTITLE_INFO;
 
+typedef enum DISPLAY_MODE {
+	DISPLAY_MODE_LCD_ONLY,
+	DISPLAY_MODE_HDMI_ONLY,
+	DISPLAY_MODE_TVOUT_ONLY,
+	DISPLAY_MODE_LCD_HDMI,
+	DISPLAY_MODE_LCD_TVOUT
+} DISPLAY_MODE;
+
+typedef enum DISPLAY_TYPE {
+	DISPLAY_TYPE_PRIMARY,
+	DISPLAY_TYPE_SECONDARY
+} DISPLAY_TYPE;
+
 #ifdef __cplusplus
 extern "C" {
 #endif	//	__cplusplus
 
+NX_GST_RET NX_GSTMP_SetDisplayMode(MP_HANDLE handle, DISPLAY_MODE in_mode);
 NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pUri);
 NX_GST_RET NX_GSTMP_Open(MP_HANDLE *handle,
 					           void (*cb)(void *owner, unsigned int msg,
@@ -136,7 +150,8 @@ NX_GST_RET NX_GSTMP_Open(MP_HANDLE *handle,
 				   			   void *cbOwner);
 void NX_GSTMP_Close(MP_HANDLE handle);
 NX_GST_RET NX_GSTMP_GetMediaInfo(MP_HANDLE handle, GST_MEDIA_INFO *pInfo);
-NX_GST_RET NX_GSTMP_SetDisplayInfo(MP_HANDLE handle, int dspWidth, int dspHeight, DSP_RECT rect);
+NX_GST_RET NX_GSTMP_SetDisplayInfo(MP_HANDLE handle, DISPLAY_TYPE type,
+									int dspWidth, int dspHeight, DSP_RECT rect);
 NX_GST_RET NX_GSTMP_Play(MP_HANDLE handle);
 NX_GST_RET NX_GSTMP_Pause(MP_HANDLE hande);
 NX_GST_RET NX_GSTMP_Stop(MP_HANDLE hande);

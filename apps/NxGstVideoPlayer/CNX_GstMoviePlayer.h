@@ -84,7 +84,7 @@ public:
 	gint64 GetMediaPosition();
 	gint64 GetMediaDuration();
 	NX_MEDIA_STATE GetState();
-	int SetDisplayInfo(int dspWidth, int dspHeight, DSP_RECT rect);
+	int SetDisplayInfo(DISPLAY_TYPE type, int dspWidth, int dspHeight, DSP_RECT rect);
 	// Thumbnail
 	const char* GetThumbnail(const char *pUri, gint64 pos_msec, gint width);
 	// The dual display
@@ -104,12 +104,15 @@ private:
 	int OpenHandle(void (*pCbEventCallback)(void *privateDesc, unsigned int EventType,
 											unsigned int EventData, void* param),
 				   void *cbPrivate);
+	int SetDisplayMode(DISPLAY_MODE mode);
 	int SetUri(const char *pUri);
 	
 	int GetMediaInfo();
 	void GetAspectRatio(int srcWidth, int srcHeight,
 						int dspWidth, int dspHeight,
 						DSP_RECT *pDspDstRect);
+	
+	int SetAspectRatio(int in_dspWidth, int in_dspHeight);
 
 	//vars
 	bool    debug;
@@ -123,9 +126,7 @@ private:
 
 	GST_MEDIA_INFO	m_MediaInfo;
 
-	MP_DRM_PLANE_INFO m_idPrimaryDisplay;
 	MP_DRM_PLANE_INFO m_idSecondDisplay;
-	DSP_RECT m_dstDspRect;
 
 	char			*m_pAudioDeviceName;
 	gdouble 		m_fSpeed;
@@ -151,15 +152,20 @@ public:
 	const char*	GetBestSubtitleEncode();
 	const char* GetBestStringEncode(const char* str);
 
-	// Dual display
-	CNX_DrmInfo* 	m_pDrmInfo;
-	bool		 	m_isDrmOpen;
-
 private:
 	//
 	// Subtitle
 	static void* ThreadWrapForSubtitleSeek(void *Obj);
 	void SeekSubtitleThread(void);
+
+public:
+	// Dual display
+	CNX_DrmInfo* 	m_pDrmInfo;
+
+private:
+	bool	m_bIsSecDis;
+	int		m_iSecDspWidth;
+	int		m_iSecDspHeight;
 };
 
 #endif // CNX_GstMoviePlayer_H

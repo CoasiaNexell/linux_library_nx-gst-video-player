@@ -1068,8 +1068,8 @@ bool PlayerVideoFrame::PlayVideo()
 				m_fSpeed = video_speed;
 				ui->speedButton->setText("x 1");
 
-				// Thumbnail
-				m_pNxPlayer->GetThumbnail(m_FileList.GetList(m_iCurFileListIdx).toStdString().c_str(), 20 * 1000, 160);
+				// Test code for Thumbnail
+				//m_pNxPlayer->GetThumbnail(m_FileList.GetList(m_iCurFileListIdx).toStdString().c_str(), 20 * 1000, 160);
 
 				iResult = m_pNxPlayer->InitMediaPlayer(cbEventCallback, NULL,
 													   m_FileList.GetList(m_iCurFileListIdx).toStdString().c_str(),
