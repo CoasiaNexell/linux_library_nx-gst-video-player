@@ -551,6 +551,22 @@ CNX_FileList *PlayerVideoFrame::GetFileList()
 	return &m_FileList;
 }
 
+void PlayerVideoFrame::HDMIStatusChanged(int status)
+{
+	if (status == NX_EVENT_MEDIA_HDMI_CONNECTED)
+	{
+		NXLOGI("%s() ########### CONNECTED ###############", __FUNCTION__);
+	}
+	else if (status == NX_EVENT_MEDIA_HDMI_DISCONNECTED)
+	{
+		NXLOGI("%s() ############ DISCONNECTED ##############", __FUNCTION__);
+	}
+	else
+	{
+		NXLOGI("%s() ############ ERROR ##############", __FUNCTION__);
+	}
+}
+
 bool PlayerVideoFrame::eventFilter(QObject *watched, QEvent *event)
 {
 	if (watched == ui->graphicsView->viewport())

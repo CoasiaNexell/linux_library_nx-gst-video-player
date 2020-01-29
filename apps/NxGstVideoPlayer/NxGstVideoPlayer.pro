@@ -80,8 +80,7 @@ HEADERS  += \
     PlayListVideoFrame.h \
     PlayerVideoFrame.h \
     CNX_GstMoviePlayer.h \
-    CNS_DrmInfo.h
-
+    CNX_DrmInfo.h
 equals (TEMPLATE, app) {
     SOURCES -= DAudioIface_Impl.cpp
     SOURCES += \
@@ -89,7 +88,6 @@ equals (TEMPLATE, app) {
         media/CNX_UeventManager.cpp \
         media/CNX_MediaScanner.cpp \
         media/CNX_MediaDatabase.cpp \
-        media/uevent.c \
         media/CNX_File.cpp \
         media/MediaScanner.cpp \
         media/CNX_VolumeManager.cpp \
@@ -99,7 +97,6 @@ equals (TEMPLATE, app) {
         media/CNX_UeventManager.h \
         media/CNX_MediaScanner.h \
         media/CNX_MediaDatabase.h \
-        media/uevent.h \
         media/CNX_Base.h \
         media/CNX_File.h \
         media/MediaScanner.h \

@@ -465,6 +465,18 @@ void MainFrame::MediaEventChanged(NxMediaEvent eEvent)
 		ui->m_PlayerFrame->StorageScanDone();
 		break;
 	}
+	case NX_EVENT_MEDIA_HDMI_CONNECTED:
+	{
+		NXLOGD("############### NX_EVENT_MEDIA_HDMI_CONNECTED !!!\n");
+		ui->m_PlayerFrame->HDMIStatusChanged(eEvent);
+		break;
+	}
+	case NX_EVENT_MEDIA_HDMI_DISCONNECTED:
+	{
+		NXLOGD("############### NX_EVENT_MEDIA_HDMI_DISCONNECTED !!!\n");
+		ui->m_PlayerFrame->HDMIStatusChanged(eEvent);
+		break;
+	}
 	default:
 		break;
 	}
@@ -498,6 +510,16 @@ void MainFrame::slotMediaEvent(NxEventTypes eType)
 	case E_NX_EVENT_MEDIA_SCAN_DONE:
 		eEvent = NX_EVENT_MEDIA_SCAN_DONE;
 		NXLOGI("[%s] NX_EVENT_MEDIA_SCAN_DONE", __FUNCTION__);
+		break;
+
+	case E_NX_EVENT_HDMI_CONNECTED:
+		eEvent = NX_EVENT_MEDIA_HDMI_CONNECTED;
+		NXLOGI("[%s] NX_EVENT_MEDIA_HDMI_CONNECTED", __FUNCTION__);
+		break;
+
+	case E_NX_EVENT_HDMI_DISCONNECTED:
+		eEvent = NX_EVENT_MEDIA_HDMI_DISCONNECTED;
+		NXLOGI("[%s] NX_EVENT_MEDIA_HDMI_DISCONNECTED", __FUNCTION__);
 		break;
 
 	default:

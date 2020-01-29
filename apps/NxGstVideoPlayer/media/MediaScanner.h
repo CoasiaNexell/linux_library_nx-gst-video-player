@@ -40,6 +40,7 @@ private:
 
 	void Umount(QString devNode);
 
+	int32_t GetHdmiStatus( void );
 private:
 	CNX_UeventManager *m_pUeventManager;
 	CNX_VolumeManager *m_pVolumeManager;

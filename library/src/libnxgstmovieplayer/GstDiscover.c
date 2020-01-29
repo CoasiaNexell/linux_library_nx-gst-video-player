@@ -4,7 +4,7 @@
 #include <gst/gst.h>
 #include <gst/pbutils/pbutils.h>
 
-#define LOG_TAG "[NxGstVideoPlayer]"
+#define LOG_TAG "[GstDiscover]"
 #include <NX_Log.h>
 
 //#define ASYNC_DISCOVER

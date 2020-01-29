@@ -4,7 +4,7 @@
 #include <string.h>
 #include <pthread.h>
 
-#define LOG_TAG "[NxGstVideoPlayer]"
+#define LOG_TAG "[CNX_GstMoviePlayer]"
 #include <NX_Log.h>
 #include <math.h>
 #include <media/CNX_Base.h>
@@ -13,10 +13,10 @@
 CNX_GstMoviePlayer::CNX_GstMoviePlayer(QWidget *parent)
     : debug(false)
     , m_hPlayer(NULL)
+	, m_pAudioDeviceName(NULL)
 	, m_fSpeed(1.0)
 	, m_pSubtitleParser(NULL)
 	, m_iSubtitleSeekTime(0)
-	, m_pAudioDeviceName(NULL)
 	, m_bIsSecDis(false)
 	, m_iSecDspWidth(1920)
 	, m_iSecDspHeight(1080)
@@ -30,11 +30,6 @@ CNX_GstMoviePlayer::CNX_GstMoviePlayer(QWidget *parent)
 	m_pSubtitleParser = new CNX_SubtitleParser();
 
 	// Dual Display
-	m_idPrimaryDisplay.iConnectorID = -1;
-	m_idPrimaryDisplay.iCrtcId      = -1;
-	m_idPrimaryDisplay.iPlaneId     = -1;
-	m_idPrimaryDisplay.iDrmFd	    = -1;
-
 	m_idSecondDisplay.iConnectorID = -1;
 	m_idSecondDisplay.iCrtcId      = -1;
 	m_idSecondDisplay.iPlaneId     = -1;
@@ -109,7 +104,7 @@ int CNX_GstMoviePlayer::InitMediaPlayer(void (*pCbEventCallback)(void *privateDe
 	if(0 > SetDisplayMode(dsp_mode))						return -1;
 	if(0 > SetUri(pUri))									return -1;
 	if(0 > GetMediaInfo())									return -1;
-	if(0 > SetAspectRatio(dspWidth, dspHeight))
+	if(0 > SetAspectRatio(dspWidth, dspHeight))				return -1;
 
 	return 0;
 }
@@ -423,6 +418,8 @@ int CNX_GstMoviePlayer::DrmVideoMute(int bOnOff)
 		NXLOGE("%s(): Error! NX_GSTMP_VideoMute() Failed! (ret = %d)\n", __FUNCTION__, iResult);
 		return -1;
 	}
+
+	return 0;
 }
 
 //================================================================================================================

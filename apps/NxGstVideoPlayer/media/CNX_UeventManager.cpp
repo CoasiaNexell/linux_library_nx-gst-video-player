@@ -45,6 +45,7 @@ CNX_UeventManager::CNX_UeventManager()
 	}
 
 	udev_monitor_filter_add_match_subsystem_devtype(m_monitor, "block", NULL);
+	udev_monitor_filter_add_match_subsystem_devtype(m_monitor, "drm", NULL);
 	udev_monitor_enable_receiving(m_monitor);
 
 	m_fd  = udev_monitor_get_fd(m_monitor);
@@ -138,6 +139,18 @@ void CNX_UeventManager::slotNotification()
 			emit signalDetectUEvent(action, node);
 		}
 		else if (0 == strcmp(action, "remove"))
+		{
+			emit signalDetectUEvent(action, node);
+		}
+	}
+	else if (0 == strcmp(type, "drm_minor"))
+	{
+		/*******************************************************************
+		 * NOTIFY
+		 *  1. action : change
+		 *  2. device node : /dev/dri/card0
+		 ******************************************************************/
+		if (0 == strcmp(action, "change"))
 		{
 			emit signalDetectUEvent(action, node);
 		}

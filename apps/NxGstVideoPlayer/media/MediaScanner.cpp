@@ -5,6 +5,7 @@
 #include <signal.h>
 #include <unistd.h>
 #include <QDir>
+#include <QTextStream>
 
 #define LOG_TAG "[MediaScanner]"
 #include <NX_Log.h>
@@ -72,8 +73,52 @@ void MediaScanner::slotDetectUEvent(QString action, QString devNode)
 
 		Umount(devNode);
 	}
+	else if (action == "change")
+	{
+		int32_t ret = GetHdmiStatus();
+		if (ret == 1) {
+			emit signalMediaEvent(E_NX_EVENT_HDMI_CONNECTED);
+		} else if (ret == 0) {
+			emit signalMediaEvent(E_NX_EVENT_HDMI_DISCONNECTED);
+		}
+	}
 
 	Start(3000);
+}
+
+int32_t MediaScanner::GetHdmiStatus( void )
+{
+	const char* path = "/sys/devices/platform/c0000000.soc/c0102800.display_drm/drm/card0/card0-HDMI-A-1/status";
+
+    QFile file(path);
+	if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+    {
+        NXLOGE("%s() Failed to open file", __FUNCTION__);
+        return -1;
+    } else {
+		QTextStream stream(&file);
+		const char* status = stream.readAll().toStdString().c_str();
+		NXLOGI("%s() %s", __FUNCTION__, status);
+		file.close();
+
+		int length = strlen(status);
+		if (strncmp(status, "connected", (length-1)) == 0)
+		{
+			NXLOGI("%s() connected!!!!", __FUNCTION__);
+			return 1;
+		}
+		else if (strncmp(status, "disconnected", (length-1)) == 0)
+		{
+			NXLOGI("%s() disconnected!!!!", __FUNCTION__);
+			return 0;
+		}
+		else
+		{
+			NXLOGI("%s() error", __FUNCTION__);
+			return -1;
+		}
+    }
+	return 0;
 }
 
 void MediaScanner::Mount(QString devNode)

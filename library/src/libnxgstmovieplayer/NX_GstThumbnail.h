@@ -6,7 +6,7 @@
 #ifdef LOG_TAG
 #undef LOG_TAG
 #endif
-#define LOG_TAG "[libnxgstmovieplayer|GST_Thumbnail]"
+#define LOG_TAG "[NX_GstThumbnail]"
 #include <NX_Log.h>
 
 #ifdef __cplusplus

@@ -23,7 +23,7 @@
 #include <stdlib.h>
 #include "NX_DbgMsg.h"
 
-#define LOG_TAG "[LibGst][Thumbnail]"
+#define LOG_TAG "[NX_GstThumbnail]"
 #include <NX_Log.h>
 
 // Refer to https://gstreamer.freedesktop.org/documentation/application-development/advanced/pipeline-manipulation.html?gi-language=c

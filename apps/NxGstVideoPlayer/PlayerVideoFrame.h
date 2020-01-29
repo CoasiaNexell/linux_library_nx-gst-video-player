@@ -116,6 +116,9 @@ public:
 	void UpdateFileList();
 	CNX_FileList* GetFileList();
 
+	// HDMI Status Event
+	void HDMIStatusChanged(int status);
+
 	//
 	//	MediaPlayer
 	bool PauseVideo();

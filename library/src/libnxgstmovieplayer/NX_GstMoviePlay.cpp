@@ -786,13 +786,15 @@ NX_GST_RET link_video_elements(MP_HANDLE handle)
 			NXLOGE("%s() Failed to link tee_queue_secondary<-->nxvideosink_hdmi", __FUNCTION__);
 		}
 
-		/* Manually link the Tee, which has "Request" pads */
+		// Manually link the Tee, which has "Request" pads
 		handle->tee_primary_pad = gst_element_get_request_pad(handle->tee, "src_%u");
-		NXLOGI("Obtained request pad %s for audio branch", gst_pad_get_name(handle->tee_primary_pad));
+		NXLOGI("%s() Obtained request pad %s for the primary display",
+				__FUNCTION__, gst_pad_get_name(handle->tee_primary_pad));
 		handle->queue_primary_pad = gst_element_get_static_pad(handle->tee_queue_primary, "sink");
 
 		handle->tee_secondary_pad = gst_element_get_request_pad(handle->tee, "src_%u");
-		NXLOGI("Obtained request pad %s for video branch", gst_pad_get_name(handle->tee_secondary_pad));
+		NXLOGI("%s() Obtained request pad %s for the secondary display",
+				__FUNCTION__, gst_pad_get_name(handle->tee_secondary_pad));
 		handle->queue_secondary_pad = gst_element_get_static_pad(handle->tee_queue_secondary, "sink");
 
 		if (gst_pad_link(handle->tee_primary_pad, handle->queue_primary_pad) != GST_PAD_LINK_OK ||

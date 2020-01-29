@@ -53,7 +53,7 @@
 #ifdef LOG_TAG
 #undef LOG_TAG
 #endif
-#define LOG_TAG "[NxGstVideoPlayer|FileList]"
+#define LOG_TAG "[CNX_FileList]"
 #include <NX_Log.h>
 
 class CNX_FileList
