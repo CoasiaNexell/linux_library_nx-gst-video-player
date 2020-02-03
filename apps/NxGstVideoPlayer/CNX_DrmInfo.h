@@ -41,7 +41,7 @@ typedef struct MP_DRM_PLANE_INFO {
 
 class CNX_DrmInfo
 {
-	public:
+public:
 	CNX_DrmInfo();
 	~CNX_DrmInfo();
 
@@ -54,13 +54,15 @@ private:
                         		  uint32_t *crtcId, uint32_t *planeId);
 
 public:
-	bool OpenDrm();
-	void CloseDrm();
+	bool 	OpenDrm();
+	void 	CloseDrm();
 
-	int32_t 		FindPlaneForDisplay(int32_t in_crtcIdx,
-        	        			        int32_t in_findRgb,
-            	            			int32_t in_layerIdx,
-                	        			MP_DRM_PLANE_INFO *pDrmPlaneInfo);
+	bool 	isHDMIConnected();
+	bool 	setMode(int crtcIdx, int findRgb, int layerIdx, int width, int height);
+	int32_t FindPlaneForDisplay(int32_t in_crtcIdx,
+        	     			    int32_t in_findRgb,
+            	            	int32_t in_layerIdx,
+                	        	MP_DRM_PLANE_INFO *pDrmPlaneInfo);
 #ifdef SET_CRTC
 	int32_t SetCrtc(uint32_t crtcIdx, uint32_t crtcID, uint32_t connId,
 					uint32_t width, uint32_t height);
@@ -68,6 +70,7 @@ public:
 
 private:
 	int32_t	m_drmFd;
+	MP_DRM_PLANE_INFO m_display;
 };
 
 #endif	// __NX_DRMINFO_H__

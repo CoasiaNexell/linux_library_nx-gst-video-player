@@ -54,10 +54,10 @@ contains(CONFIG, CONFIG_NXP3220) {
 
     INCLUDEPATH += $$PWD/../../library/include
     INCLUDEPATH += $$PWD/../../library/prebuilt/include
-    ifneq ($(SDKTARGETSYSROOT), )
+    #ifneq ($(SDKTARGETSYSROOT), )
     INCLUDEPATH += -I$(SDKTARGETSYSROOT)/usr/include/drm
     INCLUDEPATH += -I/$(SDKTARGETSYSROOT)/usr/include
-    endif
+    #endif
 CONFIG += link_pkgconfig
 PKGCONFIG += glib-2.0 gstreamer-1.0 gstreamer-pbutils-1.0 libdrm
 

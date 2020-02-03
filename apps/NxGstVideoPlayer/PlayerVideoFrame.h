@@ -33,7 +33,6 @@
 
 #include <NX_GstMovie.h>
 
-
 #include <QObject>
 class CallBackSignal : public QObject
 {
@@ -158,6 +157,13 @@ private:
 	bool	m_bSeekReady;
 	bool	m_bButtonHide;
 
+	// Display Info
+	DISPLAY_INFO 	m_dspInfo;
+	MP_DRM_PLANE_INFO m_idSecondDisplay;
+	bool			m_bHDMIConnected;
+	bool			m_bHDMIModeSet;
+	NX_CMutex		m_hdmiStatusMutex;
+
 	//	event filter
 	bool eventFilter(QObject *watched, QEvent *event);
 
@@ -200,6 +206,9 @@ private:
 	QPushButton *m_pMessageButton;
 
 	char m_audioDeviceName[20];
+
+	// Dual display
+	CNX_DrmInfo* 	m_pDrmInfo;
 
 private:
 	Ui::PlayerVideoFrame *ui;

@@ -16,7 +16,29 @@
 
 #include <math.h>
 
+void add_video_elements_to_bin(MP_HANDLE handle);
+void add_audio_elements_to_bin(MP_HANDLE handle);
+void add_subtitle_elements_to_bin(MP_HANDLE handle);
+NX_GST_RET add_elements_to_bin(MP_HANDLE handle);
+
+NX_GST_RET link_video_elements(MP_HANDLE handle);
+NX_GST_RET link_audio_elements(MP_HANDLE handle);
+NX_GST_RET link_subtitle_elements(MP_HANDLE handle);
+NX_GST_RET link_elements(MP_HANDLE handle);
+
+void link_primary_cb(MP_HANDLE handle);
+void link_secondary_cb(MP_HANDLE handle);
+
 static gboolean hasSubTitles = FALSE;
+
+static GList *sinks;
+typedef struct
+{
+  GstPad *tee_secondary_pad;
+  GstElement *tee_queue_secondary;
+  GstElement *nxvideosink_hdmi;
+  gboolean removing;
+} Sink;
 
 struct MOVIE_TYPE {
 	GstElement *pipeline;
@@ -38,10 +60,8 @@ struct MOVIE_TYPE {
 
 	GstPad *tee_primary_pad;
 	GstPad *tee_secondary_pad;
-	GstPad *queue_primary_pad;
-	GstPad *queue_secondary_pad;
-
-	DISPLAY_MODE isSecondaryDsp;
+	Sink		*sink;
+	DISPLAY_MODE display_mode;
 
 	GstElement *fakesink;
 	GstElement *capsfilter;
@@ -52,6 +72,8 @@ struct MOVIE_TYPE {
 	GstElement *audioconvert;
 	GstElement *audioresample;
 	GstElement *alsasink;
+
+	GstState state;
 
 	GstElement *volume;
 	gdouble rate;                 /* Current playback rate (can be negative) */
@@ -71,6 +93,10 @@ struct MOVIE_TYPE {
 	gchar *uri;
 
 	GST_MEDIA_INFO gst_media_info;
+
+	// For aspect ratio
+	DSP_RECT	primary_dsp_info;
+	DSP_RECT	secondary_dsp_info;
 
 	NX_GST_ERROR error;
 
@@ -144,7 +170,7 @@ static void stop_my_thread(MP_HANDLE handle)
 	FUNC_OUT();
 }
 
-static void on_decodebin_pad_added_demux (GstElement *element,
+static void on_decodebin_pad_added (GstElement *element,
                         GstPad *pad, gpointer data)
 {
 	FUNC_IN();
@@ -355,6 +381,7 @@ on_pad_added_demux (GstElement *element,
 
 	NXLOGI("%s() target_sink_pad:%s", __FUNCTION__, (NULL != target_sink_pad) ? GST_OBJECT_NAME(target_sink_pad):"");
 
+	// Link pads [demuxer <--> video_queue/audio_queue/subtitle_queue]
 	if (g_str_has_prefix(mime_type, "video/") || g_str_has_prefix(mime_type, "audio/") || (hasSubTitles && g_str_has_prefix(padName, "subtitle_0")))
     {
         if (NULL == sinkpad) {
@@ -393,6 +420,21 @@ on_pad_added_demux (GstElement *element,
 	/* Need to check subtitle_1, 2, etc*/
 	if (TRUE == isLinkFailed) {
 		handle->callback(NULL, (int)MP_EVENT_DEMUX_LINK_FAILED, 0, NULL);
+		return;
+	}
+
+	if (g_str_has_prefix(mime_type, "video/"))
+	{
+		NXLOGI("%s() ############## display_mode(%d)", __FUNCTION__, handle->display_mode);
+		if (handle->display_mode == DISPLAY_MODE_LCD_ONLY)
+		{
+			link_primary_cb(handle);
+		}
+		if (handle->display_mode == DISPLAY_MODE_LCD_HDMI)
+		{
+			link_primary_cb(handle);
+			link_secondary_cb(handle);
+		}
 	}
 
 	FUNC_OUT();
@@ -468,6 +510,7 @@ static gboolean gst_bus_callback (GstBus *bus, GstMessage *msg, MP_HANDLE handle
 					   , gst_element_state_get_name (old_state)
 					   , gst_element_state_get_name (new_state));
 				//	Send Message
+				handle->state = new_state;
 				handle->callback(NULL, (int)MP_EVENT_STATE_CHANGED, (int)GstState2NxState(new_state), NULL);
             }
             break;
@@ -632,25 +675,9 @@ NX_GST_RET set_video_elements(MP_HANDLE handle)
 	}
 
 	handle->nxvideodec = gst_element_factory_make ("nxvideodec", "nxvideodec");
-	if (handle->isSecondaryDsp == DISPLAY_MODE_LCD_HDMI)
-	{
-		handle->tee = gst_element_factory_make ("tee", "tee");
-		handle->tee_queue_primary = gst_element_factory_make ("queue", "tee_queue_primary");
-		handle->tee_queue_secondary = gst_element_factory_make ("queue", "tee_queue_secondary");
+	handle->tee = gst_element_factory_make ("tee", "tee");
 
-		handle->nxvideosink_hdmi = gst_element_factory_make ("nxvideosink", "nxvideosink_hdmi");
-		g_object_set(handle->nxvideosink_hdmi, "crtc-index", 1, NULL);	// SECONDARY
-		g_object_set(handle->nxvideosink_hdmi, "layer-priority", 0, NULL);
-
-		if(!handle->tee || !handle->tee_queue_primary || !handle->tee_queue_secondary || !handle->nxvideosink_hdmi)
-		{
-			NXLOGE("%s() Failed to create dual display elements", __func__);
-			return NX_GST_RET_ERROR;
-		}
-	}
-    
-	handle->nxvideosink = gst_element_factory_make ("nxvideosink", "nxvideosink");
-	if(!handle->video_queue || !handle->nxvideodec || !handle->nxvideosink)
+	if(!handle->video_queue || !handle->nxvideodec)
     {
         NXLOGE("%s() Failed to create video elements", __func__);
         return NX_GST_RET_ERROR;
@@ -687,18 +714,7 @@ NX_GST_RET set_source_element(MP_HANDLE handle)
 void add_video_elements_to_bin(MP_HANDLE handle)
 {
 	gst_bin_add_many(GST_BIN(handle->pipeline), handle->video_queue,
-					handle->nxvideodec, handle->nxvideosink, NULL);
-
-	// tee, tee_queue_primary, tee_queue_secondary, nxvideosink_hdmi
-	if (handle->isSecondaryDsp)
-	{
-		gst_bin_add_many(GST_BIN(handle->pipeline),
-								handle->tee,
-								handle->tee_queue_primary,
-								handle->tee_queue_secondary,
-								handle->nxvideosink_hdmi,
-								NULL);
-	}
+					handle->nxvideodec, handle->tee, NULL);
 
 	// video_parser
 	if ((g_strcmp0(handle->gst_media_info.video_mime_type, "video/x-h264") == 0) ||
@@ -769,50 +785,12 @@ NX_GST_RET link_video_elements(MP_HANDLE handle)
 		}
 	}
 
-	if (handle->isSecondaryDsp)
+	// nxvideodec <--> tee
+	if (!gst_element_link_many(handle->nxvideodec, handle->tee, NULL))
 	{
-		if (!gst_element_link_many(handle->nxvideodec, handle->tee, NULL))
-		{
-			NXLOGE("%s() Failed to link nxvideodec<-->tee", __FUNCTION__);
-		}
-
-		if (!gst_element_link_many(handle->tee_queue_primary, handle->nxvideosink, NULL))
-		{
-			NXLOGE("%s() Failed to link tee_queue_primary<-->nxvideosink", __FUNCTION__);
-		}
-
-		if (!gst_element_link_many(handle->tee_queue_secondary, handle->nxvideosink_hdmi, NULL))
-		{
-			NXLOGE("%s() Failed to link tee_queue_secondary<-->nxvideosink_hdmi", __FUNCTION__);
-		}
-
-		// Manually link the Tee, which has "Request" pads
-		handle->tee_primary_pad = gst_element_get_request_pad(handle->tee, "src_%u");
-		NXLOGI("%s() Obtained request pad %s for the primary display",
-				__FUNCTION__, gst_pad_get_name(handle->tee_primary_pad));
-		handle->queue_primary_pad = gst_element_get_static_pad(handle->tee_queue_primary, "sink");
-
-		handle->tee_secondary_pad = gst_element_get_request_pad(handle->tee, "src_%u");
-		NXLOGI("%s() Obtained request pad %s for the secondary display",
-				__FUNCTION__, gst_pad_get_name(handle->tee_secondary_pad));
-		handle->queue_secondary_pad = gst_element_get_static_pad(handle->tee_queue_secondary, "sink");
-
-		if (gst_pad_link(handle->tee_primary_pad, handle->queue_primary_pad) != GST_PAD_LINK_OK ||
-			gst_pad_link(handle->tee_secondary_pad, handle->queue_secondary_pad) != GST_PAD_LINK_OK) {
-			NXLOGE("%s() Tee could not be linked.", __FUNCTION__);
-			//gst_object_unref (pipeline);
-			return NX_GST_RET_ERROR;
-		}
-		gst_object_unref (handle->queue_primary_pad);
-		gst_object_unref (handle->queue_secondary_pad);
+		NXLOGE("%s() Failed to link nxvideodec<-->tee", __FUNCTION__);
 	}
-	else
-	{
-		if(!gst_element_link_many(handle->nxvideodec, handle->nxvideosink, NULL)) {
-			NXLOGE("%s() Failed to link video elements", __FUNCTION__);
-			return NX_GST_RET_ERROR;
-		}
-	}
+
 	return NX_GST_RET_OK;
 }
 
@@ -880,6 +858,171 @@ NX_GST_RET link_elements(MP_HANDLE handle)
 	return NX_GST_RET_OK;
 }
 
+void link_primary_cb(MP_HANDLE handle)
+{
+	NXLOGI("%s()", __FUNCTION__);
+
+	GstPad *sinkpad;
+	GstPadTemplate *templ;
+	templ = gst_element_class_get_pad_template (GST_ELEMENT_GET_CLASS (handle->tee), "src_%u");
+	handle->tee_primary_pad = gst_element_request_pad (handle->tee, templ, NULL, NULL);
+	NXLOGI("%s() Obtained request pad %s for the primary display",
+			__FUNCTION__, GST_DEBUG_PAD_NAME(handle->tee_primary_pad));
+
+	// Create elements tee_queue_primary, nxvideosink
+	handle->tee_queue_primary = gst_element_factory_make ("queue", "tee_queue_primary");
+	// Create elements nxvideosink
+	handle->nxvideosink = gst_element_factory_make ("nxvideosink", "nxvideosink");
+	g_object_set (G_OBJECT (handle->nxvideosink), "dst-x", handle->primary_dsp_info.iX, NULL);
+	g_object_set (G_OBJECT (handle->nxvideosink), "dst-y", handle->primary_dsp_info.iY, NULL);
+	g_object_set (G_OBJECT (handle->nxvideosink), "dst-w", handle->primary_dsp_info.iWidth, NULL);
+	g_object_set (G_OBJECT (handle->nxvideosink), "dst-h", handle->primary_dsp_info.iHeight, NULL);
+	g_object_set (G_OBJECT (handle->nxvideosink), "drm-nonblock", 1, NULL);
+
+	// Add elements 'tee_queue_primary, nxvideosink' to bin
+	gst_bin_add_many(GST_BIN(handle->pipeline), handle->tee_queue_primary, handle->nxvideosink, NULL);
+
+	// Link tee_queue_primary<-->nxvideosink
+	if (!gst_element_link_many(handle->tee_queue_primary, handle->nxvideosink, NULL))
+	{
+		NXLOGE("%s() Failed to link tee_queue_primary<-->nxvideosink", __FUNCTION__);
+	}
+
+	// Set sync state
+	gst_element_sync_state_with_parent (handle->tee_queue_primary);
+	gst_element_sync_state_with_parent (handle->nxvideosink);
+
+	// Link tee_primary_pad<-->tee_queue_primary
+	sinkpad = gst_element_get_static_pad(handle->tee_queue_primary, "sink");
+	if (gst_pad_link(handle->tee_primary_pad, sinkpad) != GST_PAD_LINK_OK)
+	{
+		NXLOGE("%s() tee_primary_pad could not be linked.", __FUNCTION__);
+		return;
+	}
+	NXLOGE("%s() Succeeds to link %s and %s", __FUNCTION__,
+			GST_DEBUG_PAD_NAME(handle->tee_primary_pad),
+			GST_DEBUG_PAD_NAME(sinkpad));
+	gst_object_unref (sinkpad);
+}
+
+void link_secondary_cb(MP_HANDLE handle)
+{
+	Sink *sink = g_new0 (Sink, 1);
+
+	GstPad *sinkpad;
+	// Request tee pad
+	GstPadTemplate *templ;
+	templ = gst_element_class_get_pad_template (GST_ELEMENT_GET_CLASS (handle->tee), "src_%u");
+	sink->tee_secondary_pad = gst_element_request_pad (handle->tee, templ, NULL, NULL);
+	NXLOGI("%s() Obtained request pad %s for the secondary display",
+			__FUNCTION__, GST_DEBUG_PAD_NAME(sink->tee_secondary_pad));
+
+	// Create elements 'queue' and 'nxvideosink_hdmi'
+	sink->tee_queue_secondary = gst_element_factory_make ("queue2", "tee_queue_secondary");
+	sink->nxvideosink_hdmi = gst_element_factory_make ("nxvideosink", "nxvideosink_hdmi");
+	g_object_set (G_OBJECT (sink->nxvideosink_hdmi), "dst-x", handle->secondary_dsp_info.iX, NULL);
+	g_object_set (G_OBJECT (sink->nxvideosink_hdmi), "dst-y", handle->secondary_dsp_info.iY, NULL);
+	g_object_set (G_OBJECT (sink->nxvideosink_hdmi), "dst-w", handle->secondary_dsp_info.iWidth, NULL);
+	g_object_set (G_OBJECT (sink->nxvideosink_hdmi), "dst-h", handle->secondary_dsp_info.iHeight, NULL);
+	g_object_set (G_OBJECT (sink->nxvideosink_hdmi), "drm-nonblock", 1, NULL);
+	g_object_set(sink->nxvideosink_hdmi, "crtc-index", 1, NULL);	// SECONDARY
+	g_object_set(sink->nxvideosink_hdmi, "layer-priority", 0, NULL);
+
+	if(!sink->tee_queue_secondary || !sink->nxvideosink_hdmi)
+	{
+		NXLOGE("%s() Failed to create dual display elements", __func__);
+		return;
+	}
+	sink->removing = FALSE;
+
+	// Add elements 'tee_queue_secondary, nxvideosink_hdmi' to bin
+	gst_bin_add_many(GST_BIN(handle->pipeline),
+							sink->tee_queue_secondary,
+							sink->nxvideosink_hdmi,
+							NULL);
+	// Link tee_queue_secondary<-->nxvideosink_hdmi
+	if (!gst_element_link_many(sink->tee_queue_secondary, sink->nxvideosink_hdmi, NULL))
+	{
+		NXLOGE("%s() Failed to link tee_queue_secondary<-->nxvideosink_hdmi", __FUNCTION__);
+	}
+
+	// Set sync state
+	gst_element_sync_state_with_parent (sink->tee_queue_secondary);
+	gst_element_sync_state_with_parent (sink->nxvideosink_hdmi);
+
+	// Link tee_secondary_pad<-->queue_secondary_pad
+	sinkpad = gst_element_get_static_pad(sink->tee_queue_secondary, "sink");
+	if (gst_pad_link(sink->tee_secondary_pad, sinkpad) != GST_PAD_LINK_OK) {
+		NXLOGE("%s() tee_secondary_pad could not be linked.", __FUNCTION__);
+		return;
+	}
+	NXLOGE("%s() Succeeds to link %s and %s", __FUNCTION__,
+			GST_DEBUG_PAD_NAME(sink->tee_secondary_pad),
+			GST_DEBUG_PAD_NAME(sinkpad));
+	gst_object_unref (sinkpad);
+
+	handle->sink = sink;
+	sinks = g_list_append (sinks, sink);
+}
+
+static GstPadProbeReturn
+unlink_secondary_cb (GstPad* pad, GstPadProbeInfo* info, gpointer user_data)
+{
+	MP_HANDLE handle = (MP_HANDLE) user_data;
+	Sink *sink = handle->sink;
+	GstStateChangeReturn ret;
+
+	NXLOGI("%s handle(%p)", __FUNCTION__, handle);
+
+	if (!g_atomic_int_compare_and_exchange (&sink->removing, FALSE, TRUE))
+		return GST_PAD_PROBE_OK;
+
+	// unlink tee_queue_secondary<-->tee_secondary_pad
+	GstPad *sinkpad;
+	sinkpad = gst_element_get_static_pad (sink->tee_queue_secondary, "sink");
+	if (!gst_pad_unlink (sink->tee_secondary_pad, sinkpad)) {
+		NXLOGE("%s() Failed to unlink %s", __FUNCTION__, gst_pad_get_name(sinkpad));
+	}
+	NXLOGE("%s() Succeeds to unlink %s from %s", __FUNCTION__,
+			GST_DEBUG_PAD_NAME(sink->tee_secondary_pad),	// tee
+			GST_DEBUG_PAD_NAME(sinkpad));	// src_1
+	gst_object_unref (sinkpad);
+
+	NXLOGI("%s remove tee_queue_secondary and nxvideosink_hdmi", __FUNCTION__);
+	// remove tee_queue_secondary and nxvideosink_hdmi
+	if (!gst_bin_remove (GST_BIN (handle->pipeline), sink->tee_queue_secondary)) {
+		NXLOGE("%s() Failed to remove tee_queue_secondary from bin", __FUNCTION__);
+	}
+	if (!gst_bin_remove (GST_BIN (handle->pipeline), sink->nxvideosink_hdmi)) {
+		NXLOGE("%s() Failed to remove nxvideosink_hdmi from bin", __FUNCTION__);
+	}
+
+	NXLOGI("%s set state of 'nxvideosink_hdmi' to NULL", __FUNCTION__);
+	// set state of 'nxvideosink_hdmi' and 'tee_queue_secondary' NULL
+	ret = gst_element_set_state (sink->nxvideosink_hdmi, GST_STATE_NULL);
+		if (ret == GST_STATE_CHANGE_FAILURE) {
+        NXLOGE("%s() Failed to set nxvideosink_hdmi to the NULL state", __FUNCTION__);
+    }
+	NXLOGI("%s set state of 'tee_queue_secondary' to NULL", __FUNCTION__);
+	ret = gst_element_set_state (sink->tee_queue_secondary, GST_STATE_NULL);
+	if (ret == GST_STATE_CHANGE_FAILURE) {
+        NXLOGE("%s() Failed to set tee_queue_secondary to the NULL state", __FUNCTION__);
+    }
+
+	NXLOGI("%s unref tee_queue_secondary and nxvideosink_hdmi", __FUNCTION__);
+	// unref tee_queue_secondary and nxvideosink_hdmi
+	gst_object_unref (sink->tee_queue_secondary);
+	gst_object_unref (sink->nxvideosink_hdmi);
+
+	// release_request_pad 'tee_secondary_pad'
+	gst_element_release_request_pad (handle->tee, handle->tee_secondary_pad);
+	gst_object_unref (handle->tee_secondary_pad);
+
+	NXLOGI("%s handle(%p)", __FUNCTION__, handle);
+
+	return GST_PAD_PROBE_REMOVE;
+}
+
 NX_GST_RET NX_GSTMP_SetDisplayMode(MP_HANDLE handle, DISPLAY_MODE in_mode)
 {
 	_CAutoLock lock(&handle->apiLock);
@@ -892,9 +1035,32 @@ NX_GST_RET NX_GSTMP_SetDisplayMode(MP_HANDLE handle, DISPLAY_MODE in_mode)
 		return NX_GST_RET_ERROR;
 	}
 
-	handle->isSecondaryDsp = in_mode;
-	NXLOGI("%s mode(%s)", __FUNCTION__,
-			(in_mode == DISPLAY_MODE_LCD_HDMI)?"DISPLAY_MODE_LCD_HDMI":"DISPLAY_MODE_LCD_ONLY");
+	if (handle->display_mode != in_mode) {
+		NXLOGI("%s() display_mode is changed from (%s) to (%s) in state(%s)",
+				__FUNCTION__,
+				(handle->display_mode==DISPLAY_MODE_LCD_ONLY)?"LCD_ONLY":"LCD_HDMI",
+				(in_mode==DISPLAY_MODE_LCD_ONLY)?"LCD_ONLY":"LCD_HDMI",
+				gst_element_state_get_name (handle->state));
+		handle->display_mode = in_mode;
+
+		if (handle->state == GST_STATE_PLAYING)
+		{
+			if (in_mode == DISPLAY_MODE_LCD_ONLY)
+			{
+				Sink *sink;
+				sink = (Sink*)sinks->data;
+				sinks = g_list_delete_link (sinks, sinks);
+				gst_pad_add_probe (handle->tee_secondary_pad, GST_PAD_PROBE_TYPE_IDLE,
+									(GstPadProbeCallback)unlink_secondary_cb, handle,
+									(GDestroyNotify) g_free);
+			}
+			if (in_mode == DISPLAY_MODE_LCD_HDMI)
+			{
+				link_secondary_cb(handle);
+			}
+		}
+	}
+
 	return NX_GST_RET_OK;
 }
 
@@ -985,7 +1151,7 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
 	// demuxer <--> audio_queue/video_queue
 	g_signal_connect(handle->demuxer,	"pad-added", G_CALLBACK (on_pad_added_demux), handle);
 	// decodbin <--> audio_converter
-	g_signal_connect(handle->decodebin, "pad-added", G_CALLBACK (on_decodebin_pad_added_demux), handle);
+	g_signal_connect(handle->decodebin, "pad-added", G_CALLBACK (on_decodebin_pad_added), handle);
 
 	handle->pipeline_is_linked = TRUE;
 
@@ -1051,7 +1217,7 @@ void NX_GSTMP_Close(MP_HANDLE handle)
 
 	if (NULL == handle)
 	{
-		NXLOGE("%s() handle is already NULL\n", __func__);
+		NXLOGE("%s() handle is already NULL", __func__);
 		return;
 	}
 
@@ -1138,17 +1304,17 @@ NX_GST_RET NX_GSTMP_SetDisplayInfo(MP_HANDLE handle, DISPLAY_TYPE type, int dspW
 
 	if (type == DISPLAY_TYPE_SECONDARY)
 	{
-		g_object_set (G_OBJECT (handle->nxvideosink_hdmi), "dst-x", rect.iX, NULL);
-		g_object_set (G_OBJECT (handle->nxvideosink_hdmi), "dst-y", rect.iY, NULL);
-		g_object_set (G_OBJECT (handle->nxvideosink_hdmi), "dst-w", rect.iWidth, NULL);
-		g_object_set (G_OBJECT (handle->nxvideosink_hdmi), "dst-h", rect.iHeight, NULL);
+		handle->secondary_dsp_info.iX = rect.iX;
+		handle->secondary_dsp_info.iY = rect.iY;
+		handle->secondary_dsp_info.iWidth = rect.iWidth;
+		handle->secondary_dsp_info.iHeight = rect.iHeight;
 	}
 	else
 	{
-		g_object_set (G_OBJECT (handle->nxvideosink), "dst-x", rect.iX, NULL);
-		g_object_set (G_OBJECT (handle->nxvideosink), "dst-y", rect.iY, NULL);
-		g_object_set (G_OBJECT (handle->nxvideosink), "dst-w", rect.iWidth, NULL);
-		g_object_set (G_OBJECT (handle->nxvideosink), "dst-h", rect.iHeight, NULL);
+		handle->primary_dsp_info.iX = rect.iX;
+		handle->primary_dsp_info.iY = rect.iY;
+		handle->primary_dsp_info.iWidth = rect.iWidth;
+		handle->primary_dsp_info.iHeight = rect.iHeight;
 	}
 
 	FUNC_OUT();
@@ -1487,10 +1653,14 @@ NX_MEDIA_STATE NX_GSTMP_GetState(MP_HANDLE handle)
 {
 	_CAutoLock lock(&handle->apiLock);
 
-	if (!handle || !handle->pipeline_is_linked)
+	if (!handle)
 	{
-        NXLOGE("%s() invalid state or invalid operation.(%p,%d)\n",
-                __FUNCTION__, handle, handle->pipeline_is_linked);
+        NXLOGE("%s() handle is null", __FUNCTION__);
+		return MP_STATE_STOPPED;
+	}
+	if (!handle->pipeline_is_linked)
+	{
+		NXLOGE("%s() pipeline is unlinked", __FUNCTION__);
 		return MP_STATE_STOPPED;
 	}
 
@@ -1512,7 +1682,7 @@ NX_MEDIA_STATE NX_GSTMP_GetState(MP_HANDLE handle)
 	}
 	else
 	{
-        NXLOGE("%s() Failed to get state", __func__);
+        NXLOGE("%s() Failed to get state(%d)", __func__, state);
 		nx_state = MP_STATE_STOPPED;
 	}
 

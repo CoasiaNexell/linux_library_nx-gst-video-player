@@ -28,31 +28,6 @@ CNX_GstMoviePlayer::CNX_GstMoviePlayer(QWidget *parent)
 
 	// Subtitle
 	m_pSubtitleParser = new CNX_SubtitleParser();
-
-	// Dual Display
-	m_idSecondDisplay.iConnectorID = -1;
-	m_idSecondDisplay.iCrtcId      = -1;
-	m_idSecondDisplay.iPlaneId     = -1;
-	m_idSecondDisplay.iDrmFd	   = -1;
-
-	m_pDrmInfo = new CNX_DrmInfo();
-	if (m_pDrmInfo) {
-		if (m_pDrmInfo->OpenDrm())
-		{
-			// VIDEO : connId = 51, crtcId = 39, planeId = 40
-			if (0 > GetVideoPlane(CRTC_IDX_SECONDARY, PLANE_TYPE_VIDEO,
-								  DEFAULT_RGB_LAYER_IDX, &m_idSecondDisplay)) {
-				NXLOGE("cannot found video format for %dth crtc", CRTC_IDX_SECONDARY);
-			} else {
-				int32_t ret = m_pDrmInfo->SetCrtc(CRTC_IDX_SECONDARY,
-												  m_idSecondDisplay.iCrtcId, m_idSecondDisplay.iConnectorID,
-												  m_iSecDspWidth, m_iSecDspHeight);
-				if (ret != -1) {
-					m_bIsSecDis = true;
-				}
-			}
-		}
-	}
 }
 
 CNX_GstMoviePlayer::~CNX_GstMoviePlayer()
@@ -63,22 +38,6 @@ CNX_GstMoviePlayer::~CNX_GstMoviePlayer()
 		delete m_pSubtitleParser;
 		m_pSubtitleParser = NULL;
 	}
-	if (m_pDrmInfo) {
-		NXLOGI("%s", __FUNCTION__);
-		m_pDrmInfo->CloseDrm();
-		m_pDrmInfo = NULL;
-	}
-}
-
-int
-CNX_GstMoviePlayer::GetVideoPlane(int crtcIdx, int layerIdx,
-								  int findRgb, MP_DRM_PLANE_INFO *pDrmPlaneInfo)
-{
-	if (!m_pDrmInfo)
-		return -1;
-
-	int ret = m_pDrmInfo->FindPlaneForDisplay(crtcIdx, layerIdx, findRgb, pDrmPlaneInfo);
-	return ret;
 }
 
 //================================================================================================================
@@ -89,49 +48,61 @@ int CNX_GstMoviePlayer::InitMediaPlayer(void (*pCbEventCallback)(void *privateDe
                                                                  void* param),
                                      void *pCbPrivate,
                                      const char *pUri,
-                                     int dspWidth,
-                                     int dspHeight,
+									 DISPLAY_INFO dspInfo,
                                      char *pAudioDeviceName)
 {
 	CNX_AutoLock lock( &m_hLock );
 
 	NXLOGI("%s", __FUNCTION__);
 
-	DISPLAY_MODE dsp_mode = m_bIsSecDis ? DISPLAY_MODE_LCD_HDMI:DISPLAY_MODE_LCD_ONLY;
 	m_pAudioDeviceName = pAudioDeviceName;
 
 	if(0 > OpenHandle(pCbEventCallback, pCbPrivate))		return -1;
-	if(0 > SetDisplayMode(dsp_mode))						return -1;
+	if(0 > SetDisplayMode(dspInfo.dspMode))					return -1;
 	if(0 > SetUri(pUri))									return -1;
 	if(0 > GetMediaInfo())									return -1;
-	if(0 > SetAspectRatio(dspWidth, dspHeight))				return -1;
+	if(0 > SetAspectRatio(dspInfo))							return -1;
 
 	return 0;
 }
 
-int CNX_GstMoviePlayer::SetAspectRatio(int dspWidth, int dspHeight)
+int CNX_GstMoviePlayer::SetAspectRatio(DISPLAY_INFO dspInfo)
 {
 	DSP_RECT m_dstDspRect;
+	DSP_RECT m_dstSubDspRect;
 
-	memset(&m_dstDspRect, 0, sizeof(DSP_RECT));
+	NXLOGI("%s() dspInfo(%d, %d, %d, %d, %d)",
+			__FUNCTION__, dspInfo.dspWidth, dspInfo.dspHeight,
+			dspInfo.dspMode, dspInfo.subDspWidth, dspInfo.subDspHeight);
 
 	// Set aspect ratio for the primary display
+	memset(&m_dstDspRect, 0, sizeof(DSP_RECT));
 	GetAspectRatio(m_MediaInfo.iWidth, m_MediaInfo.iHeight,
-				   dspWidth, dspHeight,
+				   dspInfo.dspWidth, dspInfo.dspHeight,
 				   &m_dstDspRect);
-	if (0 > SetDisplayInfo(DISPLAY_TYPE_PRIMARY, dspWidth, dspHeight, m_dstDspRect))
+	if (0 > SetDisplayInfo(DISPLAY_TYPE_PRIMARY, dspInfo.dspWidth, dspInfo.dspHeight, m_dstDspRect)) {
+		NXLOGE("%s() Failed to set aspect ratio rect for primary", __FUNCTION__);
 		return -1;
+	}
+	NXLOGI("%s() m_dstDspRect(%d, %d, %d, %d)",
+			__FUNCTION__, m_dstDspRect.iX, m_dstDspRect.iY,
+			m_dstDspRect.iWidth, m_dstDspRect.iHeight);
 
 	// Set aspect ratio for the secondary display
-	if (m_bIsSecDis)
+	if (dspInfo.dspMode == DISPLAY_MODE_LCD_HDMI)
 	{
-		memset(&m_dstDspRect, 0, sizeof(DSP_RECT));
+		memset(&m_dstSubDspRect, 0, sizeof(DSP_RECT));
 		GetAspectRatio(m_MediaInfo.iWidth, m_MediaInfo.iHeight,
-						m_iSecDspWidth, m_iSecDspHeight,
-						&m_dstDspRect);
-		if(0 > SetDisplayInfo(DISPLAY_TYPE_SECONDARY, m_iSecDspWidth, m_iSecDspHeight, m_dstDspRect))
+						dspInfo.subDspWidth, dspInfo.subDspHeight,
+						&m_dstSubDspRect);
+		if(0 > SetDisplayInfo(DISPLAY_TYPE_SECONDARY, dspInfo.subDspWidth, dspInfo.subDspHeight, m_dstSubDspRect)) {
+			NXLOGE("%s() Failed to set aspect ratio rect for secondary", __FUNCTION__);
 			return -1;
+		}
 	}
+	NXLOGI("%s() m_dstSubDspRect(%d, %d, %d, %d)",
+			__FUNCTION__, m_dstSubDspRect.iX, m_dstSubDspRect.iY,
+			m_dstSubDspRect.iWidth, m_dstSubDspRect.iHeight);
 	return 0;
 }
 
@@ -333,7 +304,7 @@ int CNX_GstMoviePlayer::OpenHandle(void (*pCbEventCallback)(void *privateDesc, u
 
 int CNX_GstMoviePlayer::SetDisplayMode(DISPLAY_MODE mode)
 {
-	NXLOGI("%s", __FUNCTION__);
+	NXLOGI("%s mode(%d)", __FUNCTION__, mode);
 
 	if(NULL == m_hPlayer)
 	{
@@ -344,7 +315,7 @@ int CNX_GstMoviePlayer::SetDisplayMode(DISPLAY_MODE mode)
 	NX_GST_RET iResult = NX_GSTMP_SetDisplayMode(m_hPlayer, mode);
 	if(NX_GST_RET_OK != iResult)
 	{
-		NXLOGE("%s(): Error! NX_MPSetUri() Failed! (ret = %d, mode = %d)\n", __FUNCTION__, iResult, mode);
+		NXLOGE("%s(): Error! NX_GSTMP_SetDisplayMode() Failed! (ret = %d, mode = %d)\n", __FUNCTION__, iResult, mode);
 		return -1;
 	}
 	return 0;
@@ -396,7 +367,7 @@ int CNX_GstMoviePlayer::SetDisplayInfo(DISPLAY_TYPE type, int dspWidth, int dspH
 	NX_GST_RET iResult = NX_GSTMP_SetDisplayInfo(m_hPlayer, type, dspWidth, dspHeight, rect);
 	if(NX_GST_RET_OK != iResult)
 	{
-		NXLOGE("%s(): Error! NX_GSTMP_SetAspectRatio() Failed! (ret = %d)\n", __FUNCTION__, iResult);
+		NXLOGE("%s(): Error! NX_GSTMP_SetDisplayInfo() Failed! (ret = %d)\n", __FUNCTION__, iResult);
 		return -1;
 	}
 
@@ -570,12 +541,12 @@ void* CNX_GstMoviePlayer::ThreadWrapForSubtitleSeek(void *Obj)
 {
 	if( NULL != Obj )
 	{
-		NXLOGD("ThreadWrapForSubtitleSeek ok\n");
+		NXLOGD("ThreadWrapForSubtitleSeek ok");
 		( (CNX_GstMoviePlayer*)Obj )->SeekSubtitleThread();
 	}
 	else
 	{
-		NXLOGE("ThreadWrapForSubtitleSeek err\n");
+		NXLOGE("ThreadWrapForSubtitleSeek err");
 		return (void*)0xDEADDEAD;
 	}
 	return (void*)1;

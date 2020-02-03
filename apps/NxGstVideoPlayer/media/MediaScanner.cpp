@@ -95,26 +95,20 @@ int32_t MediaScanner::GetHdmiStatus( void )
     {
         NXLOGE("%s() Failed to open file", __FUNCTION__);
         return -1;
-    } else {
+    }
+	else
+	{
 		QTextStream stream(&file);
 		const char* status = stream.readAll().toStdString().c_str();
-		NXLOGI("%s() %s", __FUNCTION__, status);
 		file.close();
 
-		int length = strlen(status);
-		if (strncmp(status, "connected", (length-1)) == 0)
-		{
-			NXLOGI("%s() connected!!!!", __FUNCTION__);
+		NXLOGI("%s() %s", __FUNCTION__, status);
+		int length = strlen(status) - 1;
+		if (strncmp(status, "connected", length) == 0) {
 			return 1;
-		}
-		else if (strncmp(status, "disconnected", (length-1)) == 0)
-		{
-			NXLOGI("%s() disconnected!!!!", __FUNCTION__);
+		} else if (strncmp(status, "disconnected", length) == 0) {
 			return 0;
-		}
-		else
-		{
-			NXLOGI("%s() error", __FUNCTION__);
+		} else {
 			return -1;
 		}
     }

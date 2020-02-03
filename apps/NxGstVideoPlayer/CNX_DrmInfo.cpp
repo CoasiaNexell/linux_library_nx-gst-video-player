@@ -22,6 +22,8 @@
 #include <xf86drmMode.h>
 #include <drm/drm_fourcc.h>
 
+#include <QDir>
+#include <QTextStream>
 #include <CNX_DrmInfo.h>
 #define LOG_TAG "[CNX_DrmInfo]"
 #include <NX_Log.h>
@@ -75,6 +77,62 @@ CNX_DrmInfo::CloseDrm()
         drmClose(m_drmFd);
         m_drmFd = -1;
     }
+}
+
+bool
+CNX_DrmInfo::isHDMIConnected()
+{
+	const char* path = "/sys/devices/platform/c0000000.soc/c0102800.display_drm/drm/card0/card0-HDMI-A-1/status";
+
+    QFile file(path);
+	if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+    {
+        NXLOGE("%s() Failed to open file", __FUNCTION__);
+        return false;
+    }
+	else
+	{
+		QTextStream stream(&file);
+		const char* status = stream.readAll().toStdString().c_str();
+		file.close();
+
+		NXLOGI("%s() %s", __FUNCTION__, status);
+		int length = strlen(status)-1;
+		if (strncmp(status, "connected", length) == 0) {
+			return true;
+		} else if (strncmp(status, "disconnected", length) == 0) {
+			return false;
+		} else {
+			return false;
+		}
+    }
+	return false;
+}
+
+bool
+CNX_DrmInfo::setMode(int crtcIdx, int findRgb, int layerIdx, int width, int height)
+{
+    int32_t ret = -1;
+
+    m_display.iConnectorID = -1;
+	m_display.iCrtcId      = -1;
+	m_display.iPlaneId     = -1;
+	m_display.iDrmFd	   = -1;
+
+    // VIDEO : connId = 51, crtcId = 39, planeId = 40
+    if (0 > FindPlaneForDisplay(crtcIdx, findRgb,
+                            layerIdx, &m_display)) {
+        NXLOGE("%s() cannot found video format for %dth crtc", __FUNCTION__, crtcIdx);
+    } else {
+        NXLOGI("%s() m_display(%d, %d, %d, %d)", __FUNCTION__,
+                m_display.iConnectorID, m_display.iCrtcId,
+                m_display.iPlaneId, m_display.iDrmFd);
+        ret = SetCrtc(crtcIdx, m_display.iCrtcId, m_display.iConnectorID,
+                     width, height);
+    }
+
+    NXLOGI("%s, ret(%d)", __FUNCTION__, ret);
+    return (ret == -1) ? false:true;
 }
 
 int32_t
@@ -208,7 +266,7 @@ CNX_DrmInfo::FindPlaneForDisplay(int32_t in_crtcIdx,
         return -1;
     }
 
-    if(in_findRgb)   /* RGB Layer */
+    if(in_findRgb)   // RGB Layer
     {
         if(0 == find_rgb_plane(m_drmFd, in_crtcIdx, in_layerIdx, &connId, &crtcId, &planeId))
         {
@@ -217,36 +275,20 @@ CNX_DrmInfo::FindPlaneForDisplay(int32_t in_crtcIdx,
         }
         else
         {
-            NXLOGE("cannot found video format for %dth crtc", in_crtcIdx);
+            NXLOGE("%s() cannot found video format for %dth crtc", __FUNCTION__, in_crtcIdx);
             return -1;
         }
     }
-    else            /* Video Layer */
+    else            // Video Layer
     {
         if(0 == find_video_plane(m_drmFd, in_crtcIdx, &connId, &crtcId, &planeId))
         {
-            NXLOGI("%s [VIDEO] : in_crtcIdx = %d(%s) connId = %d, crtcId = %d, planeId = %d",
+            NXLOGI("%s() [VIDEO] : in_crtcIdx = %d(%s) connId = %d, crtcId = %d, planeId = %d",
                     __FUNCTION__, in_crtcIdx, (in_crtcIdx==0)?"PRIMARY":"SECONDARY", connId, crtcId, planeId);
-/*#ifdef SET_CRTC
-            if (in_crtcIdx == CRTC_IDX_SECONDARY)
-            {
-                // [VIDEO] : crtcIdx = 1(SECONDARY) connId = 51, crtcId = 39, planeId = 40
-                int result = SetCrtc(in_crtcIdx, crtcId, connId, 1920, 1080);
-                if (0 == result)
-                {
-                    NXLOGI("%s(): Succeed to set CRTC", __FUNCTION__);
-                }
-                else
-                {
-                    NXLOGE("%s(): Failed to set CRTC", __FUNCTION__);
-                    return -1;
-                }
-            }
-#endif*/
         }
         else
         {
-            NXLOGE("%s cannot found video format for %dth crtc", __FUNCTION__, in_crtcIdx);
+            NXLOGE("%s() cannot found video format for %dth crtc", __FUNCTION__, in_crtcIdx);
             return -1;
         }
     }

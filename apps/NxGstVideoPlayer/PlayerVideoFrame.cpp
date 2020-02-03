@@ -30,6 +30,9 @@
 #define DEFAULT_DSP_WIDTH	1024
 #define DEFAULT_DSP_HEIGHT	600
 
+#define DEFAULT_SUB_DSP_WIDTH	1920
+#define DEFAULT_SUB_DSP_HEIGHT	1080
+
 static int lock_cnt = 0;
 
 //------------------------------------------
@@ -132,6 +135,8 @@ PlayerVideoFrame::PlayerVideoFrame(QWidget *parent)
 	, m_pStatusBar(NULL)
 	, m_bSeekReady(false)
 	, m_bButtonHide(false)
+	, m_bHDMIConnected(false)
+	, m_bHDMIModeSet(false)
 	, m_iCurFileListIdx (0)
 	, m_bTurnOffFlag(false)
 	, m_bStopRenderingFlag(false)
@@ -157,8 +162,25 @@ PlayerVideoFrame::PlayerVideoFrame(QWidget *parent)
 		setFixedSize(screen.width(), screen.height());
 	}
 
-
 	m_pNxPlayer = new CNX_GstMoviePlayer(this);
+
+	// Dual Display
+	memset(&m_dspInfo, 0, sizeof(DISPLAY_INFO));
+	m_pDrmInfo = new CNX_DrmInfo();
+	m_pDrmInfo->OpenDrm();
+	m_bHDMIConnected = m_pDrmInfo->isHDMIConnected();
+	if (m_bHDMIConnected)
+	{
+		m_bHDMIModeSet = m_pDrmInfo->setMode(CRTC_IDX_SECONDARY, PLANE_TYPE_VIDEO,
+											DEFAULT_RGB_LAYER_IDX, DEFAULT_SUB_DSP_WIDTH,
+											DEFAULT_SUB_DSP_HEIGHT);
+	}
+	m_dspInfo.dspWidth = width();
+	m_dspInfo.dspHeight = height();
+	m_dspInfo.dspMode = (m_bHDMIConnected && m_bHDMIModeSet) ? DISPLAY_MODE_LCD_HDMI : DISPLAY_MODE_LCD_ONLY;
+	NXLOGI("%s() dsp_mode(%s)", __FUNCTION__, (m_dspInfo.dspMode==DISPLAY_MODE_LCD_ONLY) ? "LCD Only":"LCD_HDMI");
+	m_dspInfo.subDspWidth = DEFAULT_SUB_DSP_WIDTH;
+	m_dspInfo.subDspHeight = DEFAULT_SUB_DSP_HEIGHT;
 
 	UpdateFileList();
 	m_pIConfig = GetConfigHandle();
@@ -253,6 +275,13 @@ PlayerVideoFrame::~PlayerVideoFrame()
 		delete m_pNxPlayer;
 		m_pNxPlayer = NULL;
 	}
+
+	if (m_pDrmInfo)
+	{
+		m_pDrmInfo->CloseDrm();
+		m_pDrmInfo = NULL;
+	}
+
 	if(m_pPlayListFrame)
 	{
 		delete m_pPlayListFrame;
@@ -553,18 +582,30 @@ CNX_FileList *PlayerVideoFrame::GetFileList()
 
 void PlayerVideoFrame::HDMIStatusChanged(int status)
 {
-	if (status == NX_EVENT_MEDIA_HDMI_CONNECTED)
-	{
-		NXLOGI("%s() ########### CONNECTED ###############", __FUNCTION__);
+	m_hdmiStatusMutex.Lock();
+
+	if (status == NX_EVENT_MEDIA_HDMI_CONNECTED) {
+		if (false == m_bHDMIModeSet) {
+			m_bHDMIModeSet = m_pDrmInfo->setMode(CRTC_IDX_SECONDARY, PLANE_TYPE_VIDEO,
+									DEFAULT_RGB_LAYER_IDX, DEFAULT_SUB_DSP_WIDTH,
+									DEFAULT_SUB_DSP_HEIGHT);
+		}
+		m_bHDMIConnected = m_bHDMIModeSet;
+		m_dspInfo.dspMode = (m_bHDMIConnected && m_bHDMIModeSet) ? DISPLAY_MODE_LCD_HDMI : DISPLAY_MODE_LCD_ONLY;
+		NXLOGI("%s() dsp_mode(%s)", __FUNCTION__, (m_dspInfo.dspMode==DISPLAY_MODE_LCD_ONLY) ? "LCD Only":"LCD_HDMI");
 	}
-	else if (status == NX_EVENT_MEDIA_HDMI_DISCONNECTED)
-	{
-		NXLOGI("%s() ############ DISCONNECTED ##############", __FUNCTION__);
+	else if (status == NX_EVENT_MEDIA_HDMI_DISCONNECTED) {
+		m_bHDMIConnected = false;
+		m_dspInfo.dspMode = DISPLAY_MODE_LCD_ONLY;
 	}
-	else
-	{
-		NXLOGI("%s() ############ ERROR ##############", __FUNCTION__);
+	else {
+		m_bHDMIConnected = false;
+		m_dspInfo.dspMode = DISPLAY_MODE_LCD_ONLY;
 	}
+
+	m_pNxPlayer->SetDisplayMode(m_dspInfo.dspMode);
+
+	m_hdmiStatusMutex.Unlock();
 }
 
 bool PlayerVideoFrame::eventFilter(QObject *watched, QEvent *event)
@@ -1087,9 +1128,17 @@ bool PlayerVideoFrame::PlayVideo()
 				// Test code for Thumbnail
 				//m_pNxPlayer->GetThumbnail(m_FileList.GetList(m_iCurFileListIdx).toStdString().c_str(), 20 * 1000, 160);
 
+				m_dspInfo.dspWidth = width();
+				m_dspInfo.dspHeight = height();
+				m_dspInfo.dspMode = (m_bHDMIConnected && m_bHDMIModeSet) ? DISPLAY_MODE_LCD_HDMI : DISPLAY_MODE_LCD_ONLY;
+				NXLOGI("%s() dsp_mode(%s)", __FUNCTION__, (m_dspInfo.dspMode==DISPLAY_MODE_LCD_ONLY) ? "LCD Only":"LCD_HDMI");
+				m_dspInfo.subDspWidth = DEFAULT_SUB_DSP_WIDTH;
+				m_dspInfo.subDspHeight = DEFAULT_SUB_DSP_HEIGHT;
+
 				iResult = m_pNxPlayer->InitMediaPlayer(cbEventCallback, NULL,
 													   m_FileList.GetList(m_iCurFileListIdx).toStdString().c_str(),
-													   width(), height(), m_audioDeviceName);
+													   m_dspInfo,
+													   m_audioDeviceName);
 
                 NXLOGI("%s() filepath:%s", __FUNCTION__, m_FileList.GetList(m_iCurFileListIdx).toStdString().c_str());
                 if(iResult != 0) {

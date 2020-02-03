@@ -54,6 +54,14 @@
 #include <gst/gstpad.h>
 #include <gst/app/gstappsink.h>
 
+typedef struct DISPLAY_INFO {
+	int 			dspWidth;
+	int 			dspHeight;
+	DISPLAY_MODE	dspMode;
+	int				subDspWidth;
+	int				subDspHeight;
+} DISPLAY_INFO;
+
 class CNX_GstMoviePlayer
 {
 
@@ -67,9 +75,9 @@ public:
 	int InitMediaPlayer(void (*pCbEventCallback)(void *privateDesc, unsigned int EventType,
 												 unsigned int EventData, void* param),
 						void *pCbPrivate, const char *pUri,
-						int DspWidth, int DspHeight,
+						DISPLAY_INFO dspinfo,
 						char *pAudioDeviceName);
-
+	int SetDisplayMode(DISPLAY_MODE mode);
 	int CloseHandle();
 
 	// MediaPlayer common Control
@@ -88,7 +96,6 @@ public:
 	// Thumbnail
 	const char* GetThumbnail(const char *pUri, gint64 pos_msec, gint width);
 	// The dual display
-	int GetVideoPlane(int crtcIdx, int layerIdx, int findRgb, MP_DRM_PLANE_INFO *pDrmPlaneInfo);
 	int DrmVideoMute(int bOnOff);
 
 	// The playback speed
@@ -104,7 +111,6 @@ private:
 	int OpenHandle(void (*pCbEventCallback)(void *privateDesc, unsigned int EventType,
 											unsigned int EventData, void* param),
 				   void *cbPrivate);
-	int SetDisplayMode(DISPLAY_MODE mode);
 	int SetUri(const char *pUri);
 	
 	int GetMediaInfo();
@@ -112,7 +118,7 @@ private:
 						int dspWidth, int dspHeight,
 						DSP_RECT *pDspDstRect);
 	
-	int SetAspectRatio(int in_dspWidth, int in_dspHeight);
+	int SetAspectRatio(DISPLAY_INFO dspInfo);
 
 	//vars
 	bool    debug;
@@ -125,8 +131,6 @@ private:
 	int             m_bVideoMute;
 
 	GST_MEDIA_INFO	m_MediaInfo;
-
-	MP_DRM_PLANE_INFO m_idSecondDisplay;
 
 	char			*m_pAudioDeviceName;
 	gdouble 		m_fSpeed;
@@ -157,10 +161,6 @@ private:
 	// Subtitle
 	static void* ThreadWrapForSubtitleSeek(void *Obj);
 	void SeekSubtitleThread(void);
-
-public:
-	// Dual display
-	CNX_DrmInfo* 	m_pDrmInfo;
 
 private:
 	bool	m_bIsSecDis;

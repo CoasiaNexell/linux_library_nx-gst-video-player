@@ -14,6 +14,7 @@ typedef enum {
 	MP_EVENT_NOT_SUPPORTED,
 	MP_EVENT_GST_ERROR,
 	MP_EVENT_STATE_CHANGED,
+	MP_EVENT_SUBTITLE_UPDATED,
 	MP_EVENT_NUMS
 } NX_GST_EVENT;
 
@@ -117,18 +118,40 @@ typedef struct DSP_RECT {
     int32_t     iHeight;
 } DSP_RECT;
 
+typedef struct SUBTITLE_INFO {
+	gint64 startTime;
+	gint64 endTime;
+	gint64 duration;
+	char*	subtitleText;
+} SUBTITLE_INFO;
+
+typedef enum DISPLAY_MODE {
+	DISPLAY_MODE_LCD_ONLY,
+	DISPLAY_MODE_HDMI_ONLY,
+	DISPLAY_MODE_TVOUT_ONLY,
+	DISPLAY_MODE_LCD_HDMI,
+	DISPLAY_MODE_LCD_TVOUT
+} DISPLAY_MODE;
+
+typedef enum DISPLAY_TYPE {
+	DISPLAY_TYPE_PRIMARY,
+	DISPLAY_TYPE_SECONDARY
+} DISPLAY_TYPE;
+
 #ifdef __cplusplus
 extern "C" {
 #endif	//	__cplusplus
 
+NX_GST_RET NX_GSTMP_SetDisplayMode(MP_HANDLE handle, DISPLAY_MODE in_mode);
 NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pUri);
 NX_GST_RET NX_GSTMP_Open(MP_HANDLE *handle,
 					           void (*cb)(void *owner, unsigned int msg,
-				   				          unsigned int param1, unsigned int param2),
+							   unsigned int param1, void* param),
 				   			   void *cbOwner);
 void NX_GSTMP_Close(MP_HANDLE handle);
 NX_GST_RET NX_GSTMP_GetMediaInfo(MP_HANDLE handle, GST_MEDIA_INFO *pInfo);
-NX_GST_RET NX_GSTMP_SetDisplayInfo(MP_HANDLE handle, int dspWidth, int dspHeight, DSP_RECT rect);
+NX_GST_RET NX_GSTMP_SetDisplayInfo(MP_HANDLE handle, DISPLAY_TYPE type,
+									int dspWidth, int dspHeight, DSP_RECT rect);
 NX_GST_RET NX_GSTMP_Play(MP_HANDLE handle);
 NX_GST_RET NX_GSTMP_Pause(MP_HANDLE hande);
 NX_GST_RET NX_GSTMP_Stop(MP_HANDLE hande);
@@ -140,7 +163,8 @@ NX_MEDIA_STATE NX_GSTMP_GetState(MP_HANDLE handle);
 NX_GST_RET NX_GSTMP_VideoMute(MP_HANDLE handle, int32_t bOnoff);
 NX_GST_RET NX_GSTMP_SetVideoSpeed(MP_HANDLE handle, gdouble speed);
 gdouble NX_GSTMP_GetVideoSpeed(MP_HANDLE handle);
-gboolean NX_MPGetVideoSpeedSupport(MP_HANDLE handle);
+gboolean NX_GSTMP_GetVideoSpeedSupport(MP_HANDLE handle);
+const char* NX_GSTMP_GetThumbnail(const gchar *uri, gint64 pos_msec, gint width);
 
 const char* get_nx_media_state(NX_MEDIA_STATE state);
 const char* get_nx_gst_event(NX_GST_EVENT event);
