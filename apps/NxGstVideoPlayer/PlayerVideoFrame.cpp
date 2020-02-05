@@ -3,7 +3,7 @@
 #include <QTextCodec>
 #include <QDesktopWidget>
 
-#include <NX_GstMovie.h>
+#include <NX_GstMoviePlay.h>
 
 //Display Mode
 #define DSP_FULL   0
@@ -30,6 +30,7 @@
 #define DEFAULT_DSP_WIDTH	1024
 #define DEFAULT_DSP_HEIGHT	600
 
+// HDMI Display Info
 #define DEFAULT_SUB_DSP_WIDTH	1920
 #define DEFAULT_SUB_DSP_HEIGHT	1080
 

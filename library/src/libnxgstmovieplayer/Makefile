@@ -23,6 +23,17 @@ CPPOBJS += \
 
 CFLAGS		+= -g -Wall -Wextra `pkg-config --cflags glib-2.0 gstreamer-1.0 gstreamer-pbutils-1.0 gdk-pixbuf-2.0`
 CFLAGS		+= -fPIC
+##########################
+# For debug
+CFLAGS		+= -O -DDEBUG -g
+CPPFLAGS	+= -O -DDEBUG -g
+CONFIG		+= debug
+
+# For release
+#CFLAGS		+= -O2 -DNDEBUG
+#CPPFLAGS	+= -O2 -DNDEBUG
+#CONFIG		+= release
+###########################
 
 LDFLAGS		=`pkg-config --libs glib-2.0 gstreamer-1.0 gstreamer-pbutils-1.0 gdk-pixbuf-2.0`
 
@@ -43,7 +54,7 @@ $(TARGET): depend $(OBJS)
 install:
 	mkdir -p ../../lib/
 	cp -av $(TARGET) ../../lib/
-	cp -av NX_GstMovie.h ../../include
+	cp -av NX_GstMoviePlay.h ../../include
 
 clean:
 	rm -rf $(TARGET) *.o .depend

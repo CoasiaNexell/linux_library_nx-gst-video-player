@@ -17,9 +17,6 @@ CNX_GstMoviePlayer::CNX_GstMoviePlayer(QWidget *parent)
 	, m_fSpeed(1.0)
 	, m_pSubtitleParser(NULL)
 	, m_iSubtitleSeekTime(0)
-	, m_bIsSecDis(false)
-	, m_iSecDspWidth(1920)
-	, m_iSecDspHeight(1080)
 {
 	pthread_mutex_init(&m_hLock, NULL);
 	pthread_mutex_init(&m_SubtitleLock, NULL);

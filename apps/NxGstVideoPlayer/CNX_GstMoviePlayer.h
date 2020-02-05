@@ -44,7 +44,7 @@
 #include <QTime>
 #include <QDebug>
 #include "CNX_Util.h"
-#include <NX_GstMovie.h>
+#include <NX_GstMoviePlay.h>
 #include "CNX_SubtitleParser.h"
 #include "CNX_DrmInfo.h"
 
@@ -161,11 +161,6 @@ private:
 	// Subtitle
 	static void* ThreadWrapForSubtitleSeek(void *Obj);
 	void SeekSubtitleThread(void);
-
-private:
-	bool	m_bIsSecDis;
-	int		m_iSecDspWidth;
-	int		m_iSecDspHeight;
 };
 
 #endif // CNX_GstMoviePlayer_H

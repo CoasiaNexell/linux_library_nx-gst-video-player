@@ -1,58 +1,189 @@
-/****************************************************************************
-**
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing/
-**
-** This file is part of the examples of the Qt Toolkit.
-**
-** $QT_BEGIN_LICENSE:BSD$
-** You may use this file under the terms of the BSD license as follows:
-**
-** "Redistribution and use in source and binary forms, with or without
-** modification, are permitted provided that the following conditions are
-** met:
-**   * Redistributions of source code must retain the above copyright
-**     notice, this list of conditions and the following disclaimer.
-**   * Redistributions in binary form must reproduce the above copyright
-**     notice, this list of conditions and the following disclaimer in
-**     the documentation and/or other materials provided with the
-**     distribution.
-**   * Neither the name of The Qt Company Ltd nor the names of its
-**     contributors may be used to endorse or promote products derived
-**     from this software without specific prior written permission.
-**
-**
-** THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-** "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-** LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-** A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-** OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-** SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-** LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-** DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-** THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-** (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-** OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
-**
-** $QT_END_LICENSE$
-**
-****************************************************************************/
+//------------------------------------------------------------------------------
+//
+//	Copyright (C) 2015 Nexell Co. All Rights Reserved
+//	Nexell Co. Proprietary & Confidential
+//
+//	NEXELL INFORMS THAT THIS CODE AND INFORMATION IS PROVIDED "AS IS" BASE
+//  AND	WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING
+//  BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS
+//  FOR A PARTICULAR PURPOSE.
+//
+//	Module		: libnxgstmovieplayer.so
+//	File		:
+//	Description	:
+//	Author		:
+//	Export		:
+//	History		:
+//
+//------------------------------------------------------------------------------
 
-#ifndef CNX_GstMoviePlayer_H
-#define CNX_GstMoviePlayer_H
+#ifndef __NX_GSTMOVIEPLAY_H
+#define __NX_GSTMOVIEPLAY_H
 
-#include "NX_GstMovie.h"
-#include "GstDiscover.h"
-
-#include <gst/gst.h>
 #include <glib.h>
-#include <gst/gstdebugutils.h>
-#include <gst/gstpad.h>
-#include <gst/app/gstappsink.h>
 
-const char* get_gst_state(GstState gstState);
-const char* get_gst_state_change_ret(GstStateChangeReturn gstStateChangeRet);
-NX_MEDIA_STATE GstState2NxState(GstState state);
+#define MAX_TRACK_NUM		10
 
-#endif	// __NX_GST_MOVIEPLAY_H__
+typedef struct MOVIE_TYPE	*MP_HANDLE;
 
+typedef enum {
+    MP_EVENT_EOS,
+    MP_EVENT_DEMUX_LINK_FAILED,
+    MP_EVENT_NOT_SUPPORTED,
+    MP_EVENT_GST_ERROR,
+    MP_EVENT_STATE_CHANGED,
+    MP_EVENT_SUBTITLE_UPDATED,
+    MP_EVENT_NUMS
+} NX_GST_EVENT;
+
+typedef enum {
+    NX_GST_RET_ERROR,
+    NX_GST_RET_OK
+} NX_GST_RET;
+
+typedef enum
+{
+    NX_GST_ERROR_NONE,
+    NX_GST_ERROR_DISCOVER_FAILED,
+    NX_GST_ERROR_NOT_SUPPORTED_CONTENTS,
+    NX_GST_ERROR_DEMUX_LINK_FAILED,
+    NX_GST_ERROR_NUM_ERRORS	
+} NX_GST_ERROR;
+
+typedef enum
+{
+    URI_TYPE_FILE,
+    URI_TYPE_URL
+} NX_URI_TYPE;
+
+typedef enum
+{
+    MP_STATE_VOID_PENDING	= 0,
+    MP_STATE_STOPPED		= 1,
+    MP_STATE_READY			= 2,
+    MP_STATE_PAUSED 		= 3,
+    MP_STATE_PLAYING		= 4,
+} NX_MEDIA_STATE;
+
+#define	MAX_STREAM_INFO		20
+
+struct _GST_TRACK_INFO {
+    gint32			iTrackIndex;	// Track Index
+    gint32			iTrackType;		// MP_TRACK_VIDEO, ...
+    gint32			iCodecId;
+    gint64			iDuration;		// Track Duration
+
+    gboolean        bIsSeekable;
+
+    gint32			iWidth;			// Only VideoTrack
+    gint32			iHeight;		// Only VideoTrack
+    gint32			iFrameRate;		// Only VideoTrack
+
+    gint32			iChannels;		// Only AudioTrack
+    gint32			iSampleRate;	// Only AudioTrack
+    gint32			iBitrate;		// Only AudioTrack
+};
+
+typedef struct _GST_TRACK_INFO	GST_TRACK_INFO;
+
+struct _GST_STREAM_INFO {
+    gint32			iAudioNum;      // total audio number
+    gint32			iVideoNum;
+    gint32			iSubTitleNum;
+    gint32			iDataNum;
+    gint64			iDuration;
+    GST_TRACK_INFO 	TrackInfo[MAX_TRACK_NUM];
+};
+typedef struct _GST_STREAM_INFO	GST_STREAM_INFO;
+
+typedef struct GST_MEDIA_INFO {
+    gchar*          container_format;
+
+    gint32			n_container;
+    gint32			n_video;
+    gint32			n_audio;
+    gint32			n_subtitle;
+
+    gboolean        isSeekable;
+    gint64          iDuration;
+
+    GST_STREAM_INFO	StreamInfo[MAX_STREAM_INFO];
+
+    gint32          iX;
+    gint32          iY;
+
+    gchar*          video_mime_type;
+    gint32			video_mpegversion;
+    gint32          iWidth;
+    gint32          iHeight;
+
+    gchar*          audio_mime_type;
+    gint32			audio_mpegversion;
+
+    gchar*			subtitle_codec;
+
+    NX_URI_TYPE		uriType;
+} GST_MEDIA_INFO;
+
+typedef struct DSP_RECT {
+    int32_t     iX;
+    int32_t     iY;
+    int32_t     iWidth;
+    int32_t     iHeight;
+} DSP_RECT;
+
+typedef struct SUBTITLE_INFO {
+    gint64 startTime;
+    gint64 endTime;
+    gint64 duration;
+    char*	subtitleText;
+} SUBTITLE_INFO;
+
+typedef enum DISPLAY_MODE {
+    DISPLAY_MODE_LCD_ONLY,
+    DISPLAY_MODE_LCD_HDMI,
+    DISPLAY_MODE_UNKNOWN
+} DISPLAY_MODE;
+
+typedef enum DISPLAY_TYPE {
+    DISPLAY_TYPE_PRIMARY,
+    DISPLAY_TYPE_SECONDARY
+} DISPLAY_TYPE;
+
+#ifdef __cplusplus
+extern "C" {
+#endif	//	__cplusplus
+
+NX_GST_RET NX_GSTMP_SetDisplayMode(MP_HANDLE handle, DISPLAY_MODE in_mode);
+NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pUri);
+NX_GST_RET NX_GSTMP_Open(MP_HANDLE *handle,
+                               void (*cb)(void *owner, unsigned int msg,
+                               unsigned int param1, void* param),
+                                  void *cbOwner);
+void NX_GSTMP_Close(MP_HANDLE handle);
+NX_GST_RET NX_GSTMP_GetMediaInfo(MP_HANDLE handle, GST_MEDIA_INFO *pInfo);
+NX_GST_RET NX_GSTMP_SetDisplayInfo(MP_HANDLE handle, DISPLAY_TYPE type,
+                                    int dspWidth, int dspHeight, DSP_RECT rect);
+NX_GST_RET NX_GSTMP_Play(MP_HANDLE handle);
+NX_GST_RET NX_GSTMP_Pause(MP_HANDLE hande);
+NX_GST_RET NX_GSTMP_Stop(MP_HANDLE hande);
+NX_GST_RET NX_GSTMP_Seek(MP_HANDLE hande, gint64 seekTime);
+gint64 NX_GSTMP_GetDuration(MP_HANDLE handle);
+gint64 NX_GSTMP_GetPosition(MP_HANDLE handle);
+NX_GST_RET NX_GSTMP_SetVolume(MP_HANDLE handle, int volume);
+NX_MEDIA_STATE NX_GSTMP_GetState(MP_HANDLE handle);
+NX_GST_RET NX_GSTMP_VideoMute(MP_HANDLE handle, int32_t bOnoff);
+NX_GST_RET NX_GSTMP_SetVideoSpeed(MP_HANDLE handle, gdouble speed);
+gdouble NX_GSTMP_GetVideoSpeed(MP_HANDLE handle);
+gboolean NX_GSTMP_GetVideoSpeedSupport(MP_HANDLE handle);
+const char* NX_GSTMP_GetThumbnail(const gchar *uri, gint64 pos_msec, gint width);
+
+const char* get_nx_media_state(NX_MEDIA_STATE state);
+const char* get_nx_gst_event(NX_GST_EVENT event);
+const char* get_nx_gst_error(NX_GST_ERROR error);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // __NX_GSTMOVIEPLAY_H

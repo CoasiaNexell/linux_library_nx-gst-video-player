@@ -31,7 +31,7 @@
 #define VOLUME_MIN  0
 #define VOLUME_MAX  100
 
-#include <NX_GstMovie.h>
+#include <NX_GstMoviePlay.h>
 
 #include <QObject>
 class CallBackSignal : public QObject
