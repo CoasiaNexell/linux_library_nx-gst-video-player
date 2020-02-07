@@ -22,9 +22,8 @@
 #include <gst/gst.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 
+#include "NX_GstLog.h"
 #define LOG_TAG "[NX_GstThumbnail]"
-#include <NX_Log.h>
-#include <NX_DbgMsg.h>
 
 const char *
 makeThumbnail(const gchar *uri, gint64 pos_msec, gint width)
@@ -45,10 +44,10 @@ makeThumbnail(const gchar *uri, gint64 pos_msec, gint width)
 
     FUNC_IN();
 
-    NXLOGI("%s uri(%s), pos_msec(%lld), width(%d)", __FUNCTION__, uri, pos_msec, width);
+    NXGLOGI("uri(%s), pos_msec(%ld), width(%d)", uri, pos_msec, width);
 
     gboolean isGstInitialized = gst_is_initialized();
-    NXLOGI("%s isGstInitialized(%s)", __FUNCTION__, isGstInitialized?"initialized":"uninitialized");
+    NXGLOGI("isGstInitialized(%s)", isGstInitialized?"initialized":"uninitialized");
     if (!isGstInitialized)
     {
         gst_init(NULL, NULL);
@@ -56,11 +55,11 @@ makeThumbnail(const gchar *uri, gint64 pos_msec, gint width)
 
     // caps filter
     str_caps = g_strdup_printf("video/x-raw,format=RGB,width=%d,pixel-aspect-ratio=1/1", width);
-    NXLOGI("%s str_caps(%s)", __FUNCTION__, str_caps);
+    NXGLOGI("str_caps(%s)", str_caps);
 
     // gst-launch-1.0 option
     descr = g_strdup_printf("uridecodebin uri=file://%s ! videoconvert ! videoscale ! appsink name=sink caps=%s", uri, str_caps);
-    NXLOGI("%s descr(%s)", __FUNCTION__, descr);
+    NXGLOGI("descr(%s)", descr);
     pipeline = gst_parse_launch (descr, &error);
 
     g_free(str_caps);
@@ -68,7 +67,7 @@ makeThumbnail(const gchar *uri, gint64 pos_msec, gint width)
 
     if (error != NULL)
     {
-        NXLOGE("could not construct pipeline: %s", error->message);
+        NXGLOGE("could not construct pipeline: %s", error->message);
         g_error_free(error);
         return "";
     }
@@ -81,12 +80,12 @@ makeThumbnail(const gchar *uri, gint64 pos_msec, gint width)
     switch (ret)
     {
         case GST_STATE_CHANGE_FAILURE:
-            NXLOGE("%s() failed to play the file", __FUNCTION__);
+            NXGLOGE("failed to play the file");
             return "";
         case GST_STATE_CHANGE_NO_PREROLL:
             /* for live sources, we need to set the pipeline to PLAYING before we can
             * receive a buffer. We don't do that yet */
-            NXLOGE("%s() live sources not supported yet", __FUNCTION__);
+            NXGLOGE("live sources not supported yet");
             return "";
         default:
             break;
@@ -98,7 +97,7 @@ makeThumbnail(const gchar *uri, gint64 pos_msec, gint width)
     ret = gst_element_get_state(pipeline, NULL, NULL, 5 * GST_SECOND);
     if (ret == GST_STATE_CHANGE_FAILURE)
     {
-        NXLOGE("failed to play the file");
+        NXGLOGE("failed to play the file");
         return "";
     }
 
@@ -110,8 +109,9 @@ makeThumbnail(const gchar *uri, gint64 pos_msec, gint width)
     * by seeking to somewhere else we have a bigger chance of getting something
     * more interesting. An optimisation would be to detect black images and then
     * seek a little more */
+    GstSeekFlags flags = (GstSeekFlags) (GST_SEEK_FLAG_KEY_UNIT | GST_SEEK_FLAG_FLUSH);
     gst_element_seek_simple(pipeline, GST_FORMAT_TIME,
-                GST_SEEK_FLAG_KEY_UNIT | GST_SEEK_FLAG_FLUSH, position);
+                flags, position);
 
     /* get the preroll buffer from appsink, this block untils appsink really
     * prerolls */
@@ -133,7 +133,7 @@ makeThumbnail(const gchar *uri, gint64 pos_msec, gint width)
         caps = gst_sample_get_caps(sample);
         if (!caps)
         {
-            NXLOGE("could not get snapshot format");
+            NXGLOGE("could not get snapshot format");
             return "";
         }
         s = gst_caps_get_structure(caps, 0);
@@ -143,7 +143,7 @@ makeThumbnail(const gchar *uri, gint64 pos_msec, gint width)
         res |= gst_structure_get_int (s, "height", &video_height);
         if (!res)
         {
-            NXLOGE("could not get snapshot dimension");
+            NXGLOGE("could not get snapshot dimension");
             return "";
         }
 
@@ -161,7 +161,7 @@ makeThumbnail(const gchar *uri, gint64 pos_msec, gint width)
     }
     else
     {
-        NXLOGE("could not make snapshot");
+        NXGLOGE("could not make snapshot");
     }
 
     /* cleanup and exit */
@@ -170,7 +170,7 @@ makeThumbnail(const gchar *uri, gint64 pos_msec, gint width)
 
     FUNC_OUT();
 
-    NXLOGI("%s() snapshot filepath: %s", __FUNCTION__, filepath);
+    NXGLOGI("%s() snapshot filepath: %s", filepath);
 
     return filepath;
 }

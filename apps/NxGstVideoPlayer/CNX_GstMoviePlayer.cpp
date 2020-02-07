@@ -354,7 +354,7 @@ int CNX_GstMoviePlayer::GetMediaInfo()
 	return 0;
 }
 
-int CNX_GstMoviePlayer::SetDisplayInfo(DISPLAY_TYPE type, int dspWidth, int dspHeight, DSP_RECT rect)
+int CNX_GstMoviePlayer::SetDisplayInfo(enum DISPLAY_TYPE type, int dspWidth, int dspHeight, DSP_RECT rect)
 {
 	if(NULL == m_hPlayer)
 	{

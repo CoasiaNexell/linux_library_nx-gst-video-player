@@ -44,7 +44,7 @@
 #include <QTime>
 #include <QDebug>
 #include "CNX_Util.h"
-#include <NX_GstMoviePlay.h>
+#include <NX_GstIface.h>
 #include "CNX_SubtitleParser.h"
 #include "CNX_DrmInfo.h"
 
@@ -52,7 +52,6 @@
 #include <glib.h>
 #include <gst/gstdebugutils.h>
 #include <gst/gstpad.h>
-#include <gst/app/gstappsink.h>
 
 typedef struct DISPLAY_INFO {
 	int 			dspWidth;
@@ -92,7 +91,7 @@ public:
 	gint64 GetMediaPosition();
 	gint64 GetMediaDuration();
 	NX_MEDIA_STATE GetState();
-	int SetDisplayInfo(DISPLAY_TYPE type, int dspWidth, int dspHeight, DSP_RECT rect);
+	int SetDisplayInfo(enum DISPLAY_TYPE type, int dspWidth, int dspHeight, DSP_RECT rect);
 	// Thumbnail
 	const char* GetThumbnail(const char *pUri, gint64 pos_msec, gint width);
 	// The dual display

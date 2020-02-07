@@ -13,15 +13,15 @@ INCLUDE		+= -I. -I../../prebuilt/include
 ######################################################################
 # Target
 COBJS  	:= \
-	GstDiscover.o	\
-	NX_GstUtils.o	\
+	GstDiscover.o \
+	NX_GstLog.o	\
 	NX_GstThumbnail.o
 
 CPPOBJS	:=
 CPPOBJS += \
 	NX_GstMoviePlay.o
 
-CFLAGS		+= -g -Wall -Wextra `pkg-config --cflags glib-2.0 gstreamer-1.0 gstreamer-pbutils-1.0 gdk-pixbuf-2.0`
+CFLAGS		+= -Wall -Wextra `pkg-config --cflags glib-2.0 gstreamer-1.0 gstreamer-pbutils-1.0 gdk-pixbuf-2.0`
 CFLAGS		+= -fPIC
 ##########################
 # For debug
@@ -37,9 +37,9 @@ CONFIG		+= debug
 
 LDFLAGS		=`pkg-config --libs glib-2.0 gstreamer-1.0 gstreamer-pbutils-1.0 gdk-pixbuf-2.0`
 
-CPPFLAGS	+= -fPIC `pkg-config --cflags glib-2.0 gstreamer-1.0 gstreamer-pbutils-1.0 gdk-pixbuf-2.0`
+CPPFLAGS	+= -fPIC -Wall -Wextra `pkg-config --cflags glib-2.0 gstreamer-1.0 gstreamer-pbutils-1.0 gdk-pixbuf-1.0`
 
-LIBNAME	:= libnxgstmovplayer
+LIBNAME	:= libnxgstvplayer
 TARGET	:= $(LIBNAME).so
 
 ######################################################################
@@ -54,14 +54,14 @@ $(TARGET): depend $(OBJS)
 install:
 	mkdir -p ../../lib/
 	cp -av $(TARGET) ../../lib/
-	cp -av NX_GstMoviePlay.h ../../include
+	cp -av NX_GstIface.h ../../include
 
 clean:
 	rm -rf $(TARGET) *.o .depend
 
 distclean: clean
 	rm -rf ../../lib/$(TARGET)
-	rm -rf ../../include/NX_GstMoviePlay.h
+	rm -rf ../../include/NX_GstIface.h
 
 #########################################################################
 # Dependency

@@ -17,20 +17,20 @@
 //
 //------------------------------------------------------------------------------
 
-#include <gst/app/gstappsink.h>
+#include <gst/gst.h>
+#include <string.h>
 
-#include "NX_GstMoviePlay.h"
+#include "NX_GstIface.h"
 #include "GstDiscover.h"
-#include "NX_DbgMsg.h"
 #include "NX_GstThumbnail.h"
 
+#include "NX_GstLog.h"
 #define LOG_TAG "[NX_GstMoviePlay]"
-#include <NX_Log.h>
 
-/*********************************************************************************
-/* Function Prototype */
+//------------------------------------------------------------------------------
+// Function Prototype
 const char* get_gst_state_change_ret(GstStateChangeReturn gstStateChangeRet);
-NX_MEDIA_STATE GstState2NxState(GstState state);
+enum NX_MEDIA_STATE GstState2NxState(GstState state);
 
 void add_video_elements_to_bin(MP_HANDLE handle);
 void add_audio_elements_to_bin(MP_HANDLE handle);
@@ -45,12 +45,15 @@ NX_GST_RET link_elements(MP_HANDLE handle);
 NX_GST_RET link_primary_cb(MP_HANDLE handle);
 NX_GST_RET link_secondary_cb(MP_HANDLE handle);
 
-NX_MEDIA_STATE GstState2NxState(GstState state);
+enum NX_MEDIA_STATE GstState2NxState(GstState state);
 static gpointer loop_func(gpointer data);
 static void start_loop_thread(MP_HANDLE handle);
 static void stop_my_thread(MP_HANDLE handle);
 static gboolean gst_bus_callback(GstBus *bus, GstMessage *msg, MP_HANDLE handle);
 static NX_GST_RET seek_to_time (MP_HANDLE handle, gint64 time_nanoseconds);
+
+static const char* get_nx_gst_error(NX_GST_ERROR error);
+//------------------------------------------------------------------------------
 
 static gboolean hasSubTitles = FALSE;
 
@@ -82,7 +85,7 @@ struct MOVIE_TYPE {
     GstElement  *tee_queue_primary;
     GstPad      *tee_primary_pad;
     struct Sink	*secondary_sink;
-    DISPLAY_MODE display_mode;
+    enum DISPLAY_MODE display_mode;
 
     // For Audio
     GstElement  *audio_queue;
@@ -101,7 +104,8 @@ struct MOVIE_TYPE {
     GstState    state;
 
     GstElement  *volume;
-    gdouble     rate;   // Current playback rate
+    // Current playback rate
+    gdouble     rate;
 
     GMainLoop *loop;
     GThread *thread;
@@ -117,13 +121,13 @@ struct MOVIE_TYPE {
     NX_URI_TYPE uri_type;
     gchar *uri;
 
-    GST_MEDIA_INFO gst_media_info;
+    struct GST_MEDIA_INFO gst_media_info;
 
     // For aspect ratio
-    DSP_RECT	primary_dsp_info;
-    DSP_RECT	secondary_dsp_info;
+    struct DSP_RECT	primary_dsp_info;
+    struct DSP_RECT	secondary_dsp_info;
 
-    NX_GST_ERROR error;
+    enum NX_GST_ERROR error;
 
     //	Callback
     void (*callback)(void *, unsigned int EventType, unsigned int EventData, void* param);
@@ -162,8 +166,8 @@ static void start_loop_thread(MP_HANDLE handle)
 {
     FUNC_IN();
 
-    handle->loop = g_main_loop_new (NULL, FALSE);
-    handle->thread = g_thread_create (loop_func, handle, TRUE, NULL);
+    handle->loop = g_main_loop_new(NULL, FALSE);
+    handle->thread = g_thread_create(loop_func, handle, TRUE, NULL);
 
     FUNC_OUT();
 }
@@ -173,13 +177,17 @@ static void stop_my_thread(MP_HANDLE handle)
     FUNC_IN();
 
     if (NULL != handle->loop)
-        g_main_loop_quit (handle->loop);
+        g_main_loop_quit(handle->loop);
 
     if (NULL != handle->thread)
-        g_thread_join (handle->thread);
+    {
+        g_thread_join(handle->thread);
+    }
 
     if (NULL != handle->loop)
-        g_main_loop_unref (handle->loop);
+    {
+        g_main_loop_unref(handle->loop);
+    }
 
     FUNC_OUT();
 }
@@ -200,39 +208,37 @@ static void on_decodebin_pad_added(GstElement *element,
     caps = gst_pad_get_current_caps(pad);
     if (caps == NULL)
     {
-        NXLOGE("%s() Failed to get current caps", __FUNCTION__);
+        NXGLOGE("Failed to get current caps");
         return;
     }
 
     new_pad_structure = gst_caps_get_structure(caps, 0);
     if (NULL == new_pad_structure)
     {
-        NXLOGE("%s() Failed to get current caps", __FUNCTION__);
+        NXGLOGE("Failed to get current caps");
         return;
     }
 
     mime_type = gst_structure_get_name(new_pad_structure);
-    NXLOGI("%s() MIME-type:%s", __FUNCTION__, mime_type);
+    NXGLOGI("MIME-type:%s", mime_type);
     if (g_str_has_prefix(mime_type, "audio/"))
     {
         sinkpad = gst_element_get_static_pad (sink_pad_audio, "sink");
         if (NULL == sinkpad)
         {
-            NXLOGE("%s() Failed to get static pad", __FUNCTION__);
+            NXGLOGE("Failed to get static pad");
             gst_caps_unref(caps);
             return;
         }
 
         if (GST_PAD_LINK_FAILED(gst_pad_link(pad, sinkpad)))
         {
-            NXLOGE("%s() Failed to link %s:%s to %s:%s",
-                    __FUNCTION__,
+            NXGLOGE("Failed to link %s:%s to %s:%s",
                     GST_DEBUG_PAD_NAME(pad),
                     GST_DEBUG_PAD_NAME(sinkpad));
         }
 
-        NXLOGI("%s() Succeed to link %s:%s to %s:%s",
-                __FUNCTION__,
+        NXGLOGI("Succeed to link %s:%s to %s:%s",
                 GST_DEBUG_PAD_NAME(pad),
                 GST_DEBUG_PAD_NAME(sinkpad));
 
@@ -244,19 +250,19 @@ static void on_decodebin_pad_added(GstElement *element,
     FUNC_OUT();
 }
 
-SUBTITLE_INFO* setSubtitleInfo(GstClockTime startTime, GstClockTime endTime,
+struct SUBTITLE_INFO* setSubtitleInfo(GstClockTime startTime, GstClockTime endTime,
                                 GstClockTime duration, const char* subtitle)
 {
-    SUBTITLE_INFO* m_pSubtitleInfo = (SUBTITLE_INFO*) g_malloc0(sizeof(SUBTITLE_INFO));
+    struct SUBTITLE_INFO* m_pSubtitleInfo = (struct SUBTITLE_INFO*) g_malloc0(sizeof(struct SUBTITLE_INFO));
 
     m_pSubtitleInfo->startTime = (gint64) startTime;
     m_pSubtitleInfo->endTime = (gint64) endTime;
     m_pSubtitleInfo->duration = (gint64) duration;
     m_pSubtitleInfo->subtitleText = g_strdup(subtitle);
 
-    NXLOGI("%s() subtitle:%s startTime:%" GST_TIME_FORMAT
+    NXGLOGI("subtitle:%s startTime:%" GST_TIME_FORMAT
             ", duration: %" GST_TIME_FORMAT ", endTime: %" GST_TIME_FORMAT,
-            __FUNCTION__, subtitle, GST_TIME_ARGS(startTime),
+            subtitle, GST_TIME_ARGS(startTime),
             GST_TIME_ARGS(duration), GST_TIME_ARGS(endTime));
 
     return m_pSubtitleInfo;
@@ -274,20 +280,20 @@ void on_handoff(GstElement* object, GstBuffer* buffer,
     buffer_size = gst_buffer_get_size(buffer);
 
     extracted_size = gst_buffer_extract(buffer, 0, text_msg, buffer_size);
-    NXLOGV("%s() Buffer Size is %d, read %d, data: %s",
-            __FUNCTION__, buffer_size, extracted_size, text_msg);
+    NXGLOGV("Buffer Size is %zu, read %zu, data: %s",
+            buffer_size, extracted_size, text_msg);
 
     static GstClockTime startTime, duration, endTime, timestamp;
     startTime = GST_BUFFER_PTS(buffer);
     duration = GST_BUFFER_DURATION(buffer);
     timestamp = GST_BUFFER_TIMESTAMP(buffer);
     endTime = startTime + duration;
-    NXLOGV("%s() startTime:%" GST_TIME_FORMAT ", duration: %" GST_TIME_FORMAT
+    NXGLOGV("startTime:%" GST_TIME_FORMAT ", duration: %" GST_TIME_FORMAT
              ", endTime: %" GST_TIME_FORMAT ", timestamp: %" GST_TIME_FORMAT,
-            __FUNCTION__, GST_TIME_ARGS(startTime), GST_TIME_ARGS(duration),
+            GST_TIME_ARGS(startTime), GST_TIME_ARGS(duration),
             GST_TIME_ARGS(endTime), GST_TIME_ARGS(timestamp));
 
-    SUBTITLE_INFO* subtitleInfo = setSubtitleInfo(startTime, endTime, duration, text_msg);
+    struct SUBTITLE_INFO* subtitleInfo = setSubtitleInfo(startTime, endTime, duration, text_msg);
 
     handle = (MP_HANDLE)user_data;
     if (handle) {
@@ -303,7 +309,7 @@ NX_GST_RET set_subtitle_element(MP_HANDLE handle)
 
     if (!handle)
     {
-        NXLOGE("%s() handle is NULL", __func__);
+        NXGLOGE("handle is NULL", __func__);
         return NX_GST_RET_ERROR;
     }
 
@@ -317,7 +323,7 @@ NX_GST_RET set_subtitle_element(MP_HANDLE handle)
 
     if (!handle->capsfilter || !handle->subtitle_queue || !handle->fakesink)
     {
-        NXLOGE("%s() Failed to create subtitle elements", __func__);
+        NXGLOGE("Failed to create subtitle elements", __func__);
         return NX_GST_RET_ERROR;
     }
     gst_caps_unref(cap);
@@ -330,6 +336,7 @@ NX_GST_RET set_subtitle_element(MP_HANDLE handle)
     return NX_GST_RET_OK;
 }
 
+#ifdef TEST
 static GstPadProbeReturn cb_have_data (GstPad          *pad,
                                         GstPadProbeInfo *info,
                                         gpointer         user_data)
@@ -344,16 +351,18 @@ static GstPadProbeReturn cb_have_data (GstPad          *pad,
     buffer_size = gst_buffer_get_size(buffer);
 
     read_size = gst_buffer_extract(buffer, 0, text_msg, buffer_size);
-    NXLOGI("%s() Buffer Size is %d, read %d, data: %s",
-            __FUNCTION__, buffer_size, read_size, text_msg);
+    NXGLOGI("Buffer Size is %d, read %d, data: %s",
+            buffer_size, read_size, text_msg);
 
     handle = (MP_HANDLE)user_data;
-    if (handle) {
+    if (handle)
+    {
         handle->callback(NULL, (int)MP_EVENT_SUBTITLE_UPDATED, 0, 0);
     }
 
     return GST_PAD_PROBE_OK;
 }
+#endif
 
 static void on_pad_added_demux(GstElement *element, 
                         GstPad *pad, gpointer data)
@@ -372,35 +381,42 @@ static void on_pad_added_demux(GstElement *element,
 
     caps = gst_pad_get_current_caps(pad);
     if (caps == NULL) {
-        NXLOGE("%s() Failed to get current caps", __FUNCTION__);
+        NXGLOGE("Failed to get current caps");
         return;
     }
 
     structure = gst_caps_get_structure(caps, 0);
     if (structure == NULL) {
-        NXLOGE("%s() Failed to get current caps", __FUNCTION__);
+        NXGLOGE("Failed to get current caps");
         gst_caps_unref (caps);
         return;
     }
 
     mime_type = gst_structure_get_name(structure);
-    NXLOGI("%s() padName(%s) mime_type(%s)", __FUNCTION__, padName, mime_type);
+    NXGLOGI("padName(%s) mime_type(%s)", padName, mime_type);
 
     // Get sinkpad of queue for video/audio/subtitle
-    if (g_str_has_prefix(mime_type, "video/")) {
+    if (g_str_has_prefix(mime_type, "video/"))
+    {
         target_sink_pad = handle->video_queue;
         sinkpad = gst_element_get_static_pad(target_sink_pad, "sink");
-    } else if (g_str_has_prefix(mime_type, "audio/")) {
+    }
+    else if (g_str_has_prefix(mime_type, "audio/"))
+    {
         target_sink_pad = handle->audio_queue;
         sinkpad = gst_element_get_static_pad(target_sink_pad, "sink");
-    } else if (hasSubTitles && g_str_has_prefix(padName, "subtitle_0")) {
+    }
+    else if (hasSubTitles && g_str_has_prefix(padName, "subtitle_0"))
+    {
         target_sink_pad = handle->subtitle_queue;
         sinkpad = gst_element_get_static_pad(target_sink_pad, "sink");
-    } else {
-        NXLOGE("%s() There is no available link for %s", __FUNCTION__, padName);
+    }
+    else
+    {
+        NXGLOGE("There is no available link for %s", padName);
     }
 
-    NXLOGI("%s() target_sink_pad:%s", __FUNCTION__,
+    NXGLOGI("target_sink_pad:%s",
             (NULL != target_sink_pad) ? GST_OBJECT_NAME(target_sink_pad):"");
 
     // Link pads [demuxer <--> video_queue/audio_queue/subtitle_queue]
@@ -410,31 +426,31 @@ static void on_pad_added_demux(GstElement *element,
     {
         if (NULL == sinkpad)
         {
-            NXLOGE("%s() Failed to get static pad", __FUNCTION__);
+            NXGLOGE("Failed to get static pad");
             gst_caps_unref (caps);
             return;
         }
 
         if (GST_PAD_LINK_FAILED(gst_pad_link(pad, sinkpad)))
         {
-            NXLOGE("%s() Failed to link %s:%s to %s:%s",
-                    __FUNCTION__, GST_DEBUG_PAD_NAME(pad),
+            NXGLOGE("Failed to link %s:%s to %s:%s",
+                    GST_DEBUG_PAD_NAME(pad),
                     GST_DEBUG_PAD_NAME(sinkpad));
             isLinkFailed = TRUE;
         }
         else
         {
-            NXLOGI("%s() Succeed to create dynamic pad link %s:%s to %s:%s",
-                    __FUNCTION__, GST_DEBUG_PAD_NAME(pad),
+            NXGLOGI("Succeed to create dynamic pad link %s:%s to %s:%s",
+                    GST_DEBUG_PAD_NAME(pad),
                     GST_DEBUG_PAD_NAME(sinkpad));
         }
         gst_object_unref (sinkpad);
     }
 
-#if 0
+#ifdef TEST
     if (hasSubTitles && g_str_has_prefix(padName, "subtitle"))
     {
-        NXLOGI("%s Add probe to pad", __FUNCTION__);
+        NXGLOGI("Add probe to pad");
         gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER,
                             (GstPadProbeCallback) cb_have_data,
                             handle, NULL);
@@ -451,12 +467,15 @@ static void on_pad_added_demux(GstElement *element,
         return;
     }
 
-    if (g_str_has_prefix(mime_type, "video/")) {
-        NXLOGI("%s() display_mode(%d)", __FUNCTION__, handle->display_mode);
-        if (handle->display_mode == DISPLAY_MODE_LCD_ONLY) {
+    if (g_str_has_prefix(mime_type, "video/"))
+    {
+        NXGLOGI("display_mode(%d)", handle->display_mode);
+        if (handle->display_mode == DISPLAY_MODE_LCD_ONLY)
+        {
             link_primary_cb(handle);
         }
-        if (handle->display_mode == DISPLAY_MODE_LCD_HDMI) {
+        if (handle->display_mode == DISPLAY_MODE_LCD_HDMI)
+        {
             link_primary_cb(handle);
             link_secondary_cb(handle);
         }
@@ -497,12 +516,10 @@ static void print_tag(const GstTagList *list, const gchar *tag, gpointer unused)
 
 static gboolean gst_bus_callback(GstBus *bus, GstMessage *msg, MP_HANDLE handle)
 {
-    GMainLoop *loop = (GMainLoop*)handle->loop;
-
     switch (GST_MESSAGE_TYPE (msg))
     {
         case GST_MESSAGE_EOS:
-            NXLOGI("%s() End-of-stream", __FUNCTION__);
+            NXGLOGI("End-of-stream");
             handle->callback(NULL, (int)MP_EVENT_EOS, 0, NULL);
             break;
         case GST_MESSAGE_ERROR:
@@ -517,11 +534,11 @@ static gboolean gst_bus_callback(GstBus *bus, GstMessage *msg, MP_HANDLE handle)
                 gst_message_parse_error (msg, &err, &debug);
             }
 
-            NXLOGE("%s() Gstreamer %s: %s", __FUNCTION__,
+            NXGLOGE("Gstreamer %s: %s",
                    (msg->type == GST_MESSAGE_WARNING)?"warning":"error", err->message);
             g_error_free (err);
 
-            NXLOGI("%s() Debug details: %s", __FUNCTION__, debug);
+            NXGLOGI("Debug details: %s", debug);
             g_free (debug);
 
             handle->callback(NULL, (int)MP_EVENT_GST_ERROR, 0, 0);
@@ -534,8 +551,7 @@ static gboolean gst_bus_callback(GstBus *bus, GstMessage *msg, MP_HANDLE handle)
             gst_message_parse_state_changed (msg, &old_state, &new_state, NULL);
             // TODO: workaround
             //if(g_strcmp0("NxGstMoviePlay", GST_OBJECT_NAME (msg->src)) == 0) {
-                NXLOGI("%s Element '%s' changed state from  '%s' to '%s'"
-                       , __FUNCTION__
+                NXGLOGI("Element '%s' changed state from  '%s' to '%s'"
                        , GST_OBJECT_NAME (msg->src)
                        , gst_element_state_get_name (old_state)
                        , gst_element_state_get_name (new_state));
@@ -550,7 +566,7 @@ static gboolean gst_bus_callback(GstBus *bus, GstMessage *msg, MP_HANDLE handle)
         }
         case GST_MESSAGE_DURATION_CHANGED:
         {
-            NXLOGI("%s() TODO:%s", __FUNCTION__, gst_message_type_get_name(GST_MESSAGE_TYPE(msg)));
+            NXGLOGI("TODO:%s", gst_message_type_get_name(GST_MESSAGE_TYPE(msg)));
             break;
         }
         case GST_MESSAGE_STREAM_STATUS:
@@ -564,15 +580,15 @@ static gboolean gst_bus_callback(GstBus *bus, GstMessage *msg, MP_HANDLE handle)
         {
             GstClockTime running_time;
             gst_message_parse_async_done(msg, &running_time);
-            NXLOGI("%s() msg->src(%s) running_time(%" GST_TIME_FORMAT ")",
-                    __FUNCTION__, GST_OBJECT_NAME (msg->src), GST_TIME_ARGS (running_time));
+            NXGLOGI("msg->src(%s) running_time(%" GST_TIME_FORMAT ")",
+                    GST_OBJECT_NAME (msg->src), GST_TIME_ARGS (running_time));
             break;
         }
         case GST_MESSAGE_TAG:
         {
             GstTagList *received_tags = NULL;
             gst_message_parse_tag (msg, &received_tags);
-            NXGLOGV("%s() Got tags from element %s", __FUNCTION__, GST_OBJECT_NAME (msg->src));
+            NXGLOGV("Got tags from element %s", GST_OBJECT_NAME (msg->src));
             gst_tag_list_foreach(received_tags, print_tag, NULL);
             gst_tag_list_unref (received_tags);
             break;
@@ -581,8 +597,8 @@ static gboolean gst_bus_callback(GstBus *bus, GstMessage *msg, MP_HANDLE handle)
         {
             GstMessageType type = GST_MESSAGE_TYPE(msg);
             // TODO: latency, stream-status, reset-time, async-done, new-clock, etc
-            NXLOGV("%s() Received GST_MESSAGE_TYPE [%s]",
-                   __FUNCTION__, gst_message_type_get_name(type));
+            NXGLOGV("Received GST_MESSAGE_TYPE [%s]",
+                   gst_message_type_get_name(type));
             break;
         }
     }
@@ -595,10 +611,10 @@ void PrintMediaInfo(MP_HANDLE handle, const char *pUri)
 
     FUNC_IN();
 
-    NXLOGI("%s() [%s] container(%s), video mime-type(%s)"
+    NXGLOGI("[%s] container(%s), video mime-type(%s)"
            ", audio mime-type(%s), seekable(%s), width(%d), height(%d)"
            ", duration: (%" GST_TIME_FORMAT ")\r"
-           , __FUNCTION__
+           
            , pUri
            , handle->gst_media_info.container_format
            , handle->gst_media_info.video_mime_type
@@ -617,7 +633,7 @@ NX_GST_RET set_demux_element(MP_HANDLE handle)
 
     if (!handle)
     {
-        NXLOGE("%s() handle is NULL", __func__);
+        NXGLOGE("handle is NULL", __func__);
         return NX_GST_RET_ERROR;
     }
 
@@ -642,7 +658,7 @@ NX_GST_RET set_demux_element(MP_HANDLE handle)
 
     if (NULL == handle->demuxer)
     {
-        NXLOGE("%s() Failed to create demuxer. Exiting", __FUNCTION__);
+        NXGLOGE("Failed to create demuxer. Exiting");
         return NX_GST_RET_ERROR;
     }
 
@@ -657,7 +673,7 @@ NX_GST_RET set_audio_elements(MP_HANDLE handle)
 
     if (!handle)
     {
-        NXLOGE("%s() handle is NULL", __func__);
+        NXGLOGE("handle is NULL", __func__);
         return NX_GST_RET_ERROR;
     }
 
@@ -670,7 +686,7 @@ NX_GST_RET set_audio_elements(MP_HANDLE handle)
     if (!handle->audio_queue || !handle->decodebin || !handle->audioconvert ||
         !handle->audioresample || !handle->alsasink)
     {
-        NXLOGE("%s() Failed to create audio elements", __func__);
+        NXGLOGE("Failed to create audio elements", __func__);
         return NX_GST_RET_ERROR;
     }
 
@@ -685,7 +701,7 @@ NX_GST_RET set_video_elements(MP_HANDLE handle)
 
     if (!handle)
     {
-        NXLOGE("%s() handle is NULL", __func__);
+        NXGLOGE("handle is NULL", __func__);
         return NX_GST_RET_ERROR;
     }
 
@@ -695,7 +711,7 @@ NX_GST_RET set_video_elements(MP_HANDLE handle)
         handle->video_parser = gst_element_factory_make("h264parse", "parser");
         if (!handle->video_parser)
         {
-            NXLOGE("%s() Failed to create h264parse element", __func__);
+            NXGLOGE("Failed to create h264parse element", __func__);
             return NX_GST_RET_ERROR;
         }
     }
@@ -705,7 +721,7 @@ NX_GST_RET set_video_elements(MP_HANDLE handle)
         handle->video_parser = gst_element_factory_make("mpegvideoparse", "parser");
         if (!handle->video_parser)
         {
-            NXLOGE("%s() Failed to create mpegvideoparse element", __func__);
+            NXGLOGE("Failed to create mpegvideoparse element", __func__);
             return NX_GST_RET_ERROR;
         }
     }
@@ -714,7 +730,7 @@ NX_GST_RET set_video_elements(MP_HANDLE handle)
     handle->tee = gst_element_factory_make("tee", "tee");
     if(!handle->video_queue || !handle->nxvideodec)
     {
-        NXLOGE("%s() Failed to create video elements", __func__);
+        NXGLOGE("Failed to create video elements", __func__);
         return NX_GST_RET_ERROR;
     }
 
@@ -729,14 +745,14 @@ NX_GST_RET set_source_element(MP_HANDLE handle)
 
     if (!handle)
     {
-        NXLOGE("%s() handle is NULL", __FUNCTION__);
+        NXGLOGE("handle is NULL");
         return NX_GST_RET_ERROR;
     }
 
     handle->source = gst_element_factory_make("filesrc", "source");
     if (NULL == handle->source)
     {
-        NXLOGE("%s() Failed to create filesrc element", __func__);
+        NXGLOGE("Failed to create filesrc element", __func__);
         return NX_GST_RET_ERROR;
     }
     g_object_set(handle->source, "location", handle->uri, NULL);
@@ -782,7 +798,7 @@ NX_GST_RET add_elements_to_bin(MP_HANDLE handle)
 
     if (!handle)
     {
-        NXLOGE("%s() handle is NULL", __func__);
+        NXGLOGE("handle is NULL", __func__);
         return NX_GST_RET_ERROR;
     }
 
@@ -804,11 +820,11 @@ NX_GST_RET link_video_elements(MP_HANDLE handle)
 {
     if ((g_strcmp0(handle->gst_media_info.video_mime_type, "video/x-h264") == 0) ||
         ((g_strcmp0(handle->gst_media_info.video_mime_type, "video/mpeg") == 0) &&
-            (handle->gst_media_info.video_mpegversion <= 2)) )
+            (handle->gst_media_info.video_mpegversion <= 2)))
     {
         if (!gst_element_link_many(handle->video_queue, handle->video_parser, handle->nxvideodec, NULL))
         {
-            NXLOGE("%s() Failed to link video elements with video_parser", __func__);
+            NXGLOGE("Failed to link video elements with video_parser", __func__);
             return NX_GST_RET_ERROR;
         }
     }
@@ -816,19 +832,19 @@ NX_GST_RET link_video_elements(MP_HANDLE handle)
     {
         if (!gst_element_link_many(handle->video_queue, handle->nxvideodec, NULL))
         {
-            NXLOGE("%s() Failed to link video elements", __FUNCTION__);
+            NXGLOGE("Failed to link video elements");
             return NX_GST_RET_ERROR;
         }
         else
         {
-            NXLOGI("%s() Succeed to link video_queue<-->nxvideodec<-->nxvideosink", __FUNCTION__);
+            NXGLOGI("Succeed to link video_queue<-->nxvideodec<-->nxvideosink");
         }
     }
 
     // nxvideodec <--> tee
     if (!gst_element_link_many(handle->nxvideodec, handle->tee, NULL))
     {
-        NXLOGE("%s() Failed to link nxvideodec<-->tee", __FUNCTION__);
+        NXGLOGE("Failed to link nxvideodec<-->tee");
     }
 
     return NX_GST_RET_OK;
@@ -838,13 +854,13 @@ NX_GST_RET link_audio_elements(MP_HANDLE handle)
 {
     if (!gst_element_link(handle->audio_queue, handle->decodebin))
     {
-        NXLOGE("%s() Failed to link audio_queue<-->decodebin", __FUNCTION__);
+        NXGLOGE("Failed to link audio_queue<-->decodebin");
         return NX_GST_RET_ERROR;
     }
 
     if (!gst_element_link_many(handle->audioconvert, handle->audioresample, handle->alsasink, NULL))
     {
-        NXLOGE("%s() Failed to link audioconvert<-->audioresample<-->alsasink", __FUNCTION__);
+        NXGLOGE("Failed to link audioconvert<-->audioresample<-->alsasink");
         return NX_GST_RET_ERROR;
     }
     return NX_GST_RET_OK;
@@ -854,12 +870,12 @@ NX_GST_RET link_subtitle_elements(MP_HANDLE handle)
 {
     if (!gst_element_link_many(handle->subtitle_queue, handle->capsfilter, handle->fakesink, NULL))
     {
-        NXLOGE("%s() Failed to link subtitle_queue<-->fakesink", __FUNCTION__);
+        NXGLOGE("Failed to link subtitle_queue<-->fakesink");
         return NX_GST_RET_ERROR;
     }
     else
     {
-        NXLOGI("%s() Succeed to link subtitle_queue<-->fakesink", __FUNCTION__);
+        NXGLOGI("Succeed to link subtitle_queue<-->fakesink");
     }
     return NX_GST_RET_OK;
 }
@@ -868,21 +884,21 @@ NX_GST_RET link_elements(MP_HANDLE handle)
 {
     FUNC_IN();
 
-    if(!handle)
+    if (!handle)
     {
-        NXLOGE("%s() handle is NULL", __FUNCTION__);
+        NXGLOGE("handle is NULL");
         return NX_GST_RET_ERROR;
     }
 
-    if(!gst_element_link_many(handle->source, handle->demuxer, NULL))
+    if (!gst_element_link_many(handle->source, handle->demuxer, NULL))
     {
-        NXLOGE("%s() Failed to link %s<-->%s", __FUNCTION__,
+        NXGLOGE("Failed to link %s<-->%s",
                 gst_element_get_name(handle->source), gst_element_get_name(handle->demuxer));
         return NX_GST_RET_ERROR;
     }
     else
     {
-        NXLOGI("%s() Succeed to link %s<-->%s", __FUNCTION__,
+        NXGLOGI("Succeed to link %s<-->%s",
                 gst_element_get_name(handle->source), gst_element_get_name(handle->demuxer));
     }
 
@@ -900,7 +916,7 @@ NX_GST_RET link_elements(MP_HANDLE handle)
 
 NX_GST_RET link_primary_cb(MP_HANDLE handle)
 {
-    NXLOGI("%s()", __FUNCTION__);
+    NXGLOGI();
 
     GstPad *sinkpad;
     GstPadTemplate *templ;
@@ -908,8 +924,8 @@ NX_GST_RET link_primary_cb(MP_HANDLE handle)
     // Request pad for tee_primary_pad
     templ = gst_element_class_get_pad_template(GST_ELEMENT_GET_CLASS (handle->tee), "src_%u");
     handle->tee_primary_pad = gst_element_request_pad(handle->tee, templ, NULL, NULL);
-    NXLOGI("%s() Obtained request pad %s for the primary display",
-            __FUNCTION__, GST_DEBUG_PAD_NAME(handle->tee_primary_pad));
+    NXGLOGI("Obtained request pad %s for the primary display",
+            GST_DEBUG_PAD_NAME(handle->tee_primary_pad));
 
     // Create elements tee_queue_primary, nxvideosink
     handle->tee_queue_primary = gst_element_factory_make("queue", "tee_queue_primary");
@@ -926,7 +942,7 @@ NX_GST_RET link_primary_cb(MP_HANDLE handle)
     // Link tee_queue_primary<-->nxvideosink
     if (!gst_element_link_many(handle->tee_queue_primary, handle->nxvideosink, NULL))
     {
-        NXLOGE("%s() Failed to link tee_queue_primary<-->nxvideosink", __FUNCTION__);
+        NXGLOGE("Failed to link tee_queue_primary<-->nxvideosink");
         return NX_GST_RET_ERROR;
     }
 
@@ -938,10 +954,10 @@ NX_GST_RET link_primary_cb(MP_HANDLE handle)
     sinkpad = gst_element_get_static_pad(handle->tee_queue_primary, "sink");
     if (gst_pad_link(handle->tee_primary_pad, sinkpad) != GST_PAD_LINK_OK)
     {
-        NXLOGE("%s() Failed to link tee_primary_pad", __FUNCTION__);
+        NXGLOGE("Failed to link tee_primary_pad");
         return NX_GST_RET_ERROR;
     }
-    NXLOGD("%s() Succeeds to link %s and %s", __FUNCTION__,
+    NXGLOGD("Succeeds to link %s and %s",
             GST_DEBUG_PAD_NAME(handle->tee_primary_pad),
             GST_DEBUG_PAD_NAME(sinkpad));
     gst_object_unref (sinkpad);
@@ -953,7 +969,7 @@ NX_GST_RET link_secondary_cb(MP_HANDLE handle)
 {
     if (sinks)
     {
-        NXLOGE("%s() Failed to link secondary", __FUNCTION__);
+        NXGLOGE("Failed to link secondary");
         return NX_GST_RET_ERROR;
     }
 
@@ -964,8 +980,8 @@ NX_GST_RET link_secondary_cb(MP_HANDLE handle)
     // Request tee pad
     templ = gst_element_class_get_pad_template (GST_ELEMENT_GET_CLASS (handle->tee), "src_%u");
     sink->tee_secondary_pad = gst_element_request_pad (handle->tee, templ, NULL, NULL);
-    NXLOGI("%s() Obtained request pad %s for the secondary display",
-            __FUNCTION__, GST_DEBUG_PAD_NAME(sink->tee_secondary_pad));
+    NXGLOGI("Obtained request pad %s for the secondary display",
+            GST_DEBUG_PAD_NAME(sink->tee_secondary_pad));
 
     // Create elements 'queue' and 'nxvideosink_hdmi'
     sink->tee_queue_secondary = gst_element_factory_make ("queue2", "tee_queue_secondary");
@@ -980,7 +996,7 @@ NX_GST_RET link_secondary_cb(MP_HANDLE handle)
 
     if (!sink->tee_queue_secondary || !sink->nxvideosink_hdmi)
     {
-        NXLOGE("%s() Failed to create dual display elements", __func__);
+        NXGLOGE("Failed to create dual display elements", __func__);
         return NX_GST_RET_ERROR;
     }
     sink->removing = FALSE;
@@ -994,7 +1010,7 @@ NX_GST_RET link_secondary_cb(MP_HANDLE handle)
     // Link tee_queue_secondary<-->nxvideosink_hdmi
     if (!gst_element_link_many(sink->tee_queue_secondary, sink->nxvideosink_hdmi, NULL))
     {
-        NXLOGE("%s() Failed to link tee_queue_secondary<-->nxvideosink_hdmi", __FUNCTION__);
+        NXGLOGE("Failed to link tee_queue_secondary<-->nxvideosink_hdmi");
     }
 
     // Set sync state
@@ -1005,10 +1021,10 @@ NX_GST_RET link_secondary_cb(MP_HANDLE handle)
     sinkpad = gst_element_get_static_pad(sink->tee_queue_secondary, "sink");
     if (gst_pad_link(sink->tee_secondary_pad, sinkpad) != GST_PAD_LINK_OK)
     {
-        NXLOGE("%s() tee_secondary_pad could not be linked.", __FUNCTION__);
+        NXGLOGE("tee_secondary_pad could not be linked.");
         return NX_GST_RET_ERROR;
     }
-    NXLOGE("%s() Succeeds to link %s and %s", __FUNCTION__,
+    NXGLOGE("Succeeds to link %s and %s",
             GST_DEBUG_PAD_NAME(sink->tee_secondary_pad),
             GST_DEBUG_PAD_NAME(sinkpad));
     gst_object_unref (sinkpad);
@@ -1025,11 +1041,11 @@ unlink_secondary_cb (GstPad* pad, GstPadProbeInfo* info, gpointer user_data)
     struct Sink *sink = (struct Sink *)user_data;
     GstStateChangeReturn ret;
 
-    NXLOGI("%s()", __FUNCTION__);
+    NXGLOGI();
 
     if (!g_atomic_int_compare_and_exchange (&sink->removing, FALSE, TRUE))
     {
-        NXLOGI("%s() - GST_PAD_PROBE_OK", __FUNCTION__);
+        NXGLOGI("- GST_PAD_PROBE_OK");
         return GST_PAD_PROBE_OK;
     }
 
@@ -1038,9 +1054,9 @@ unlink_secondary_cb (GstPad* pad, GstPadProbeInfo* info, gpointer user_data)
     sinkpad = gst_element_get_static_pad (sink->tee_queue_secondary, "sink");
     if (!gst_pad_unlink (sink->tee_secondary_pad, sinkpad))
     {
-        NXLOGE("%s() Failed to unlink %s", __FUNCTION__, gst_pad_get_name(sinkpad));
+        NXGLOGE("Failed to unlink %s", gst_pad_get_name(sinkpad));
     }
-    NXLOGE("%s() Succeeds to unlink %s from %s", __FUNCTION__,
+    NXGLOGE("Succeeds to unlink %s from %s",
             GST_DEBUG_PAD_NAME(sink->tee_secondary_pad),	// tee
             GST_DEBUG_PAD_NAME(sinkpad));					// src_%u
     gst_object_unref (sinkpad);
@@ -1049,24 +1065,24 @@ unlink_secondary_cb (GstPad* pad, GstPadProbeInfo* info, gpointer user_data)
     ret = gst_element_set_state (sink->nxvideosink_hdmi, GST_STATE_NULL);
     if (ret == GST_STATE_CHANGE_FAILURE)
     {
-        NXLOGE("%s() Failed to set nxvideosink_hdmi to the NULL state", __FUNCTION__);
+        NXGLOGE("Failed to set nxvideosink_hdmi to the NULL state");
     }
 
     // set state of 'tee_queue_secondary' to NULL
     ret = gst_element_set_state (sink->tee_queue_secondary, GST_STATE_NULL);
     if (ret == GST_STATE_CHANGE_FAILURE)
     {
-        NXLOGE("%s() Failed to set tee_queue_secondary to the NULL state", __FUNCTION__);
+        NXGLOGE("Failed to set tee_queue_secondary to the NULL state");
     }
 
     // remove tee_queue_secondary and nxvideosink_hdmi
     if (!gst_bin_remove (GST_BIN (sink->pipeline), sink->tee_queue_secondary))
     {
-        NXLOGE("%s() Failed to remove tee_queue_secondary from bin", __FUNCTION__);
+        NXGLOGE("Failed to remove tee_queue_secondary from bin");
     }
     if (!gst_bin_remove (GST_BIN (sink->pipeline), sink->nxvideosink_hdmi))
     {
-        NXLOGE("%s() Failed to remove nxvideosink_hdmi from bin", __FUNCTION__);
+        NXGLOGE("Failed to remove nxvideosink_hdmi from bin");
     }
 
     // release_request_pad and unref 'tee_secondary_pad'
@@ -1077,11 +1093,11 @@ unlink_secondary_cb (GstPad* pad, GstPadProbeInfo* info, gpointer user_data)
     gst_object_unref (sink->tee_queue_secondary);
     gst_object_unref (sink->nxvideosink_hdmi);
 
-    NXLOGI("%s() - GST_PAD_PROBE_REMOVE", __FUNCTION__);
+    NXGLOGI("- GST_PAD_PROBE_REMOVE");
     return GST_PAD_PROBE_REMOVE;
 }
 
-NX_GST_RET NX_GSTMP_SetDisplayMode(MP_HANDLE handle, DISPLAY_MODE in_mode)
+NX_GST_RET NX_GSTMP_SetDisplayMode(MP_HANDLE handle, enum DISPLAY_MODE in_mode)
 {
     _CAutoLock lock(&handle->apiLock);
 
@@ -1089,13 +1105,12 @@ NX_GST_RET NX_GSTMP_SetDisplayMode(MP_HANDLE handle, DISPLAY_MODE in_mode)
 
     if (NULL == handle)
     {
-        NXLOGE("%s() handle is NULL", __FUNCTION__);
+        NXGLOGE("handle is NULL");
         return NX_GST_RET_ERROR;
     }
 
     if (handle->display_mode != in_mode) {
-        NXLOGI("%s() display_mode is changed from (%s) to (%s) in state(%s)",
-                __FUNCTION__,
+        NXGLOGI("display_mode is changed from (%s) to (%s) in state(%s)",
                 (handle->display_mode==DISPLAY_MODE_LCD_ONLY)?"LCD_ONLY":"LCD_HDMI",
                 (in_mode==DISPLAY_MODE_LCD_ONLY)?"LCD_ONLY":"LCD_HDMI",
                 gst_element_state_get_name (handle->state));
@@ -1129,39 +1144,40 @@ NX_GST_RET NX_GSTMP_SetDisplayMode(MP_HANDLE handle, DISPLAY_MODE in_mode)
 NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
 {
     _CAutoLock lock(&handle->apiLock);
-    
+
     FUNC_IN();
 
     GstStateChangeReturn ret;
 
-    GST_MEDIA_INFO *pGstMInfo = (GST_MEDIA_INFO*)g_malloc0(sizeof(GST_MEDIA_INFO));
+    struct GST_MEDIA_INFO *pGstMInfo = (struct GST_MEDIA_INFO*)g_malloc0(sizeof(struct GST_MEDIA_INFO));
     if (NULL == pGstMInfo)
     {
-        NXLOGE("%s() Failed to alloc the memory to start discovering", __FUNCTION__);
+        NXGLOGE("Failed to alloc the memory to start discovering");
         return NX_GST_RET_ERROR;
     }
 
     if(NULL == handle)
     {
-        NXLOGE("%s() Failed to alloc memory for handle", __func__);
+        NXGLOGE("Failed to alloc memory for handle", __func__);
         return NX_GST_RET_ERROR;
     }
     handle->uri = g_strdup(pfilePath);
     handle->uri_type = URI_TYPE_FILE;
     handle->error = NX_GST_ERROR_NONE;
 
-    NX_GST_ERROR err = StartDiscover(pfilePath, &pGstMInfo);
+    enum NX_GST_ERROR err = StartDiscover(pfilePath, &pGstMInfo);
     if (NX_GST_ERROR_NONE != err)
     {
         handle->error = err;
+        NXGLOGE("%s", get_nx_gst_error(err));
         return NX_GST_RET_ERROR;
     }
-    memcpy(&handle->gst_media_info, pGstMInfo, sizeof(GST_MEDIA_INFO));
+    memcpy(&handle->gst_media_info, pGstMInfo, sizeof(struct GST_MEDIA_INFO));
 
-    NXLOGD("%s() container(%s), video codec(%s)"
+    NXGLOGD("container(%s), video codec(%s)"
            ", audio codec(%s), seekable(%s), width(%d), height(%d)"
            ", duration: (%" GST_TIME_FORMAT ")\r"
-           , __FUNCTION__
+           
            , pGstMInfo->container_format
            , pGstMInfo->video_mime_type
            , pGstMInfo->audio_mime_type
@@ -1172,7 +1188,7 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
 
     if(handle->pipeline_is_linked)
     {
-        NXLOGE("%s() pipeline is already linked", __func__);
+        NXGLOGE("pipeline is already linked", __func__);
         // TODO:
         return NX_GST_RET_OK;
     }
@@ -1180,7 +1196,7 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
     handle->pipeline = gst_pipeline_new("NxGstMoviePlay");
     if (NULL == handle->pipeline)
     {
-        NXLOGE("%s() pipeline is NULL", __func__);
+        NXGLOGE("pipeline is NULL", __func__);
         return NX_GST_RET_ERROR;
     }
     handle->bus = gst_pipeline_get_bus(GST_PIPELINE(handle->pipeline));
@@ -1199,14 +1215,14 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
         NX_GST_RET_ERROR == set_audio_elements(handle) ||
         NX_GST_RET_ERROR == set_video_elements(handle))
     {
-        NXLOGE("%s() Failed to set all elements", __FUNCTION__);
+        NXGLOGE("Failed to set all elements");
         return NX_GST_RET_ERROR;
     }
 
     if (NX_GST_RET_ERROR == add_elements_to_bin(handle) ||
         NX_GST_RET_ERROR == link_elements(handle))
     {
-        NXLOGE("%s() Failed to add/link elements", __FUNCTION__);
+        NXGLOGE("Failed to add/link elements");
         return NX_GST_RET_ERROR;
     }
 
@@ -1221,7 +1237,7 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
 
     ret = gst_element_set_state(handle->pipeline, GST_STATE_READY);
     if (ret == GST_STATE_CHANGE_FAILURE) {
-        NXLOGE("%s() Failed to set the pipeline to the READY state", __FUNCTION__);
+        NXGLOGE("Failed to set the pipeline to the READY state");
         return NX_GST_RET_ERROR;
     }
     
@@ -1236,19 +1252,20 @@ NX_GST_RET NX_GSTMP_Open(MP_HANDLE *pHandle,
         void (*cb)(void *owner, unsigned int eventType,
         unsigned int eventData, void * param), void *cbOwner)
 {
+    NXGLOGI();
     FUNC_IN();
 
     if(*pHandle)
     {
         // TODO:
-        NXLOGE("%s() handle is not freed", __func__);
+        NXGLOGE("handle is not freed", __func__);
         return NX_GST_RET_ERROR;
     }
 
     MP_HANDLE handle = (MP_HANDLE)g_malloc0(sizeof(MOVIE_TYPE));
     if (NULL == handle)
     {
-        NXLOGE("%s() Failed to alloc handle", __func__);
+        NXGLOGE("Failed to alloc handle", __func__);
         return NX_GST_RET_ERROR;
     }
 
@@ -1280,7 +1297,7 @@ void NX_GSTMP_Close(MP_HANDLE handle)
 
     if (NULL == handle)
     {
-        NXLOGE("%s() handle is already NULL", __func__);
+        NXGLOGE("handle is already NULL", __func__);
         return;
     }
 
@@ -1312,16 +1329,16 @@ NX_GST_RET NX_GSTMP_GetMediaInfo(MP_HANDLE handle, GST_MEDIA_INFO *pGstMInfo)
 
     if (NULL == pGstMInfo)
     {
-        NXLOGE("%s pGstMInfo is NULL", __FUNCTION__);
+        NXGLOGE("%s pGstMInfo is NULL");
         return NX_GST_RET_ERROR;
     }
 
     memcpy(pGstMInfo, &handle->gst_media_info, sizeof(GST_MEDIA_INFO));
  
-    NXLOGI("%s() container(%s), video mime-type(%s)"
+    NXGLOGI("container(%s), video mime-type(%s)"
            ", audio mime-type(%s), seekable(%s), width(%d), height(%d)"
            ", duration: (%" GST_TIME_FORMAT ")\r"
-           , __FUNCTION__
+           
            , pGstMInfo->container_format
            , pGstMInfo->video_mime_type
            , pGstMInfo->audio_mime_type
@@ -1336,8 +1353,8 @@ NX_GST_RET NX_GSTMP_GetMediaInfo(MP_HANDLE handle, GST_MEDIA_INFO *pGstMInfo)
 }
 
 NX_GST_RET
-NX_GSTMP_SetDisplayInfo(MP_HANDLE handle, DISPLAY_TYPE type,
-                        int dspWidth, int dspHeight, DSP_RECT rect)
+NX_GSTMP_SetDisplayInfo(MP_HANDLE handle, enum DISPLAY_TYPE type,
+                        int dspWidth, int dspHeight, struct DSP_RECT rect)
 {
     _CAutoLock lock(&handle->apiLock);
 
@@ -1345,14 +1362,14 @@ NX_GSTMP_SetDisplayInfo(MP_HANDLE handle, DISPLAY_TYPE type,
 
     if (NULL == handle)
     {
-        NXLOGE("%s() handle is NULL", __FUNCTION__);
+        NXGLOGE("handle is NULL");
         return NX_GST_RET_ERROR;
     }
 
     if (handle->gst_media_info.iWidth > dspWidth)
     {
-        NXLOGE("%s() Not supported content(width:%d)",
-                __FUNCTION__, handle->gst_media_info.iWidth);
+        NXGLOGE("Not supported content(width:%d)",
+                handle->gst_media_info.iWidth);
         return NX_GST_RET_ERROR;
     }
 
@@ -1361,8 +1378,8 @@ NX_GSTMP_SetDisplayInfo(MP_HANDLE handle, DISPLAY_TYPE type,
     handle->gst_media_info.iWidth= rect.iWidth;
     handle->gst_media_info.iHeight = rect.iHeight;
 
-    NXLOGD("%s() iX(%d), iY(%d), width(%d), height(%d), dspWidth(%d), dspHeight(%d)",
-           __FUNCTION__ , rect.iX, rect.iY, rect.iWidth, rect.iHeight, dspWidth, dspHeight);
+    NXGLOGD("iX(%d), iY(%d), width(%d), height(%d), dspWidth(%d), dspHeight(%d)",
+            rect.iX, rect.iY, rect.iWidth, rect.iHeight, dspWidth, dspHeight);
 
     if (type == DISPLAY_TYPE_SECONDARY)
     {
@@ -1405,19 +1422,19 @@ gint64 NX_GSTMP_GetPosition(MP_HANDLE handle)
             GstFormat format = GST_FORMAT_TIME;
             if (gst_element_query_position(handle->pipeline, format, &position))
             {
-                //NXLOGV("%s() Position: %" GST_TIME_FORMAT "\r",
+                //NXGLOGV("Position: %" GST_TIME_FORMAT "\r",
                 //        __func__, GST_TIME_ARGS (position));
             }
         }
         else
         {
-            NXLOGE("%s() Invalid state to query POSITION", __func__);
+            NXGLOGE("Invalid state to query POSITION", __func__);
             return -1;
         }
     }
     else
     {
-        NXLOGE("%s() Failed to query POSITION", __func__);
+        NXGLOGE("Failed to query POSITION", __func__);
         return -1;
     }
 
@@ -1438,8 +1455,8 @@ gint64 NX_GSTMP_GetDuration(MP_HANDLE handle)
 
     if (!handle || !handle->pipeline_is_linked)
     {
-        NXLOGE("%s() : invalid state or invalid operation.(%p,%d)\n",
-                __FUNCTION__, handle, handle->pipeline_is_linked);
+        NXGLOGE(": invalid state or invalid operation.(%p,%d)\n",
+                handle, handle->pipeline_is_linked);
         return -1;
     }
 
@@ -1451,19 +1468,19 @@ gint64 NX_GSTMP_GetDuration(MP_HANDLE handle)
             GstFormat format = GST_FORMAT_TIME;
             if (gst_element_query_duration(handle->pipeline, format, &duration))
             {
-                NXGLOGV("%s() Duration: %" GST_TIME_FORMAT "\r",
-                        __FUNCTION__, GST_TIME_ARGS (duration));
+                NXGLOGV("Duration: %" GST_TIME_FORMAT "\r",
+                        GST_TIME_ARGS (duration));
             }
         }
         else
         {
-            NXLOGE("%s() Invalid state to query DURATION", __func__);
+            NXGLOGE("Invalid state to query DURATION", __func__);
             return -1;
         }
     }
     else
     {
-        NXLOGE("%s() Failed to query DURATION", __func__);
+        NXGLOGE("Failed to query DURATION", __func__);
         return -1;
     }
 
@@ -1484,7 +1501,7 @@ NX_GST_RET NX_GSTMP_SetVolume(MP_HANDLE handle, int volume)
     }
 
     gdouble vol = (double)volume/100.;
-    NXLOGI("%s() set volume to %f", __func__, vol);
+    NXGLOGI("set volume to %f", __func__, vol);
     g_object_set(G_OBJECT (handle->volume), "volume", vol, NULL);
 
     FUNC_OUT();
@@ -1507,7 +1524,7 @@ static gboolean send_step_event(MP_HANDLE handle)
                     gst_event_new_step(GST_FORMAT_BUFFERS, 1,
                                         ABS (handle->rate), TRUE, FALSE));
 
-    NXLOGI("%s() Stepping one frame", __FUNCTION__);
+    NXGLOGI("Stepping one frame");
 
     return ret;
 }
@@ -1524,7 +1541,7 @@ static int send_seek_event(MP_HANDLE handle)
     /* Obtain the current position, needed for the seek event */
     if (!gst_element_query_position (handle->pipeline, format, &position))
     {
-        NXLOGE("%s() Unable to retrieve current position", __FUNCTION__);
+        NXGLOGE("Unable to retrieve current position");
         return -1;
     }
 
@@ -1553,7 +1570,7 @@ static int send_seek_event(MP_HANDLE handle)
     /* Send the event */
     gst_element_send_event (handle->nxvideosink, seek_event);
 
-    NXLOGI("%s() Current rate: %g\n", __FUNCTION__, handle->rate);
+    NXGLOGI("Current rate: %g\n", handle->rate);
     return 0;
 }
 
@@ -1568,7 +1585,7 @@ static NX_GST_RET seek_to_time (MP_HANDLE handle, gint64 time_nanoseconds)
                           GST_SEEK_TYPE_NONE,		/* GstSeekType stop_type */
                           GST_CLOCK_TIME_NONE))		/* gint64 stop */
     {
-        NXLOGE("%s() Failed to seek %lld!", __func__, time_nanoseconds);
+        NXGLOGE("Failed to seek %lld!", __func__, time_nanoseconds);
         return NX_GST_RET_ERROR;
     }
     /* And wait for this seek to complete */
@@ -1587,7 +1604,7 @@ NX_GST_RET NX_GSTMP_Seek(MP_HANDLE handle, gint64 seekTime)
     
     if (!handle || !handle->pipeline_is_linked)
     {
-        NXLOGE("%s() : invalid state or invalid operation.(%p,%d)\n",
+        NXGLOGE(": invalid state or invalid operation.(%p,%d)\n",
                 __func__, handle, handle->pipeline_is_linked);
         return ret;
     }
@@ -1597,18 +1614,18 @@ NX_GST_RET NX_GSTMP_Seek(MP_HANDLE handle, gint64 seekTime)
     {
         if(state == GST_STATE_PLAYING || state == GST_STATE_PAUSED || state == GST_STATE_READY)
         {
-            NXLOGI("%s() state(%s) with the rate %f", __FUNCTION__, gst_element_state_get_name (state), handle->rate);
+            NXGLOGI("state(%s) with the rate %f", gst_element_state_get_name (state), handle->rate);
             ret = seek_to_time(handle, seekTime*(1000*1000)); /*mSec to NanoSec*/
         }
         else
         {
-            NXLOGE("%s() Invalid state to seek", __func__);
+            NXGLOGE("Invalid state to seek", __func__);
             ret = NX_GST_RET_ERROR;
         }
     }
     else
     {
-        NXLOGE("%s() Failed to seek", __func__);
+        NXGLOGE("Failed to seek", __func__);
         ret = NX_GST_RET_ERROR;
     }
 
@@ -1627,20 +1644,20 @@ NX_GST_RET NX_GSTMP_Play(MP_HANDLE handle)
 
     if (!handle || !handle->pipeline_is_linked)
     {
-        NXLOGE("%s() invalid state or invalid operation.(%p,%d)\n",
-                __FUNCTION__, handle, handle->pipeline_is_linked);
+        NXGLOGE("invalid state or invalid operation.(%p,%d)\n",
+                handle, handle->pipeline_is_linked);
         return NX_GST_RET_ERROR;
     }
 
     GstState state, pending;
     if(GST_STATE_CHANGE_FAILURE != gst_element_get_state(handle->pipeline, &state, &pending, 500000000))
     {
-        NXLOGI("%s() The previous state '%s' with (x%d)", __FUNCTION__, gst_element_state_get_name (state), int(handle->rate));
+        NXGLOGI("The previous state '%s' with (x%d)", gst_element_state_get_name (state), int(handle->rate));
         if(GST_STATE_PLAYING == state)
         {
             if (0 > send_seek_event(handle))
             {
-                NXLOGE("%s() Failed to send seek event", __FUNCTION__);
+                NXGLOGE("Failed to send seek event");
                 return NX_GST_RET_ERROR;
             }
             //send_step_event(handle);
@@ -1648,17 +1665,17 @@ NX_GST_RET NX_GSTMP_Play(MP_HANDLE handle)
         else
         {
             ret = gst_element_set_state(handle->pipeline, GST_STATE_PLAYING);
-            NXLOGI("%s() set_state(PLAYING) ==> ret(%s)", __FUNCTION__, get_gst_state_change_ret(ret));
+            NXGLOGI("set_state(PLAYING) ==> ret(%s)", get_gst_state_change_ret(ret));
             if(GST_STATE_CHANGE_FAILURE == ret)
             {
-                NXLOGE("%s() Failed to set the pipeline to the PLAYING state(ret=%d)", __func__, ret);
+                NXGLOGE("Failed to set the pipeline to the PLAYING state(ret=%d)", __func__, ret);
                 return NX_GST_RET_ERROR;
             }
         }
     }
     else
     {
-        NXLOGE("%s() Failed to get state", __FUNCTION__);
+        NXGLOGE("Failed to get state");
         return NX_GST_RET_ERROR;
     }
 
@@ -1675,8 +1692,8 @@ NX_GST_RET NX_GSTMP_Pause(MP_HANDLE handle)
 
     if (!handle || !handle->pipeline_is_linked)
     {
-        NXLOGE("%s() invalid state or invalid operation.(%p,%d)\n",
-                __FUNCTION__, handle, handle->pipeline_is_linked);
+        NXGLOGE("invalid state or invalid operation.(%p,%d)\n",
+                handle, handle->pipeline_is_linked);
         return NX_GST_RET_ERROR;
     }
 
@@ -1684,7 +1701,7 @@ NX_GST_RET NX_GSTMP_Pause(MP_HANDLE handle)
     ret = gst_element_set_state (handle->pipeline, GST_STATE_PAUSED);
     if (GST_STATE_CHANGE_FAILURE == ret)
     {
-        NXLOGE("%s() Failed to set the pipeline to the PAUSED state(ret=%d)", __FUNCTION__, ret);
+        NXGLOGE("Failed to set the pipeline to the PAUSED state(ret=%d)", ret);
         return NX_GST_RET_ERROR;
     }
 
@@ -1701,18 +1718,18 @@ NX_GST_RET NX_GSTMP_Stop(MP_HANDLE handle)
 
     if (!handle || !handle->pipeline_is_linked)
     {
-        NXLOGE("%s() invalid state or invalid operation.(%p,%d)\n",
-                __FUNCTION__, handle, handle->pipeline_is_linked);
+        NXGLOGE("invalid state or invalid operation.(%p,%d)\n",
+                handle, handle->pipeline_is_linked);
         return NX_GST_RET_ERROR;
     }
 
     GstStateChangeReturn ret;
     handle->rate = 1.0;
     ret = gst_element_set_state(handle->pipeline, GST_STATE_NULL);
-    NXLOGI("%s() set_state(NULL) ret(%s)", __FUNCTION__, get_gst_state_change_ret(ret));
+    NXGLOGI("set_state(NULL) ret(%s)", get_gst_state_change_ret(ret));
     if(GST_STATE_CHANGE_FAILURE == ret)
     {
-        NXLOGE("%s() Failed to set the pipeline to the NULL state(ret=%d)", __FUNCTION__, ret);
+        NXGLOGE("Failed to set the pipeline to the NULL state(ret=%d)", ret);
         return NX_GST_RET_ERROR;
     }
 
@@ -1721,29 +1738,29 @@ NX_GST_RET NX_GSTMP_Stop(MP_HANDLE handle)
     return	NX_GST_RET_OK;
 }
 
-NX_MEDIA_STATE NX_GSTMP_GetState(MP_HANDLE handle)
+enum NX_MEDIA_STATE NX_GSTMP_GetState(MP_HANDLE handle)
 {
     _CAutoLock lock(&handle->apiLock);
 
     if (!handle)
     {
-        NXLOGE("%s() handle is null", __FUNCTION__);
+        NXGLOGE("handle is null");
         return MP_STATE_STOPPED;
     }
     if (!handle->pipeline_is_linked)
     {
-        NXLOGE("%s() pipeline is unlinked", __FUNCTION__);
+        NXGLOGE("pipeline is unlinked");
         return MP_STATE_STOPPED;
     }
 
     //FUNC_IN();
 
     GstState state, pending;
-    NX_MEDIA_STATE nx_state = MP_STATE_STOPPED;
+    enum NX_MEDIA_STATE nx_state = MP_STATE_STOPPED;
     GstStateChangeReturn ret;
     ret = gst_element_get_state(handle->pipeline, &state, &pending, 500000000);		//	wait 500 msec
-    NXGLOGV("%s() ret(%s) state(%s), pending(%s)",
-    	   __FUNCTION__, get_gst_state_change_ret(ret),
+    NXGLOGV("ret(%s) state(%s), pending(%s)",
+    	   get_gst_state_change_ret(ret),
            gst_element_state_get_name(state),
            gst_element_state_get_name(pending));
     if (GST_STATE_CHANGE_SUCCESS == ret || GST_STATE_CHANGE_NO_PREROLL == ret)
@@ -1756,11 +1773,11 @@ NX_MEDIA_STATE NX_GSTMP_GetState(MP_HANDLE handle)
     }
     else
     {
-        NXLOGE("%s() Failed to get state", __FUNCTION__);
+        NXGLOGE("Failed to get state");
         nx_state = MP_STATE_STOPPED;
     }
 
-    NXGLOGV("%s() nx_state(%s)", __FUNCTION__, get_nx_media_state(nx_state));
+    NXGLOGV("nx_state(%s)", get_nx_media_state(nx_state));
 
     //FUNC_OUT();
     return nx_state;
@@ -1772,12 +1789,12 @@ NX_GST_RET NX_GSTMP_VideoMute(MP_HANDLE handle, int32_t bOnoff)
 
     if (!handle || !handle->pipeline_is_linked)
     {
-        NXLOGE("%s() invalid state or invalid operation.(%p,%d)\n",
-                __FUNCTION__, handle, handle->pipeline_is_linked);
+        NXGLOGE("invalid state or invalid operation.(%p,%d)\n",
+                handle, handle->pipeline_is_linked);
         return NX_GST_RET_ERROR;
     }
 
-    NXLOGI("%s bOnoff(%s) dst-y(%d)", __FUNCTION__,
+    NXGLOGI("bOnoff(%s) dst-y(%d)",
             bOnoff ? "Enable video mute":"Disable video mute",
             bOnoff ? (handle->gst_media_info.iHeight):(handle->gst_media_info.iY));
 
@@ -1802,11 +1819,11 @@ gdouble NX_GSTMP_GetVideoSpeed(MP_HANDLE handle)
 
     if (!handle || !handle->pipeline_is_linked)
     {
-        NXLOGE("%s() Return the default video speed since it's not ready", __FUNCTION__);
+        NXGLOGE("Return the default video speed since it's not ready");
         return speed;
     }
 
-    NXLOGI("%s() rate: %d", __FUNCTION__, (int)handle->rate);
+    NXGLOGI("rate: %d", (int)handle->rate);
     if ((int)handle->rate == 0)
     {
         speed = 1.0;
@@ -1816,7 +1833,7 @@ gdouble NX_GSTMP_GetVideoSpeed(MP_HANDLE handle)
         speed = handle->rate;
     }
 
-    NXLOGI("%s() current playback speed (%f)", __FUNCTION__, speed);
+    NXGLOGI("current playback speed (%f)", speed);
     return speed;
 }
 
@@ -1827,14 +1844,14 @@ NX_GST_RET NX_GSTMP_SetVideoSpeed(MP_HANDLE handle, gdouble speed)
 
     if (!handle || !handle->pipeline_is_linked)
     {
-        NXLOGE("%s() invalid state or invalid operation.(%p,%d)\n",
-                __FUNCTION__, handle, handle->pipeline_is_linked);
+        NXGLOGE("invalid state or invalid operation.(%p,%d)\n",
+                handle, handle->pipeline_is_linked);
         return NX_GST_RET_ERROR;
     }
 
     if (false == handle->gst_media_info.isSeekable)
     {
-        NXLOGE("%s This video doesn't support 'seekable'", __FUNCTION__);
+        NXGLOGE("%s This video doesn't support 'seekable'");
         return NX_GST_RET_ERROR;
     }
 
@@ -1846,8 +1863,8 @@ gboolean NX_GSTMP_GetVideoSpeedSupport(MP_HANDLE handle)
 {
     if(!handle || !handle->pipeline_is_linked)
     {
-        NXLOGE("%s() invalid state or invalid operation.(%p,%d)\n",
-                __FUNCTION__, handle, handle->pipeline_is_linked);
+        NXGLOGE("invalid state or invalid operation.(%p,%d)\n",
+                handle, handle->pipeline_is_linked);
         return NX_GST_RET_ERROR;
     }
 
@@ -1859,7 +1876,7 @@ const char* NX_GSTMP_GetThumbnail(const gchar *uri, gint64 pos_msec, gint width)
     return makeThumbnail(uri, pos_msec, width);
 }
 
-NX_MEDIA_STATE GstState2NxState(GstState state)
+enum NX_MEDIA_STATE GstState2NxState(GstState state)
 {
     switch(state)
     {
@@ -1876,7 +1893,7 @@ NX_MEDIA_STATE GstState2NxState(GstState state)
         default:
             break;
     }
-    NXLOGE("%s() No matched state", __FUNCTION__);
+    NXGLOGE("No matched state");
     return MP_STATE_STOPPED;
 }
 
@@ -1891,6 +1908,44 @@ const char* get_gst_state_change_ret(GstStateChangeReturn gstStateChangeRet)
             return "GST_STATE_CHANGE_ASYNC";
         case GST_STATE_CHANGE_NO_PREROLL:
             return "GST_STATE_CHANGE_NO_PREROLL";
+        default:
+            break;
+    }
+    return NULL;
+}
+
+const char* get_nx_media_state(enum NX_MEDIA_STATE state)
+{
+    switch(state) {
+        case MP_STATE_VOID_PENDING:
+            return "MP_STATE_VOID_PENDING";
+        case MP_STATE_STOPPED:
+            return "MP_STATE_STOPPED";
+        case MP_STATE_READY:
+            return "MP_STATE_READY";
+        case MP_STATE_PAUSED:
+            return "MP_STATE_PAUSED";
+        case MP_STATE_PLAYING:
+            return "MP_STATE_PLAYING";
+        default:
+            break;
+    }
+    return NULL;
+}
+
+static const char* get_nx_gst_error(NX_GST_ERROR error)
+{
+    switch(error) {
+        case NX_GST_ERROR_NONE:
+            return "NX_GST_ERROR_NONE";
+        case NX_GST_ERROR_DISCOVER_FAILED:
+            return "NX_GST_ERROR_DISCOVER_FAILED";
+        case NX_GST_ERROR_NOT_SUPPORTED_CONTENTS:
+            return "NX_GST_ERROR_NOT_SUPPORTED_CONTENTS";
+        case NX_GST_ERROR_DEMUX_LINK_FAILED:
+            return "NX_GST_ERROR_DEMUX_LINK_FAILED";
+        case NX_GST_ERROR_NUM_ERRORS:
+            return "NX_GST_ERROR_NUM_ERRORS";
         default:
             break;
     }

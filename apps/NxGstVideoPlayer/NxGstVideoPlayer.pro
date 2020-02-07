@@ -51,7 +51,7 @@ contains(CONFIG, CONFIG_NXP3220) {
     # Add icu libraries
     LIBS += -licuuc -licui18n
 
-    LIBS += -L$$PWD/../../library/prebuilt/lib -lnxgstmovplayer -lnx_renderer
+    LIBS += -L$$PWD/../../library/prebuilt/lib -lnxgstvplayer -lnx_renderer
 
     INCLUDEPATH += $$PWD/../../library/include
     INCLUDEPATH += $$PWD/../../library/prebuilt/include

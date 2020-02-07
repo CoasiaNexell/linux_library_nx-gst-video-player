@@ -1,13 +1,12 @@
 //------------------------------------------------------------------------------
 // Refer to basic tutorial 9
 //------------------------------------------------------------------------------
+#include <string.h>
 #include <gst/pbutils/pbutils.h>
 
 #include "GstDiscover.h"
-#include "NX_DbgMsg.h"
-
+#include "NX_GstLog.h"
 #define LOG_TAG "[GstDiscover]"
-#include <NX_Log.h>
 
 //#define ASYNC_DISCOVER
 
@@ -37,7 +36,7 @@ static void print_tag_foreach (const GstTagList *tags, const gchar *tag, gpointe
         str = gst_value_serialize(&val);
     }
 
-    NXLOGI("%*s%s: %s", 2 * depth, " ", gst_tag_get_nick(tag), str);
+    NXGLOGI("%*s%s: %s", 2 * depth, " ", gst_tag_get_nick(tag), str);
 
     g_free(str);
     g_value_unset(&val);
@@ -46,16 +45,16 @@ static void print_tag_foreach (const GstTagList *tags, const gchar *tag, gpointe
 }
 
 /* Print information regarding a stream */
-static void print_stream_info (GstDiscovererStreamInfo *info, gint depth, struct GST_MEDIA_INFO* pMediaInfo)
+static void print_stream_info (GstDiscovererStreamInfo *info, gint depth,
+                                struct GST_MEDIA_INFO* pMediaInfo)
 {
-    gchar *desc = NULL;
-    GstCaps *caps;
-    const GstTagList *tags;
-    const gchar *stream_type = NULL;
-
     FUNC_IN();
 
-    stream_type = gst_discoverer_stream_info_get_stream_type_nick(info);
+    gchar *desc = NULL;
+    GstCaps *caps;
+
+    // TODO: Need to display the log after fixing the crash when playing NTT DoCoMo
+    //const gchar *stream_type = gst_discoverer_stream_info_get_stream_type_nick(info);
     caps = gst_discoverer_stream_info_get_caps(info);
     if (caps)
     {
@@ -68,7 +67,7 @@ static void print_stream_info (GstDiscovererStreamInfo *info, gint depth, struct
     }
 
     // TODO: Need to display the log after fixing the crash when playing NTT DoCoMo
-    //NXLOGI("## %*s%s: %s ==> %s", 2 * depth, " ",
+    //NXGLOGI("## %*s%s: %s ==> %s", 2 * depth, " ",
     //        (stream_type ? stream_type : ""), (desc ? desc : ""));
 
     if (desc)
@@ -77,9 +76,9 @@ static void print_stream_info (GstDiscovererStreamInfo *info, gint depth, struct
         desc = NULL;
     }
 
-    tags = gst_discoverer_stream_info_get_tags(info);
+    const GstTagList *tags = gst_discoverer_stream_info_get_tags(info);
     if (tags) {
-        NXLOGI ("** %*sTags:", 2 * (depth + 1), " ");
+        NXGLOGI ("** %*sTags:", 2 * (depth + 1), " ");
         gst_tag_list_foreach(tags, print_tag_foreach, GINT_TO_POINTER(depth + 2));
     }
 
@@ -89,16 +88,14 @@ static void print_stream_info (GstDiscovererStreamInfo *info, gint depth, struct
 static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
                                    struct GST_MEDIA_INFO* pMediaInfo)
 {
+    FUNC_IN();
+
     gchar *desc = NULL;
     GstCaps *caps;
     gint video_mpegversion = 0;
     gint audio_mpegversion = 0;
-    const gchar *stream_type = NULL;
-    const gchar *mime_type;
 
-    FUNC_IN();
-
-    stream_type = gst_discoverer_stream_info_get_stream_type_nick(sinfo);
+    const gchar *stream_type = gst_discoverer_stream_info_get_stream_type_nick(sinfo);
     caps = gst_discoverer_stream_info_get_caps(sinfo);
     if (caps) {
         if (gst_caps_is_fixed (caps))
@@ -110,14 +107,14 @@ static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
     GstStructure *structure = gst_caps_get_structure(caps, 0);
     if (structure == NULL)
     {
-        NXLOGE("%s() Failed to get current caps", __FUNCTION__);
+        NXGLOGE("Failed to get current caps");
         gst_caps_unref (caps);
         return;
     }
     gst_caps_unref (caps);
 
-    mime_type = gst_structure_get_name(structure);
-    NXLOGV("%s() %*s%s: %s ==> %s", __FUNCTION__,
+    const gchar *mime_type = gst_structure_get_name(structure);
+    NXGLOGV("%*s%s: %s ==> %s",
             (2 * 1), " ", (stream_type ? stream_type : ""),
             (desc ? desc : ""), (mime_type ? mime_type : ""));
     if (desc)
@@ -129,7 +126,7 @@ static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
     // TODO:
 /*	tags = gst_discoverer_stream_info_get_tags (sinfo);
     if (tags) {
-        NXLOGI("** %s() %*sTags:", __FUNCTION__, 2 * (depth + 1), " ");
+        NXGLOGI("** %s() %*sTags:", 2 * (depth + 1), " ");
         gst_tag_list_foreach (tags, print_tag_foreach, GINT_TO_POINTER (depth + 2));
     }
 */
@@ -145,8 +142,8 @@ static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
         /*gchar *container_format;
         if (tags) gst_tag_list_get_string (tags, GST_TAG_CONTAINER_FORMAT, &container_format);
 
-        NXLOGI("%s() n_container(%d) container_format(%s)"
-                , __FUNCTION__, pMediaInfo->n_container
+        NXGLOGI("n_container(%d) container_format(%s)"
+                , pMediaInfo->n_container
                 , pMediaInfo->container_format);
 
         if (container_format)
@@ -172,8 +169,8 @@ static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
             pMediaInfo->video_mpegversion = video_mpegversion;
         }
 
-        NXLOGI("%s() n_video(%u), video_mime_type(%s)(%d), iWidth(%d), iHeight(%d)"
-                , __FUNCTION__, pMediaInfo->n_video, pMediaInfo->video_mime_type
+        NXGLOGI("n_video(%u), video_mime_type(%s)(%d), iWidth(%d), iHeight(%d)"
+                , pMediaInfo->n_video, pMediaInfo->video_mime_type
                 , pMediaInfo->video_mpegversion
                 , pMediaInfo->iWidth, pMediaInfo->iHeight);
     }
@@ -192,15 +189,15 @@ static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
             gst_structure_get_int (structure, "mpegversion", &audio_mpegversion);
             pMediaInfo->audio_mpegversion = audio_mpegversion;
         }
-        NXLOGI("%s() n_audio(%d) audio_mime_type(%s)(%d)",
-                __FUNCTION__, pMediaInfo->n_audio,
+        NXGLOGI("n_audio(%d) audio_mime_type(%s)(%d)",
+                pMediaInfo->n_audio,
                 pMediaInfo->audio_mime_type, pMediaInfo->audio_mpegversion);
     }
     else if (GST_IS_DISCOVERER_SUBTITLE_INFO (sinfo))
     {
         pMediaInfo->n_subtitle++;
         //gst_stream_subtitle_information(sinfo, pMediaInfo);
-        NXLOGI("%s() n_subtitle(%d)", __FUNCTION__, pMediaInfo->n_subtitle);
+        NXGLOGI("n_subtitle(%d)", pMediaInfo->n_subtitle);
     }
 
     FUNC_OUT();
@@ -212,7 +209,7 @@ static void print_topology(GstDiscovererStreamInfo *sinfo, gint depth,
 {
     if (!sinfo)
     {
-        NXLOGE("%s() GstDiscovererStreamInfo is NULL", __FUNCTION__);
+        NXGLOGE("GstDiscovererStreamInfo is NULL");
         return;
     }
 
@@ -257,19 +254,19 @@ void parse_GstDiscovererInfo(GstDiscovererInfo *info, GError *err,
     result = gst_discoverer_info_get_result(info);
     switch (result) {
         case GST_DISCOVERER_URI_INVALID:
-            NXLOGE("%s() Invalid URI '%s'", __FUNCTION__, uri);
+            NXGLOGE("Invalid URI '%s'", uri);
             break;
         case GST_DISCOVERER_ERROR:
             if (err != NULL)
-                NXLOGE("%s() Discoverer error: %s",  __FUNCTION__, err->message);
+                NXGLOGE("Discoverer error: %s",  err->message);
             else
-                NXLOGE("%s() Discoverer error",  __FUNCTION__);
+                NXGLOGE("Discoverer error",  __FUNCTION__);
             break;
         case GST_DISCOVERER_TIMEOUT:
-                NXLOGE("%s() Timeout", __FUNCTION__);
+                NXGLOGE("Timeout");
                 break;
         case GST_DISCOVERER_BUSY:
-                NXLOGE("%s() Busy", __FUNCTION__);
+                NXGLOGE("Busy");
                 break;
         case GST_DISCOVERER_MISSING_PLUGINS:{
             const GstStructure *s;
@@ -278,41 +275,41 @@ void parse_GstDiscovererInfo(GstDiscovererInfo *info, GError *err,
             s = gst_discoverer_info_get_misc (info);
             str = gst_structure_to_string (s);
 
-            NXLOGE("%s() Missing plugins: %s", __FUNCTION__, str);
+            NXGLOGE("Missing plugins: %s", str);
             g_free (str);
             break;
         }
         case GST_DISCOVERER_OK:
-            NXLOGI("%s() Discovered '%s'", __FUNCTION__, uri);
+            NXGLOGI("Discovered '%s'", uri);
             break;
     }
 
     if (result != GST_DISCOVERER_OK) {
-        NXLOGE("%s() This URI cannot be played", __FUNCTION__);
+        NXGLOGE("This URI cannot be played");
         return;
     }
 
     duration = gst_discoverer_info_get_duration(info);
     /* If we got no error, show the retrieved information */
-    NXLOGI("%s() Duration: %" GST_TIME_FORMAT,
-            __FUNCTION__, GST_TIME_ARGS (duration));
+    NXGLOGI("Duration: %" GST_TIME_FORMAT,
+            GST_TIME_ARGS (duration));
 
     tags = gst_discoverer_info_get_tags(info);
     if (tags) {
-        NXLOGI("%s() Tags:", __FUNCTION__);
+        NXGLOGI("Tags:");
         gst_tag_list_foreach (tags, print_tag_foreach, GINT_TO_POINTER(1));
     }
 
     isSeekable = gst_discoverer_info_get_seekable(info);
-    NXLOGI("%s() Seekable: %s", __FUNCTION__, (isSeekable ? "yes" : "no"));
+    NXGLOGI("Seekable: %s", (isSeekable ? "yes" : "no"));
 
     sinfo = gst_discoverer_info_get_stream_info(info);
     if (!sinfo) {
-        NXLOGE("%s(): Failed to get stream info", __FUNCTION__);
+        NXGLOGE("%s(): Failed to get stream info");
         return;
     }
 
-    NXLOGI("%s() Stream information:", __FUNCTION__);
+    NXGLOGI("Stream information:");
 
     print_topology(sinfo, 1, pMediaInfo);
 
@@ -335,13 +332,13 @@ static void on_discovered_cb(GstDiscoverer *discoverer, GstDiscovererInfo *info,
  * all the URIs we provided.*/
 static void on_finished_cb (GstDiscoverer *discoverer, DiscoverData *data)
 {
-    NXLOGI("%s() Finished discovering", __FUNCTION__);
+    NXGLOGI("Finished discovering");
 
     g_main_loop_quit(data->loop);
 }
 #endif
 
-static int start_discover(const char* filePath, GST_MEDIA_INFO *pMediaInfo)
+static int start_discover(const char* filePath, struct GST_MEDIA_INFO *pMediaInfo)
 {
     FUNC_IN();
 
@@ -351,12 +348,12 @@ static int start_discover(const char* filePath, GST_MEDIA_INFO *pMediaInfo)
     DiscoverData data;
     memset (&data, 0, sizeof (data));
 
-    NXLOGI("%s() Start to discover '%s'", __FUNCTION__, uri);
+    NXGLOGI("Start to discover '%s'", uri);
 
     /* Instantiate the Discoverer */
     data.discoverer = gst_discoverer_new(5 * GST_SECOND, &err);
     if (!data.discoverer) {
-        NXLOGI("%s(): Error creating discoverer instance: %s\n", __FUNCTION__, err->message);
+        NXGLOGI("%s(): Error creating discoverer instance: %s\n", err->message);
         g_clear_error(&err);
         return -1;
     }
@@ -372,7 +369,7 @@ static int start_discover(const char* filePath, GST_MEDIA_INFO *pMediaInfo)
     /* Add a request to process asynchronously the URI passed through the command line */
     if (!gst_discoverer_discover_uri_async(data.discoverer, uri))
     {
-        NXLOGI("%s(): Failed to start async discovering URI '%s'\n", __FUNCTION__, uri);
+        NXGLOGI("%s(): Failed to start async discovering URI '%s'\n", uri);
         g_free (uri);
         g_object_unref (data.discoverer);
         return -1;
@@ -381,7 +378,7 @@ static int start_discover(const char* filePath, GST_MEDIA_INFO *pMediaInfo)
     GstDiscovererInfo *pDiscInfo = gst_discoverer_discover_uri(data.discoverer, uri, &err);
     if (!pDiscInfo)
     {
-        NXLOGI("%s(): Failed to start sync discovering URI '%s'\n", __FUNCTION__, uri);
+        NXGLOGI("%s(): Failed to start sync discovering URI '%s'\n", uri);
         g_free (uri);
         g_object_unref (data.discoverer);
         return -1;
@@ -424,19 +421,21 @@ gboolean isSupportedMimeType(const gchar* mimeType)
     }
     else
     {
-        NXLOGE("%s() Not supported mime-type(%s)", __FUNCTION__, mimeType);
+        NXGLOGE("Not supported mime-type(%s)", mimeType);
         return FALSE;
     }
 }
 
-NX_GST_ERROR StartDiscover(const char* pUri, GST_MEDIA_INFO **pInfo)
+enum NX_GST_ERROR StartDiscover(const char* pUri, struct GST_MEDIA_INFO **pInfo)
 {
-    NX_GST_ERROR ret = 0;
+    enum NX_GST_ERROR ret = 0;
+
+    NXGLOGI();
 
     ret = start_discover(pUri, *pInfo);
     if (ret < 0)
     {
-        NXLOGE("%s Failed to discover", __FUNCTION__);
+        NXGLOGE("Failed to discover");
         return NX_GST_ERROR_DISCOVER_FAILED;
     }
     if (FALSE == isSupportedMimeType((*pInfo)->container_format))
@@ -444,7 +443,7 @@ NX_GST_ERROR StartDiscover(const char* pUri, GST_MEDIA_INFO **pInfo)
         return NX_GST_ERROR_NOT_SUPPORTED_CONTENTS;
     }
 
-    NXLOGI("%s Done to discover", __FUNCTION__);
+    NXGLOGI("Done to discover");
 
     return NX_GST_ERROR_NONE;
 }

@@ -3,7 +3,7 @@
 #include <QTextCodec>
 #include <QDesktopWidget>
 
-#include <NX_GstMoviePlay.h>
+#include <NX_GstIface.h>
 
 //Display Mode
 #define DSP_FULL   0
@@ -372,7 +372,7 @@ int32_t PlayerVideoFrame::SaveInfo()
 	NX_MEDIA_STATE state = m_pNxPlayer->GetState();
     if((MP_STATE_PLAYING == state)||(MP_STATE_PAUSED == state))
 	{
-		char pCurPos[sizeof(long long int)] = {};
+		char pCurPos[64];
 		qint64 iCurPos = m_pNxPlayer->GetMediaPosition();
 		if(0 > iCurPos)
 		{
@@ -800,17 +800,16 @@ void PlayerVideoFrame::DoPositionUpdate()
 void PlayerVideoFrame::UpdateDurationInfo(int64_t position, int64_t duration)
 {
     char pos[256], dur[256];
-    sprintf(pos, TIME_FORMAT, GST_TIME_ARGS (position));
-	//NXLOGD("%s(): position: %s", __FUNCTION__, pos);
+    sprintf(pos, TIME_FORMAT, GST_TIME_ARGS(position));
+	//NXLOGD("position: %s", pos);
 
-    sprintf(dur, TIME_FORMAT, GST_TIME_ARGS (duration));
-	//NXLOGD("%s(): duration: %s", __FUNCTION__, dur);
+    sprintf(dur, TIME_FORMAT, GST_TIME_ARGS(duration));
+	//NXLOGD("duration: %s", dur);
 
     QString tStr;
     tStr = QString(pos) + " / " + QString(dur);
-
 	ui->durationlabel->setText(tStr);
-	//NXLOGD("%s() %s", __FUNCTION__, tStr.toStdString().c_str());
+	//NXLOGD("%s", tStr.toStdString().c_str());
 }
 
 const char *NxGstEvent2String(NX_GST_EVENT event)
