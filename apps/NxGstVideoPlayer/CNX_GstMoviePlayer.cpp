@@ -216,7 +216,7 @@ int CNX_GstMoviePlayer::Stop()
 
 //================================================================================================================
 //public methods	common information
-gint64 CNX_GstMoviePlayer::GetMediaPosition()
+int64_t CNX_GstMoviePlayer::GetMediaPosition()
 {
 	CNX_AutoLock lock(&m_hLock);
 	if(NULL == m_hPlayer)
@@ -225,7 +225,7 @@ gint64 CNX_GstMoviePlayer::GetMediaPosition()
 		return -1;
 	}
 
-	gint64 position = NX_GSTMP_GetPosition(m_hPlayer);
+	int64_t position = NX_GSTMP_GetPosition(m_hPlayer);
 	if(-1 == position)
 	{
 		NXLOGE( "%s(): Error! NX_MPGetPosition() Failed!", __FUNCTION__);
@@ -235,7 +235,7 @@ gint64 CNX_GstMoviePlayer::GetMediaPosition()
 	return position;
 }
 
-gint64 CNX_GstMoviePlayer::GetMediaDuration()
+int64_t CNX_GstMoviePlayer::GetMediaDuration()
 {
 	CNX_AutoLock lock(&m_hLock);
 	if(NULL == m_hPlayer)
@@ -244,7 +244,7 @@ gint64 CNX_GstMoviePlayer::GetMediaDuration()
 		return -1;
 	}
 
-	gint64 duration = NX_GSTMP_GetDuration(m_hPlayer);
+	int64_t duration = NX_GSTMP_GetDuration(m_hPlayer);
 	if(-1 == duration)
 	{
 		NXLOGE( "%s(): Error! NX_MPGetDuration() Failed!", __FUNCTION__);
@@ -591,9 +591,9 @@ void CNX_GstMoviePlayer::GetAspectRatio(int srcWidth, int srcHeight,
 	}
 }
 
-gdouble CNX_GstMoviePlayer::GetVideoSpeed()
+double CNX_GstMoviePlayer::GetVideoSpeed()
 {
-	gdouble speed = 1.0;
+	double speed = 1.0;
 
 	if(NULL == m_hPlayer)
 	{
@@ -606,7 +606,7 @@ gdouble CNX_GstMoviePlayer::GetVideoSpeed()
 	return speed;
 }
 
-int CNX_GstMoviePlayer::SetVideoSpeed(gdouble speed)
+int CNX_GstMoviePlayer::SetVideoSpeed(double rate)
 {
 	if(NULL == m_hPlayer)
 	{
@@ -614,8 +614,8 @@ int CNX_GstMoviePlayer::SetVideoSpeed(gdouble speed)
 		return -1;
 	}
 
-	NXLOGI("%s() SetVideoSpeed(%f)", __FUNCTION__, speed);
-	NX_GST_RET iResult = NX_GSTMP_SetVideoSpeed(m_hPlayer, speed);
+	NXLOGI("%s() SetVideoSpeed(%f)", __FUNCTION__, rate);
+	NX_GST_RET iResult = NX_GSTMP_SetVideoSpeed(m_hPlayer, rate);
 	if(NX_GST_RET_OK != iResult)
 	{
 		NXLOGE("%s(): Error! NX_GSTMP_SetVideoSpeed() Failed! (ret = %d)\n", __FUNCTION__, iResult);
@@ -635,8 +635,8 @@ int	CNX_GstMoviePlayer::GetVideoSpeedSupport()
 		return -1;
 	}
 
-	bool iResult = NX_GSTMP_GetVideoSpeedSupport(m_hPlayer);
-	if(true != iResult)
+	NX_GST_RET iResult = NX_GSTMP_GetVideoSpeedSupport(m_hPlayer);
+	if(NX_GST_RET_OK != iResult)
 	{
 		NXLOGE( "%s: Error! This file doesn't support changing playback speed!", __FUNCTION__);
 		return -1;
@@ -656,15 +656,16 @@ bool CNX_GstMoviePlayer::HasSubTitleStream()
 	return (m_MediaInfo.n_subtitle > 0) ? true:false;
 }
 
-const char* CNX_GstMoviePlayer::GetThumbnail(const char *pUri, gint64 pos_msec, gint width)
+int CNX_GstMoviePlayer::MakeThumbnail(const char *pUri, int64_t pos_msec, int32_t width, const char *outPath)
 {
 	NXLOGI("%s", __FUNCTION__);
 
-	const char* filepath = NX_GSTMP_GetThumbnail(pUri, pos_msec, width);
-	if (strlen(filepath) != 0)
+	NX_GST_RET iResult = NX_GSTMP_MakeThumbnail(pUri, pos_msec, width, outPath);
+	if(NX_GST_RET_OK != iResult)
 	{
-		NXLOGI("%s filepath:%s", __FUNCTION__, filepath);
+		NXLOGI("%s Failed to make thumbnail", __FUNCTION__);
+		return -1;
 	}
 
-	return filepath;
+	return 0;
 }

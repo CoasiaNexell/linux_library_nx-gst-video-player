@@ -21,12 +21,12 @@
 
 #include <gst/gst.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
-
+#include "NX_GstThumbnail.h"
 #include "NX_GstLog.h"
 #define LOG_TAG "[NX_GstThumbnail]"
 
-const char *
-makeThumbnail(const gchar *uri, gint64 pos_msec, gint width)
+NX_GST_RET
+makeThumbnail(const char *uri, int64_t pos_msec, int32_t width, const char *outPath)
 {
     GstElement *pipeline, *sink;
     gint video_width, video_height;
@@ -40,7 +40,6 @@ makeThumbnail(const gchar *uri, gint64 pos_msec, gint width)
     GstMapInfo map;
     gchar *str_caps;
     const gchar* type = "jpeg";
-    const char* filepath = "/nexell/daudio/NxGstVideoPlayer/snapshot.jpg";
 
     FUNC_IN();
 
@@ -69,7 +68,7 @@ makeThumbnail(const gchar *uri, gint64 pos_msec, gint width)
     {
         NXGLOGE("could not construct pipeline: %s", error->message);
         g_error_free(error);
-        return "";
+        return NX_GST_RET_ERROR;
     }
 
     /* get sink */
@@ -81,12 +80,12 @@ makeThumbnail(const gchar *uri, gint64 pos_msec, gint width)
     {
         case GST_STATE_CHANGE_FAILURE:
             NXGLOGE("failed to play the file");
-            return "";
+            return NX_GST_RET_ERROR;
         case GST_STATE_CHANGE_NO_PREROLL:
             /* for live sources, we need to set the pipeline to PLAYING before we can
             * receive a buffer. We don't do that yet */
             NXGLOGE("live sources not supported yet");
-            return "";
+            return NX_GST_RET_ERROR;
         default:
             break;
     }
@@ -98,7 +97,7 @@ makeThumbnail(const gchar *uri, gint64 pos_msec, gint width)
     if (ret == GST_STATE_CHANGE_FAILURE)
     {
         NXGLOGE("failed to play the file");
-        return "";
+        return NX_GST_RET_ERROR;
     }
 
     /* get the duration */
@@ -118,6 +117,7 @@ makeThumbnail(const gchar *uri, gint64 pos_msec, gint width)
     g_signal_emit_by_name (sink, "pull-preroll", &sample, NULL);
     gst_object_unref (sink);
 
+    NX_GST_RET result = NX_GST_RET_ERROR;
     /* if we have a buffer now, convert it to a pixbuf. It's possible that we
     * don't have a buffer because we went EOS right away or had an error. */
     if (sample)
@@ -134,7 +134,7 @@ makeThumbnail(const gchar *uri, gint64 pos_msec, gint width)
         if (!caps)
         {
             NXGLOGE("could not get snapshot format");
-            return "";
+            return NX_GST_RET_ERROR;
         }
         s = gst_caps_get_structure(caps, 0);
 
@@ -144,7 +144,7 @@ makeThumbnail(const gchar *uri, gint64 pos_msec, gint width)
         if (!res)
         {
             NXGLOGE("could not get snapshot dimension");
-            return "";
+            return NX_GST_RET_ERROR;
         }
 
         /* create pixmap from buffer and save, gstreamer video buffers have a stride
@@ -156,12 +156,15 @@ makeThumbnail(const gchar *uri, gint64 pos_msec, gint width)
         GST_ROUND_UP_4 (video_width * 3), NULL, NULL);
 
         /* save the pixbuf */
-        gdk_pixbuf_save(pixbuf, filepath, type, &error, NULL);
+        gdk_pixbuf_save(pixbuf, outPath, type, &error, NULL);
         gst_buffer_unmap(buffer, &map);
+
+        result = NX_GST_RET_OK;
     }
     else
     {
         NXGLOGE("could not make snapshot");
+        result = NX_GST_RET_ERROR;
     }
 
     /* cleanup and exit */
@@ -170,7 +173,7 @@ makeThumbnail(const gchar *uri, gint64 pos_msec, gint width)
 
     FUNC_OUT();
 
-    NXGLOGI("%s() snapshot filepath: %s", filepath);
+    NXGLOGI("%s() snapshot outPath: %s", outPath);
 
-    return filepath;
+    return result;
 }

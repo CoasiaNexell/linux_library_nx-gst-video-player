@@ -10,7 +10,7 @@ extern "C" {
 #endif	//	__cplusplus
 
 #ifndef LOG_TAG
-#define LOG_TAG "Unknown"
+#define LOG_TAG "[NxGstVPLAYER]"
 #endif
 
 #define	VBS_MSG				0
@@ -22,15 +22,15 @@ void nx_gst_error(const char *format, ...);
 void nx_gst_debug(const char *format, ...);
 
 #define NXGLOGI(fmt, arg...) do { \
-        nx_gst_info(LOG_TAG"/I %s()" fmt, __FUNCTION__, ## arg);   \
+        nx_gst_info(LOG_TAG"/I %s() " fmt, __FUNCTION__, ## arg);   \
 } while (0)
 
 #define NXGLOGW(fmt, arg...) do { \
-        nx_gst_warn(LOG_TAG"/W %s()" fmt, __FUNCTION__, ## arg);   \
+        nx_gst_warn(LOG_TAG"/W %s() " fmt, __FUNCTION__, ## arg);   \
 } while (0)
 
 #define NXGLOGE(fmt, arg...) do { \
-        nx_gst_error(LOG_TAG"/E %s()" fmt, __FUNCTION__, ## arg);   \
+        nx_gst_error(LOG_TAG"/E %s() " fmt, __FUNCTION__, ## arg);   \
 } while (0)
 
 #ifdef DEBUG

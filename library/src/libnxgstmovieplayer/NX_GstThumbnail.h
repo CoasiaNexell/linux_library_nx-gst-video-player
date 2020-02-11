@@ -8,7 +8,7 @@
 //  BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS
 //  FOR A PARTICULAR PURPOSE.
 //
-//	Module		: libnxgstmovieplayer.so
+//	Module		: libnxgstvplayer.so
 //	File		:
 //	Description	:
 //	Author		:
@@ -20,11 +20,13 @@
 #ifndef __NX_GSTTHUMBNAIL_H
 #define __NX_GSTTHUMBNAIL_H
 
+#include "NX_GstIface.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif	//	__cplusplus
 
-const char * makeThumbnail(const gchar *uri, gint64 pos_msec, gint width);
+NX_GST_RET makeThumbnail(const char *uri, int64_t pos_msec, int32_t width, const char *outPath);
 
 #ifdef __cplusplus
 }

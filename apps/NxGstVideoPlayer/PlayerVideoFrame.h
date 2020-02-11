@@ -145,7 +145,7 @@ private:
 	QTextCodec*		m_pCodec;
 	bool			m_bSubThreadFlag;
 	int				m_iVolValue;
-	qint64			m_iDuration;
+	int64_t			m_iDuration;
 	QTimer			m_PosUpdateTimer;
 	QTimer			*m_SubtitleDismissTimer;
 	bool			m_bIsInitialized;

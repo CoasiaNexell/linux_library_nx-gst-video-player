@@ -863,7 +863,7 @@ void PlayerVideoFrame::statusChanged(int eventType, int eventData, void* param)
 	case MP_EVENT_STATE_CHANGED:
 	{
 		NX_MEDIA_STATE new_state = (NX_MEDIA_STATE)eventData;
-		NXLOGI("%s() New state [%s]", __FUNCTION__, get_nx_media_state(new_state));
+		NXLOGI("%s() New state [%d]", __FUNCTION__, new_state);
 		ui->playButton->setEnabled((new_state != MP_STATE_PLAYING) || (m_fSpeed != 1.0));
 		ui->pauseButton->setEnabled(new_state == MP_STATE_PLAYING);
 		ui->stopButton->setEnabled(new_state != MP_STATE_STOPPED);
@@ -1062,10 +1062,9 @@ bool PlayerVideoFrame::PlayVideo()
 		return false;
 	}
 
-	gdouble video_speed = m_pNxPlayer->GetVideoSpeed();
+	double video_speed = m_pNxPlayer->GetVideoSpeed();
 	NX_MEDIA_STATE state = m_pNxPlayer->GetState();
-	NXLOGI("%s() The previous state before playing is %s",
-			__FUNCTION__, get_nx_media_state(state));
+	NXLOGI("%s() The previous state before playing is %d", __FUNCTION__);
 
 	if(MP_STATE_PLAYING == state)
 	{
@@ -1126,7 +1125,8 @@ bool PlayerVideoFrame::PlayVideo()
 				ui->speedButton->setText("x 1");
 
 				// Test code for Thumbnail
-				//m_pNxPlayer->GetThumbnail(m_FileList.GetList(m_iCurFileListIdx).toStdString().c_str(), 20 * 1000, 160);
+				//m_pNxPlayer->MakeThumbnail(m_FileList.GetList(m_iCurFileListIdx).toStdString().c_str(),
+				//							20 * 1000, 200, "/nexell/daudio/NxGstVideoPlayer/snapshot.jpg");
 
 				m_dspInfo.dspWidth = width();
 				m_dspInfo.dspHeight = height();

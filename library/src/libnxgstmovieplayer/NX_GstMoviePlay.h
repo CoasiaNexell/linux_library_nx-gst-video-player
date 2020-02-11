@@ -8,7 +8,7 @@
 //  BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS
 //  FOR A PARTICULAR PURPOSE.
 //
-//	Module		: libnxgstmovieplayer.so
+//	Module		: libnxgstvplayer.so
 //	File		:
 //	Description	:
 //	Author		:
@@ -24,7 +24,6 @@
 extern "C" {
 #endif	//	__cplusplus
 
-// 
 
 #ifdef __cplusplus
 }

@@ -88,18 +88,18 @@ public:
 
 	// MediaPlayer common information
     void PrintMediaInfo(const char* pUri);
-	gint64 GetMediaPosition();
-	gint64 GetMediaDuration();
+	int64_t GetMediaPosition();
+	int64_t GetMediaDuration();
 	NX_MEDIA_STATE GetState();
 	int SetDisplayInfo(enum DISPLAY_TYPE type, int dspWidth, int dspHeight, DSP_RECT rect);
 	// Thumbnail
-	const char* GetThumbnail(const char *pUri, gint64 pos_msec, gint width);
+	int MakeThumbnail(const char *pUri, int64_t pos_msec, int32_t width, const char *outPath);
 	// The dual display
 	int DrmVideoMute(int bOnOff);
 
 	// The playback speed
-	int SetVideoSpeed(gdouble speed);
-	gdouble GetVideoSpeed();
+	int SetVideoSpeed(double rate);
+	double GetVideoSpeed();
 	int GetVideoSpeedSupport();
 
 	// The subtitle

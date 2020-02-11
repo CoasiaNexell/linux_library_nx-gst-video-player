@@ -8,7 +8,7 @@
 //  BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS
 //  FOR A PARTICULAR PURPOSE.
 //
-//	Module		: libnxgstmovieplayer.so
+//	Module		: libnxgstvplayer.so
 //	File		:
 //	Description	:
 //	Author		:
@@ -25,7 +25,7 @@
 #include "NX_GstThumbnail.h"
 
 #include "NX_GstLog.h"
-#define LOG_TAG "[NX_GstMoviePlay]"
+#define LOG_TAG "[NxGstVPLAYER]"
 
 //------------------------------------------------------------------------------
 // Function Prototype
@@ -283,15 +283,13 @@ void on_handoff(GstElement* object, GstBuffer* buffer,
     NXGLOGV("Buffer Size is %zu, read %zu, data: %s",
             buffer_size, extracted_size, text_msg);
 
-    static GstClockTime startTime, duration, endTime, timestamp;
+    static GstClockTime startTime, duration, endTime;
     startTime = GST_BUFFER_PTS(buffer);
     duration = GST_BUFFER_DURATION(buffer);
-    timestamp = GST_BUFFER_TIMESTAMP(buffer);
     endTime = startTime + duration;
     NXGLOGV("startTime:%" GST_TIME_FORMAT ", duration: %" GST_TIME_FORMAT
-             ", endTime: %" GST_TIME_FORMAT ", timestamp: %" GST_TIME_FORMAT,
-            GST_TIME_ARGS(startTime), GST_TIME_ARGS(duration),
-            GST_TIME_ARGS(endTime), GST_TIME_ARGS(timestamp));
+             ", endTime: %" GST_TIME_FORMAT, GST_TIME_ARGS(startTime),
+             GST_TIME_ARGS(duration), GST_TIME_ARGS(endTime));
 
     struct SUBTITLE_INFO* subtitleInfo = setSubtitleInfo(startTime, endTime, duration, text_msg);
 
@@ -1110,7 +1108,7 @@ NX_GST_RET NX_GSTMP_SetDisplayMode(MP_HANDLE handle, enum DISPLAY_MODE in_mode)
     }
 
     if (handle->display_mode != in_mode) {
-        NXGLOGI("display_mode is changed from (%s) to (%s) in state(%s)",
+        NXGLOGI("The display_mode is changed from (%s) to (%s) in state(%s)",
                 (handle->display_mode==DISPLAY_MODE_LCD_ONLY)?"LCD_ONLY":"LCD_HDMI",
                 (in_mode==DISPLAY_MODE_LCD_ONLY)?"LCD_ONLY":"LCD_HDMI",
                 gst_element_state_get_name (handle->state));
@@ -1329,7 +1327,7 @@ NX_GST_RET NX_GSTMP_GetMediaInfo(MP_HANDLE handle, GST_MEDIA_INFO *pGstMInfo)
 
     if (NULL == pGstMInfo)
     {
-        NXGLOGE("%s pGstMInfo is NULL");
+        NXGLOGE("pGstMInfo is NULL");
         return NX_GST_RET_ERROR;
     }
 
@@ -1338,7 +1336,6 @@ NX_GST_RET NX_GSTMP_GetMediaInfo(MP_HANDLE handle, GST_MEDIA_INFO *pGstMInfo)
     NXGLOGI("container(%s), video mime-type(%s)"
            ", audio mime-type(%s), seekable(%s), width(%d), height(%d)"
            ", duration: (%" GST_TIME_FORMAT ")\r"
-           
            , pGstMInfo->container_format
            , pGstMInfo->video_mime_type
            , pGstMInfo->audio_mime_type
@@ -1401,7 +1398,7 @@ NX_GSTMP_SetDisplayInfo(MP_HANDLE handle, enum DISPLAY_TYPE type,
     return NX_GST_RET_OK;
 }
 
-gint64 NX_GSTMP_GetPosition(MP_HANDLE handle)
+int64_t NX_GSTMP_GetPosition(MP_HANDLE handle)
 {
     _CAutoLock lock(&handle->apiLock);
 
@@ -1443,7 +1440,7 @@ gint64 NX_GSTMP_GetPosition(MP_HANDLE handle)
     return position;
 }
 
-gint64 NX_GSTMP_GetDuration(MP_HANDLE handle)
+int64_t NX_GSTMP_GetDuration(MP_HANDLE handle)
 {
     _CAutoLock lock(&handle->apiLock);
 
@@ -1655,6 +1652,7 @@ NX_GST_RET NX_GSTMP_Play(MP_HANDLE handle)
         NXGLOGI("The previous state '%s' with (x%d)", gst_element_state_get_name (state), int(handle->rate));
         if(GST_STATE_PLAYING == state)
         {
+
             if (0 > send_seek_event(handle))
             {
                 NXGLOGE("Failed to send seek event");
@@ -1813,7 +1811,7 @@ NX_GST_RET NX_GSTMP_VideoMute(MP_HANDLE handle, int32_t bOnoff)
     FUNC_OUT();
 }
 
-gdouble NX_GSTMP_GetVideoSpeed(MP_HANDLE handle)
+double NX_GSTMP_GetVideoSpeed(MP_HANDLE handle)
 {
     gdouble speed = 1.0;
 
@@ -1838,7 +1836,7 @@ gdouble NX_GSTMP_GetVideoSpeed(MP_HANDLE handle)
 }
 
 /* It's available in PAUSED or PLAYING state */
-NX_GST_RET NX_GSTMP_SetVideoSpeed(MP_HANDLE handle, gdouble speed)
+NX_GST_RET NX_GSTMP_SetVideoSpeed(MP_HANDLE handle, double rate)
 {
     FUNC_IN();
 
@@ -1851,15 +1849,15 @@ NX_GST_RET NX_GSTMP_SetVideoSpeed(MP_HANDLE handle, gdouble speed)
 
     if (false == handle->gst_media_info.isSeekable)
     {
-        NXGLOGE("%s This video doesn't support 'seekable'");
+        NXGLOGE("This video doesn't support 'seekable'");
         return NX_GST_RET_ERROR;
     }
 
-    handle->rate = speed;
+    handle->rate = rate;
     return NX_GST_RET_OK;
 }
 
-gboolean NX_GSTMP_GetVideoSpeedSupport(MP_HANDLE handle)
+NX_GST_RET NX_GSTMP_GetVideoSpeedSupport(MP_HANDLE handle)
 {
     if(!handle || !handle->pipeline_is_linked)
     {
@@ -1868,12 +1866,12 @@ gboolean NX_GSTMP_GetVideoSpeedSupport(MP_HANDLE handle)
         return NX_GST_RET_ERROR;
     }
 
-    return handle->gst_media_info.isSeekable;
+    return (handle->gst_media_info.isSeekable) ? NX_GST_RET_OK : NX_GST_RET_ERROR;
 }
 
-const char* NX_GSTMP_GetThumbnail(const gchar *uri, gint64 pos_msec, gint width)
+NX_GST_RET NX_GSTMP_MakeThumbnail(const gchar *uri, int64_t pos_msec, int32_t width, const char *outPath)
 {
-    return makeThumbnail(uri, pos_msec, width);
+    return makeThumbnail(uri, pos_msec, width, outPath);
 }
 
 enum NX_MEDIA_STATE GstState2NxState(GstState state)
