@@ -1743,28 +1743,15 @@ NX_GST_RET NX_GSTMP_Play(MP_HANDLE handle)
     }
 
     GstState state, pending;
-    if(GST_STATE_CHANGE_FAILURE != gst_element_get_state(handle->pipeline, &state, &pending, 500000000))
+    if (GST_STATE_CHANGE_FAILURE != gst_element_get_state(handle->pipeline, &state, &pending, 500000000))
     {
         NXGLOGI("The previous state '%s' with (x%d)", gst_element_state_get_name (state), int(handle->rate));
-        if(GST_STATE_PLAYING == state)
+        ret = gst_element_set_state(handle->pipeline, GST_STATE_PLAYING);
+        NXGLOGI("set_state(PLAYING) ==> ret(%s)", get_gst_state_change_ret(ret));
+        if (GST_STATE_CHANGE_FAILURE == ret)
         {
-
-            if (0 > send_seek_event(handle))
-            {
-                NXGLOGE("Failed to send seek event");
-                return NX_GST_RET_ERROR;
-            }
-            //send_step_event(handle);
-        }
-        else
-        {
-            ret = gst_element_set_state(handle->pipeline, GST_STATE_PLAYING);
-            NXGLOGI("set_state(PLAYING) ==> ret(%s)", get_gst_state_change_ret(ret));
-            if(GST_STATE_CHANGE_FAILURE == ret)
-            {
-                NXGLOGE("Failed to set the pipeline to the PLAYING state(ret=%d)", __func__, ret);
-                return NX_GST_RET_ERROR;
-            }
+            NXGLOGE("Failed to set the pipeline to the PLAYING state(ret=%d)", __func__, ret);
+            return NX_GST_RET_ERROR;
         }
     }
     else
@@ -1949,7 +1936,13 @@ NX_GST_RET NX_GSTMP_SetVideoSpeed(MP_HANDLE handle, double rate)
         return NX_GST_RET_ERROR;
     }
 
+	if (rate == 0.0) {
+		NXGLOGE("The playback rate 0.0 is not allowed");
+		return NX_GST_RET_ERROR;
+	}
+
     handle->rate = rate;
+    send_seek_event(handle);
     return NX_GST_RET_OK;
 }
 

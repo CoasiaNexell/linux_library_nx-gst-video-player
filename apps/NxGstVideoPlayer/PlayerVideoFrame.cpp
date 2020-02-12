@@ -1027,7 +1027,7 @@ void PlayerVideoFrame::PlaySeek()
 
 	seekflag = SeekToPrev(&iSavedPosition, &m_iCurFileListIdx);
 
-	PlayVideo();
+	//PlayVideo();
 
 	if(seekflag)
 	{
