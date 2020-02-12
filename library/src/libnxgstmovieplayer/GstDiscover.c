@@ -415,8 +415,9 @@ gboolean isSupportedMimeType(const gchar* mimeType)
         (g_strcmp0(mimeType, "video/x-matroska") == 0) ||
         (g_strcmp0(mimeType, "video/x-msvideo") == 0) ||
         (g_strcmp0(mimeType, "avidemux") == 0) ||
+        (g_strcmp0(mimeType, "video/mpeg") == 0) ||
         (g_strcmp0(mimeType, "video/x-flv") == 0) ||
-        (g_strcmp0(mimeType, "video/mpeg") == 0))
+        (g_strcmp0(mimeType, "video/mpegts") == 0))
     {
         return TRUE;
     }

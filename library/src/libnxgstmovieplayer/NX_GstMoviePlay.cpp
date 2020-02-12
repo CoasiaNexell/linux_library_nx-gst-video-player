@@ -89,7 +89,6 @@ struct MOVIE_TYPE {
 
     // For Audio
     GstElement  *audio_queue;
-    GstElement  *decodebin;
     GstElement  *audio_parser;
     GstElement  *audio_decoder;
     GstElement  *audioconvert;
@@ -412,6 +411,9 @@ static void on_pad_added_demux(GstElement *element,
     else
     {
         NXGLOGE("There is no available link for %s", padName);
+        if (padName)	g_free(padName);
+        gst_caps_unref (caps);
+        return;
     }
 
     NXGLOGI("target_sink_pad:%s",
@@ -657,6 +659,10 @@ NX_GST_RET set_demux_element(MP_HANDLE handle)
     {
         handle->demuxer = gst_element_factory_make("flvdemux", "flvdemux");
     }
+    else if (0 == g_strcmp0(handle->gst_media_info.container_format, "video/mpegts"))	// m2ts
+    {
+        handle->demuxer = gst_element_factory_make("tsdemux", "tsdemux");
+    }
 
     if (NULL == handle->demuxer)
     {
@@ -680,12 +686,39 @@ NX_GST_RET set_audio_elements(MP_HANDLE handle)
     }
 
     handle->audio_queue = gst_element_factory_make("queue2", "audio_queue");
-    handle->decodebin = gst_element_factory_make("decodebin", "decodebin");
+
+    // Audio parser & Audio decoder
+    if ((g_strcmp0(handle->gst_media_info.audio_mime_type, "audio/mpeg") == 0) &&
+             (handle->gst_media_info.audio_mpegversion <= 2))
+    {
+        handle->audio_parser = gst_element_factory_make("mpegaudioparse", "mpegaudioparse");
+        if (!handle->audio_parser)
+        {
+            NXGLOGE("Failed to create mpegaudioparse element", __func__);
+            return NX_GST_RET_ERROR;
+        }
+        handle->audio_decoder = gst_element_factory_make("mpg123audiodec", "mpg123audiodec");
+        if (!handle->audio_decoder)
+        {
+            NXGLOGE("Failed to create mpg123audiodec element", __func__);
+            return NX_GST_RET_ERROR;
+        }
+    }
+    else
+    {
+        handle->audio_decoder = gst_element_factory_make("decodebin", "decodebin");
+        if (!handle->audio_decoder)
+        {
+            NXGLOGE("Failed to create decodebin element", __func__);
+            return NX_GST_RET_ERROR;
+        }
+    }
+
     handle->audioconvert = gst_element_factory_make("audioconvert", "audioconvert");
     handle->audioresample = gst_element_factory_make("audioresample", "audioresample");
     handle->alsasink = gst_element_factory_make("alsasink", "alsasink");
 
-    if (!handle->audio_queue || !handle->decodebin || !handle->audioconvert ||
+    if (!handle->audio_queue || !handle->audioconvert ||
         !handle->audioresample || !handle->alsasink)
     {
         NXGLOGE("Failed to create audio elements", __func__);
@@ -793,11 +826,23 @@ void add_video_elements_to_bin(MP_HANDLE handle)
 
 void add_audio_elements_to_bin(MP_HANDLE handle)
 {
-    gst_bin_add_many(GST_BIN(handle->pipeline),
-                    handle->audio_queue, handle->decodebin,
+    if ((g_strcmp0(handle->gst_media_info.audio_mime_type, "audio/mpeg") == 0) &&
+             (handle->gst_media_info.audio_mpegversion <= 2))
+    {
+        gst_bin_add_many(GST_BIN(handle->pipeline),
+                    handle->audio_queue, handle->audio_parser, handle->audio_decoder,
                     handle->audioconvert, handle->audioresample,
                     handle->alsasink,
                     NULL);
+    }
+    else
+    {
+        gst_bin_add_many(GST_BIN(handle->pipeline),
+                    handle->audio_queue, handle->audio_decoder,
+                    handle->audioconvert, handle->audioresample,
+                    handle->alsasink,
+                    NULL);
+    }
 }
 
 void add_subtitle_elements_to_bin(MP_HANDLE handle)
@@ -837,9 +882,14 @@ NX_GST_RET link_video_elements(MP_HANDLE handle)
         ((g_strcmp0(handle->gst_media_info.video_mime_type, "video/mpeg") == 0) &&
             (handle->gst_media_info.video_mpegversion <= 2)))
     {
-        if (!gst_element_link_many(handle->video_queue, handle->video_parser, handle->video_decoder, NULL))
+        if (!gst_element_link(handle->video_queue, handle->video_parser))
         {
-            NXGLOGE("Failed to link video elements with video_parser", __func__);
+            NXGLOGE("Failed to link video elements with video_queue<-->video_parser", __func__);
+            return NX_GST_RET_ERROR;
+        }
+        if (!gst_element_link(handle->video_parser, handle->video_decoder))
+        {
+            NXGLOGE("Failed to link video elements with video_parser<-->video_decoder", __func__);
             return NX_GST_RET_ERROR;
         }
         NXGLOGI("Succeed to link video elements with video_queue<-->video_parser<-->video_decoder", __func__);
@@ -869,32 +919,61 @@ NX_GST_RET link_video_elements(MP_HANDLE handle)
 
 NX_GST_RET link_audio_elements(MP_HANDLE handle)
 {
-    if (!gst_element_link(handle->audio_queue, handle->decodebin))
+    if ((g_strcmp0(handle->gst_media_info.audio_mime_type, "audio/mpeg") == 0) &&
+             (handle->gst_media_info.audio_mpegversion <= 2))
     {
-        NXGLOGE("Failed to link audio_queue<-->decodebin");
-        return NX_GST_RET_ERROR;
+        if (!gst_element_link(handle->audio_queue, handle->audio_parser))
+        {
+            NXGLOGE("Failed to link audio_queue<-->audio_parser");
+            return NX_GST_RET_ERROR;
+        }
+        if (!gst_element_link(handle->audio_parser, handle->audio_decoder))
+        {
+            NXGLOGE("Failed to link audio_parser<-->audio_decoder");
+            return NX_GST_RET_ERROR;
+        }
+        if (!gst_element_link(handle->audio_decoder, handle->audioconvert))
+        {
+            NXGLOGE("Failed to link audio_decoder<-->audioconvert");
+            return NX_GST_RET_ERROR;
+        }
+        NXGLOGI("Succeed to link audio_queue<-->audio_parser<-->audio_decoder<-->audioconvert");
     }
-    NXGLOGI("Succeed to link audio_queue<-->decodebin");
+    else
+    {
+        if (!gst_element_link(handle->audio_queue, handle->audio_decoder))
+        {
+            NXGLOGE("Failed to link audio_queue<-->audio_decoder");
+            return NX_GST_RET_ERROR;
+        }
+        NXGLOGI("Succeed to link audio_queue<-->audio_decoder");
+    }
+
     if (!gst_element_link_many(handle->audioconvert, handle->audioresample, handle->alsasink, NULL))
     {
         NXGLOGE("Failed to link audioconvert<-->audioresample<-->alsasink");
         return NX_GST_RET_ERROR;
     }
     NXGLOGI("Succeed to link audioconvert<-->audioresample<-->alsasink");
+
     return NX_GST_RET_OK;
 }
 
 NX_GST_RET link_subtitle_elements(MP_HANDLE handle)
 {
-    if (!gst_element_link_many(handle->subtitle_queue, handle->capsfilter, handle->fakesink, NULL))
+    if (!gst_element_link(handle->subtitle_queue, handle->capsfilter))
     {
-        NXGLOGE("Failed to link subtitle_queue<-->fakesink");
+        NXGLOGE("Failed to link subtitle_queue<-->capsfilter");
         return NX_GST_RET_ERROR;
     }
-    else
+    if (!gst_element_link(handle->capsfilter, handle->fakesink))
     {
-        NXGLOGI("Succeed to link subtitle_queue<-->fakesink");
+        NXGLOGE("Failed to link capsfilter<-->fakesink");
+        return NX_GST_RET_ERROR; 
     }
+
+    NXGLOGI("Succeed to link subtitle_queue<-->fakesink");
+
     return NX_GST_RET_OK;
 }
 
@@ -1008,7 +1087,6 @@ NX_GST_RET link_secondary_cb(MP_HANDLE handle)
     g_object_set(G_OBJECT(sink->nxvideosink_hdmi), "dst-y", handle->secondary_dsp_info.iY, NULL);
     g_object_set(G_OBJECT(sink->nxvideosink_hdmi), "dst-w", handle->secondary_dsp_info.iWidth, NULL);
     g_object_set(G_OBJECT(sink->nxvideosink_hdmi), "dst-h", handle->secondary_dsp_info.iHeight, NULL);
-    g_object_set(G_OBJECT(sink->nxvideosink_hdmi), "drm-nonblock", 1, NULL);
     g_object_set(sink->nxvideosink_hdmi, "crtc-index", DISPLAY_TYPE_SECONDARY, NULL);
 
     if (!sink->tee_queue_secondary || !sink->nxvideosink_hdmi)
@@ -1194,7 +1272,6 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
     NXGLOGD("container(%s), video codec(%s)"
            ", audio codec(%s), seekable(%s), width(%d), height(%d)"
            ", duration: (%" GST_TIME_FORMAT ")\r"
-           
            , pGstMInfo->container_format
            , pGstMInfo->video_mime_type
            , pGstMInfo->audio_mime_type
@@ -1248,7 +1325,7 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
     // demuxer <--> audio_queue/video_queue
     g_signal_connect(handle->demuxer,	"pad-added", G_CALLBACK (on_pad_added_demux), handle);
     // decodbin <--> audio_converter
-    g_signal_connect(handle->decodebin, "pad-added", G_CALLBACK (on_decodebin_pad_added), handle);
+    g_signal_connect(handle->audio_decoder, "pad-added", G_CALLBACK (on_decodebin_pad_added), handle);
 
     handle->pipeline_is_linked = TRUE;
 
