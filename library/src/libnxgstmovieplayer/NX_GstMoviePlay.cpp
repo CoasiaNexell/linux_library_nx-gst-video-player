@@ -78,7 +78,7 @@ struct MOVIE_TYPE {
     GstElement  *video_queue;
     GstElement  *demuxer;
     GstElement  *video_parser;
-    GstElement  *nxvideodec;
+    GstElement  *video_decoder;
     GstElement  *nxvideosink;
 
     GstElement  *tee;
@@ -641,17 +641,21 @@ NX_GST_RET set_demux_element(MP_HANDLE handle)
     {
         handle->demuxer = gst_element_factory_make("qtdemux", "qtdemux");
     }
-    else if (0 == g_strcmp0(handle->gst_media_info.container_format, "video/x-matroska"))	// Matroska
+    else if (0 == g_strcmp0(handle->gst_media_info.container_format, "video/x-matroska"))	// mkv
     {
         handle->demuxer = gst_element_factory_make("matroskademux", "matroskademux");
     }
-    else if (0 == g_strcmp0(handle->gst_media_info.container_format, "video/x-msvideo"))	// AVI
+    else if (0 == g_strcmp0(handle->gst_media_info.container_format, "video/x-msvideo"))	// avi
     {
         handle->demuxer = gst_element_factory_make("avidemux", "avidemux");
     }
     else if (0 == g_strcmp0(handle->gst_media_info.container_format, "video/mpeg"))	// MPEG (vob)
     {
         handle->demuxer = gst_element_factory_make("mpegpsdemux", "mpegpsdemux");
+    }
+    else if (0 == g_strcmp0(handle->gst_media_info.container_format, "video/x-flv"))	// flv
+    {
+        handle->demuxer = gst_element_factory_make("flvdemux", "flvdemux");
     }
 
     if (NULL == handle->demuxer)
@@ -703,7 +707,10 @@ NX_GST_RET set_video_elements(MP_HANDLE handle)
         return NX_GST_RET_ERROR;
     }
 
+    // Queue for video
     handle->video_queue = gst_element_factory_make("queue2", "video_queue");
+
+    // Video Parser
     if (g_strcmp0(handle->gst_media_info.video_mime_type, "video/x-h264") == 0)
     {
         handle->video_parser = gst_element_factory_make("h264parse", "parser");
@@ -724,9 +731,19 @@ NX_GST_RET set_video_elements(MP_HANDLE handle)
         }
     }
 
-    handle->nxvideodec = gst_element_factory_make("nxvideodec", "nxvideodec");
+    // Video Decoder
+    if (g_strcmp0(handle->gst_media_info.video_mime_type, "video/x-flash-video") == 0)
+    {
+        handle->video_decoder = gst_element_factory_make("avdec_flv", "avdec_flv");
+    }
+    else
+    {
+        handle->video_decoder = gst_element_factory_make("nxvideodec", "nxvideodec");
+    }
+
+    // Tee for video
     handle->tee = gst_element_factory_make("tee", "tee");
-    if(!handle->video_queue || !handle->nxvideodec)
+    if(!handle->video_queue || !handle->video_decoder)
     {
         NXGLOGE("Failed to create video elements", __func__);
         return NX_GST_RET_ERROR;
@@ -763,7 +780,7 @@ NX_GST_RET set_source_element(MP_HANDLE handle)
 void add_video_elements_to_bin(MP_HANDLE handle)
 {
     gst_bin_add_many(GST_BIN(handle->pipeline), handle->video_queue,
-                    handle->nxvideodec, handle->tee, NULL);
+                    handle->video_decoder, handle->tee, NULL);
 
     // video_parser
     if ((g_strcmp0(handle->gst_media_info.video_mime_type, "video/x-h264") == 0) ||
@@ -820,30 +837,32 @@ NX_GST_RET link_video_elements(MP_HANDLE handle)
         ((g_strcmp0(handle->gst_media_info.video_mime_type, "video/mpeg") == 0) &&
             (handle->gst_media_info.video_mpegversion <= 2)))
     {
-        if (!gst_element_link_many(handle->video_queue, handle->video_parser, handle->nxvideodec, NULL))
+        if (!gst_element_link_many(handle->video_queue, handle->video_parser, handle->video_decoder, NULL))
         {
             NXGLOGE("Failed to link video elements with video_parser", __func__);
             return NX_GST_RET_ERROR;
         }
+        NXGLOGI("Succeed to link video elements with video_queue<-->video_parser<-->video_decoder", __func__);
     }
     else
     {
-        if (!gst_element_link_many(handle->video_queue, handle->nxvideodec, NULL))
+        if (!gst_element_link(handle->video_queue, handle->video_decoder))
         {
             NXGLOGE("Failed to link video elements");
             return NX_GST_RET_ERROR;
         }
         else
         {
-            NXGLOGI("Succeed to link video_queue<-->nxvideodec<-->nxvideosink");
+            NXGLOGI("Succeed to link video_queue<-->video_decoder");
         }
     }
 
-    // nxvideodec <--> tee
-    if (!gst_element_link_many(handle->nxvideodec, handle->tee, NULL))
+    // video_decoder <--> tee
+    if (!gst_element_link_many(handle->video_decoder, handle->tee, NULL))
     {
-        NXGLOGE("Failed to link nxvideodec<-->tee");
+        NXGLOGE("Failed to link video_decoder<-->tee");
     }
+    NXGLOGI("Succeed to link video elements with video_decoder<-->tee", __func__);
 
     return NX_GST_RET_OK;
 }
@@ -855,12 +874,13 @@ NX_GST_RET link_audio_elements(MP_HANDLE handle)
         NXGLOGE("Failed to link audio_queue<-->decodebin");
         return NX_GST_RET_ERROR;
     }
-
+    NXGLOGI("Succeed to link audio_queue<-->decodebin");
     if (!gst_element_link_many(handle->audioconvert, handle->audioresample, handle->alsasink, NULL))
     {
         NXGLOGE("Failed to link audioconvert<-->audioresample<-->alsasink");
         return NX_GST_RET_ERROR;
     }
+    NXGLOGI("Succeed to link audioconvert<-->audioresample<-->alsasink");
     return NX_GST_RET_OK;
 }
 
@@ -932,7 +952,7 @@ NX_GST_RET link_primary_cb(MP_HANDLE handle)
     g_object_set(G_OBJECT(handle->nxvideosink), "dst-y", handle->primary_dsp_info.iY, NULL);
     g_object_set(G_OBJECT(handle->nxvideosink), "dst-w", handle->primary_dsp_info.iWidth, NULL);
     g_object_set(G_OBJECT(handle->nxvideosink), "dst-h", handle->primary_dsp_info.iHeight, NULL);
-    g_object_set(G_OBJECT(handle->nxvideosink), "drm-nonblock", 1, NULL);
+    g_object_set(handle->nxvideosink, "crtc-index", DISPLAY_TYPE_PRIMARY, NULL);
 
     // Add elements 'tee_queue_primary, nxvideosink' to bin
     gst_bin_add_many(GST_BIN(handle->pipeline), handle->tee_queue_primary, handle->nxvideosink, NULL);
@@ -989,8 +1009,7 @@ NX_GST_RET link_secondary_cb(MP_HANDLE handle)
     g_object_set(G_OBJECT(sink->nxvideosink_hdmi), "dst-w", handle->secondary_dsp_info.iWidth, NULL);
     g_object_set(G_OBJECT(sink->nxvideosink_hdmi), "dst-h", handle->secondary_dsp_info.iHeight, NULL);
     g_object_set(G_OBJECT(sink->nxvideosink_hdmi), "drm-nonblock", 1, NULL);
-    g_object_set(sink->nxvideosink_hdmi, "crtc-index", 1, NULL);	// SECONDARY
-    g_object_set(sink->nxvideosink_hdmi, "layer-priority", 0, NULL);
+    g_object_set(sink->nxvideosink_hdmi, "crtc-index", DISPLAY_TYPE_SECONDARY, NULL);
 
     if (!sink->tee_queue_secondary || !sink->nxvideosink_hdmi)
     {
