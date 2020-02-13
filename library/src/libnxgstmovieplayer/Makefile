@@ -55,6 +55,7 @@ install:
 	mkdir -p ../../lib/
 	cp -av $(TARGET) ../../lib/
 	cp -av NX_GstIface.h ../../include
+	cp -av NX_GstTypes.h ../../include
 
 clean:
 	rm -rf $(TARGET) *.o .depend
@@ -62,6 +63,7 @@ clean:
 distclean: clean
 	rm -rf ../../lib/$(TARGET)
 	rm -rf ../../include/NX_GstIface.h
+	rm -rf ../../include/NX_GstTypes.h
 
 #########################################################################
 # Dependency

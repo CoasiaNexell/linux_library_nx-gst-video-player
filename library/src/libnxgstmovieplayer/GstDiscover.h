@@ -1,7 +1,7 @@
 #ifndef __GST_DISCOVER_H
 #define __GST_DISCOVER_H
 
-#include "NX_GstIface.h"
+#include "NX_GstTypes.h"
 
 #ifdef __cplusplus
 extern "C" {

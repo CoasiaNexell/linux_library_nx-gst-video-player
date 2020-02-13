@@ -20,7 +20,7 @@
 #ifndef __NX_GSTTHUMBNAIL_H
 #define __NX_GSTTHUMBNAIL_H
 
-#include "NX_GstIface.h"
+#include "NX_GstTypes.h"
 
 #ifdef __cplusplus
 extern "C" {

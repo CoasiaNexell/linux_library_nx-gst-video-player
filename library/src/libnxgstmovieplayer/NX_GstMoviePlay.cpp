@@ -55,8 +55,6 @@ static NX_GST_RET seek_to_time (MP_HANDLE handle, gint64 time_nanoseconds);
 static const char* get_nx_gst_error(NX_GST_ERROR error);
 //------------------------------------------------------------------------------
 
-static gboolean hasSubTitles = FALSE;
-
 // For secondary video
 static GList *sinks;
 struct Sink
@@ -403,10 +401,20 @@ static void on_pad_added_demux(GstElement *element,
         target_sink_pad = handle->audio_queue;
         sinkpad = gst_element_get_static_pad(target_sink_pad, "sink");
     }
-    else if (hasSubTitles && g_str_has_prefix(padName, "subtitle_0"))
+    else if ((handle->gst_media_info.n_subtitle >= 1) && g_str_has_prefix(padName, "subtitle_0"))
     {
-        target_sink_pad = handle->subtitle_queue;
-        sinkpad = gst_element_get_static_pad(target_sink_pad, "sink");
+        if (g_strcmp0(handle->gst_media_info.subtitle_codec, "text/x-raw") == 0)
+        {
+            target_sink_pad = handle->subtitle_queue;
+            sinkpad = gst_element_get_static_pad(target_sink_pad, "sink");
+        }
+        else
+        {
+            NXGLOGE("Unsupported subtitle codec type %s", handle->gst_media_info.subtitle_codec);
+            if (padName)	g_free(padName);
+            gst_caps_unref (caps);
+            return;
+        }
     }
     else
     {
@@ -422,7 +430,7 @@ static void on_pad_added_demux(GstElement *element,
     // Link pads [demuxer <--> video_queue/audio_queue/subtitle_queue]
     if (g_str_has_prefix(mime_type, "video/") ||
         g_str_has_prefix(mime_type, "audio/") ||
-        (hasSubTitles && g_str_has_prefix(padName, "subtitle_0")))
+        ((handle->gst_media_info.n_subtitle >= 1) && g_str_has_prefix(padName, "subtitle_0")))
     {
         if (NULL == sinkpad)
         {
@@ -448,7 +456,7 @@ static void on_pad_added_demux(GstElement *element,
     }
 
 #ifdef TEST
-    if (hasSubTitles && g_str_has_prefix(padName, "subtitle"))
+    if ((handle->gst_media_info.n_subtitle >= 1) && g_str_has_prefix(padName, "subtitle"))
     {
         NXGLOGI("Add probe to pad");
         gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER,
@@ -612,16 +620,15 @@ void PrintMediaInfo(MP_HANDLE handle, const char *pUri)
     FUNC_IN();
 
     NXGLOGI("[%s] container(%s), video mime-type(%s)"
-           ", audio mime-type(%s), seekable(%s), width(%d), height(%d)"
+           ", audio mime-type(%s), seekable(%s), video_width(%d), video_height(%d)"
            ", duration: (%" GST_TIME_FORMAT ")\r"
-           
            , pUri
            , handle->gst_media_info.container_format
            , handle->gst_media_info.video_mime_type
            , handle->gst_media_info.audio_mime_type
            , handle->gst_media_info.isSeekable ? "yes":"no"
-           , handle->gst_media_info.iWidth
-           , handle->gst_media_info.iHeight
+           , handle->gst_media_info.video_width
+           , handle->gst_media_info.video_height
            , GST_TIME_ARGS (handle->gst_media_info.iDuration));
 
     FUNC_OUT();
@@ -655,10 +662,12 @@ NX_GST_RET set_demux_element(MP_HANDLE handle)
     {
         handle->demuxer = gst_element_factory_make("mpegpsdemux", "mpegpsdemux");
     }
+#ifdef SW_V_DECODER
     else if (0 == g_strcmp0(handle->gst_media_info.container_format, "video/x-flv"))	// flv
     {
         handle->demuxer = gst_element_factory_make("flvdemux", "flvdemux");
     }
+#endif
     else if (0 == g_strcmp0(handle->gst_media_info.container_format, "video/mpegts"))	// m2ts
     {
         handle->demuxer = gst_element_factory_make("tsdemux", "tsdemux");
@@ -765,14 +774,20 @@ NX_GST_RET set_video_elements(MP_HANDLE handle)
     }
 
     // Video Decoder
+#ifdef SW_V_DECODER
     if (g_strcmp0(handle->gst_media_info.video_mime_type, "video/x-flash-video") == 0)
     {
         handle->video_decoder = gst_element_factory_make("avdec_flv", "avdec_flv");
+        handle->video_convert = gst_element_factory_make("videoconvert", "videoconvert");
+        handle->video_scale = gst_element_factory_make("video_scale", "video_scale");
     }
     else
     {
         handle->video_decoder = gst_element_factory_make("nxvideodec", "nxvideodec");
     }
+#else
+    handle->video_decoder = gst_element_factory_make("nxvideodec", "nxvideodec");
+#endif
 
     // Tee for video
     handle->tee = gst_element_factory_make("tee", "tee");
@@ -866,7 +881,8 @@ NX_GST_RET add_elements_to_bin(MP_HANDLE handle)
 
     add_video_elements_to_bin(handle);
     add_audio_elements_to_bin(handle);
-    if (hasSubTitles)
+    if (handle->gst_media_info.n_subtitle >= 1 &&
+        g_strcmp0(handle->gst_media_info.subtitle_codec, "text/x-raw") == 0)
     {
         add_subtitle_elements_to_bin(handle);
     }
@@ -1001,7 +1017,8 @@ NX_GST_RET link_elements(MP_HANDLE handle)
 
     link_video_elements(handle);
     link_audio_elements(handle);
-    if (hasSubTitles)
+    if ((handle->gst_media_info.n_subtitle >= 1 &&
+        g_strcmp0(handle->gst_media_info.subtitle_codec, "text/x-raw") == 0))
     {
         link_subtitle_elements(handle);
     }
@@ -1270,14 +1287,14 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
     memcpy(&handle->gst_media_info, pGstMInfo, sizeof(struct GST_MEDIA_INFO));
 
     NXGLOGD("container(%s), video codec(%s)"
-           ", audio codec(%s), seekable(%s), width(%d), height(%d)"
+           ", audio codec(%s), seekable(%s), video_width(%d), video_height(%d)"
            ", duration: (%" GST_TIME_FORMAT ")\r"
            , pGstMInfo->container_format
            , pGstMInfo->video_mime_type
            , pGstMInfo->audio_mime_type
            , pGstMInfo->isSeekable ? "yes":"no"
-           , pGstMInfo->iWidth
-           , pGstMInfo->iHeight
+           , pGstMInfo->video_width
+           , pGstMInfo->video_height
            , GST_TIME_ARGS (pGstMInfo->iDuration));
 
     if(handle->pipeline_is_linked)
@@ -1297,10 +1314,8 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
     handle->bus_watch_id = gst_bus_add_watch(handle->bus, (GstBusFunc)gst_bus_callback, handle);
     gst_object_unref(handle->bus);
 
-    hasSubTitles = FALSE;
-    if (pGstMInfo->n_subtitle > 0)
+    if (pGstMInfo->n_subtitle > 0 && g_strcmp0(pGstMInfo->subtitle_codec, "text/x-raw") == 0)
     {
-        hasSubTitles = TRUE;
         set_subtitle_element(handle);
     }
 
@@ -1430,14 +1445,14 @@ NX_GST_RET NX_GSTMP_GetMediaInfo(MP_HANDLE handle, GST_MEDIA_INFO *pGstMInfo)
     memcpy(pGstMInfo, &handle->gst_media_info, sizeof(GST_MEDIA_INFO));
  
     NXGLOGI("container(%s), video mime-type(%s)"
-           ", audio mime-type(%s), seekable(%s), width(%d), height(%d)"
+           ", audio mime-type(%s), seekable(%s), video_width(%d), video_height(%d)"
            ", duration: (%" GST_TIME_FORMAT ")\r"
            , pGstMInfo->container_format
            , pGstMInfo->video_mime_type
            , pGstMInfo->audio_mime_type
            , pGstMInfo->isSeekable ? "yes":"no"
-           , pGstMInfo->iWidth
-           , pGstMInfo->iHeight
+           , pGstMInfo->video_width
+           , pGstMInfo->video_height
            , GST_TIME_ARGS (pGstMInfo->iDuration));
 
     FUNC_OUT();
@@ -1459,34 +1474,24 @@ NX_GSTMP_SetDisplayInfo(MP_HANDLE handle, enum DISPLAY_TYPE type,
         return NX_GST_RET_ERROR;
     }
 
-    if (handle->gst_media_info.iWidth > dspWidth)
+    if (handle->gst_media_info.video_width > dspWidth)
     {
-        NXGLOGE("Not supported content(width:%d)",
-                handle->gst_media_info.iWidth);
+        NXGLOGE("Not supported content(width:%d)", handle->gst_media_info.video_width);
         return NX_GST_RET_ERROR;
     }
 
-    handle->gst_media_info.iX = rect.iX;
-    handle->gst_media_info.iY = rect.iY;
-    handle->gst_media_info.iWidth= rect.iWidth;
-    handle->gst_media_info.iHeight = rect.iHeight;
+    memcpy(&handle->gst_media_info, &rect, sizeof(struct DSP_RECT));
 
     NXGLOGD("iX(%d), iY(%d), width(%d), height(%d), dspWidth(%d), dspHeight(%d)",
             rect.iX, rect.iY, rect.iWidth, rect.iHeight, dspWidth, dspHeight);
 
     if (type == DISPLAY_TYPE_SECONDARY)
     {
-        handle->secondary_dsp_info.iX = rect.iX;
-        handle->secondary_dsp_info.iY = rect.iY;
-        handle->secondary_dsp_info.iWidth = rect.iWidth;
-        handle->secondary_dsp_info.iHeight = rect.iHeight;
+        memcpy(&handle->secondary_dsp_info, &rect, sizeof(struct DSP_RECT));
     }
     else
     {
-        handle->primary_dsp_info.iX = rect.iX;
-        handle->primary_dsp_info.iY = rect.iY;
-        handle->primary_dsp_info.iWidth = rect.iWidth;
-        handle->primary_dsp_info.iHeight = rect.iHeight;
+        memcpy(&handle->primary_dsp_info, &rect, sizeof(struct DSP_RECT));
     }
 
     FUNC_OUT();

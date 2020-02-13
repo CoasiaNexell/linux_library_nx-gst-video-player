@@ -74,7 +74,7 @@ int CNX_GstMoviePlayer::SetAspectRatio(DISPLAY_INFO dspInfo)
 
 	// Set aspect ratio for the primary display
 	memset(&m_dstDspRect, 0, sizeof(DSP_RECT));
-	GetAspectRatio(m_MediaInfo.iWidth, m_MediaInfo.iHeight,
+	GetAspectRatio(m_MediaInfo.video_width, m_MediaInfo.video_height,
 				   dspInfo.dspWidth, dspInfo.dspHeight,
 				   &m_dstDspRect);
 	if (0 > SetDisplayInfo(DISPLAY_TYPE_PRIMARY, dspInfo.dspWidth, dspInfo.dspHeight, m_dstDspRect)) {
@@ -89,7 +89,7 @@ int CNX_GstMoviePlayer::SetAspectRatio(DISPLAY_INFO dspInfo)
 	if (dspInfo.dspMode == DISPLAY_MODE_LCD_HDMI)
 	{
 		memset(&m_dstSubDspRect, 0, sizeof(DSP_RECT));
-		GetAspectRatio(m_MediaInfo.iWidth, m_MediaInfo.iHeight,
+		GetAspectRatio(m_MediaInfo.video_width, m_MediaInfo.video_height,
 						dspInfo.subDspWidth, dspInfo.subDspHeight,
 						&m_dstSubDspRect);
 		if(0 > SetDisplayInfo(DISPLAY_TYPE_SECONDARY, dspInfo.subDspWidth, dspInfo.subDspHeight, m_dstSubDspRect)) {

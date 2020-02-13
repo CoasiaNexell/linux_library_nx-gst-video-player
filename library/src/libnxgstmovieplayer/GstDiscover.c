@@ -160,8 +160,8 @@ static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
         pMediaInfo->video_mime_type = g_strdup(mime_type);
 
         GstDiscovererVideoInfo *video_info = (GstDiscovererVideoInfo *) sinfo;
-        pMediaInfo->iWidth = gst_discoverer_video_info_get_width (video_info);
-        pMediaInfo->iHeight = gst_discoverer_video_info_get_height (video_info);
+        pMediaInfo->video_width = gst_discoverer_video_info_get_width (video_info);
+        pMediaInfo->video_height = gst_discoverer_video_info_get_height (video_info);
 
         if ((structure != NULL) && (g_str_has_prefix(mime_type, "video/mpeg")))
         {
@@ -169,10 +169,10 @@ static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
             pMediaInfo->video_mpegversion = video_mpegversion;
         }
 
-        NXGLOGI("n_video(%u), video_mime_type(%s)(%d), iWidth(%d), iHeight(%d)"
+        NXGLOGI("n_video(%u), video_mime_type(%s)(%d), video_width(%d), video_height(%d)"
                 , pMediaInfo->n_video, pMediaInfo->video_mime_type
                 , pMediaInfo->video_mpegversion
-                , pMediaInfo->iWidth, pMediaInfo->iHeight);
+                , pMediaInfo->video_width, pMediaInfo->video_height);
     }
     else if (GST_IS_DISCOVERER_AUDIO_INFO (sinfo))
     {
@@ -197,7 +197,13 @@ static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
     {
         pMediaInfo->n_subtitle++;
         //gst_stream_subtitle_information(sinfo, pMediaInfo);
-        NXGLOGI("n_subtitle(%d)", pMediaInfo->n_subtitle);
+        if (pMediaInfo->subtitle_codec) {
+            g_free (pMediaInfo->subtitle_codec);
+            pMediaInfo->subtitle_codec = NULL;
+        }
+        pMediaInfo->subtitle_codec = g_strdup(mime_type);
+        NXGLOGI("n_subtitle(%d) subtitle_codec(%s)",
+                pMediaInfo->n_subtitle, pMediaInfo->subtitle_codec);
     }
 
     FUNC_OUT();
@@ -416,7 +422,9 @@ gboolean isSupportedMimeType(const gchar* mimeType)
         (g_strcmp0(mimeType, "video/x-msvideo") == 0) ||
         (g_strcmp0(mimeType, "avidemux") == 0) ||
         (g_strcmp0(mimeType, "video/mpeg") == 0) ||
+#ifdef SW_V_DECODER
         (g_strcmp0(mimeType, "video/x-flv") == 0) ||
+#endif
         (g_strcmp0(mimeType, "video/mpegts") == 0))
     {
         return TRUE;
