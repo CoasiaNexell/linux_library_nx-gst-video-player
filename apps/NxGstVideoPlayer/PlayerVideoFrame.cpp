@@ -176,6 +176,7 @@ PlayerVideoFrame::PlayerVideoFrame(QWidget *parent)
 											DEFAULT_RGB_LAYER_IDX, DEFAULT_SUB_DSP_WIDTH,
 											DEFAULT_SUB_DSP_HEIGHT);
 	}
+	
 	m_dspInfo.dspWidth = width();
 	m_dspInfo.dspHeight = height();
 	m_dspInfo.dspMode = (m_bHDMIConnected && m_bHDMIModeSet) ? DISPLAY_MODE_LCD_HDMI : DISPLAY_MODE_LCD_ONLY;
@@ -583,30 +584,49 @@ CNX_FileList *PlayerVideoFrame::GetFileList()
 
 void PlayerVideoFrame::HDMIStatusChanged(int status)
 {
-	m_hdmiStatusMutex.Lock();
+	//m_hdmiStatusMutex.Lock();
 
-	if (status == NX_EVENT_MEDIA_HDMI_CONNECTED) {
+	if (status == NX_EVENT_MEDIA_HDMI_CONNECTED)
+	{
 		if (false == m_bHDMIModeSet) {
 			m_bHDMIModeSet = m_pDrmInfo->setMode(CRTC_IDX_SECONDARY, PLANE_TYPE_VIDEO,
 									DEFAULT_RGB_LAYER_IDX, DEFAULT_SUB_DSP_WIDTH,
 									DEFAULT_SUB_DSP_HEIGHT);
 		}
 		m_bHDMIConnected = m_bHDMIModeSet;
-		m_dspInfo.dspMode = (m_bHDMIConnected && m_bHDMIModeSet) ? DISPLAY_MODE_LCD_HDMI : DISPLAY_MODE_LCD_ONLY;
-		NXLOGI("%s() dsp_mode(%s)", __FUNCTION__, (m_dspInfo.dspMode==DISPLAY_MODE_LCD_ONLY) ? "LCD Only":"LCD_HDMI");
+
+		if (DISPLAY_MODE_LCD_ONLY == m_dspInfo.dspMode)
+		{
+			m_dspInfo.dspMode = m_bHDMIConnected ? DISPLAY_MODE_LCD_HDMI : DISPLAY_MODE_LCD_ONLY;
+		}
+		else if (DISPLAY_MODE_UNKNOWN == m_dspInfo.dspMode)
+		{
+			m_dspInfo.dspMode = m_bHDMIConnected ? DISPLAY_MODE_HDMI_ONLY : DISPLAY_MODE_UNKNOWN;
+		}
 	}
-	else if (status == NX_EVENT_MEDIA_HDMI_DISCONNECTED) {
+	else if (status == NX_EVENT_MEDIA_HDMI_DISCONNECTED)
+	{
 		m_bHDMIConnected = false;
+
+		if (DISPLAY_MODE_LCD_HDMI == m_dspInfo.dspMode)
+		{
+			m_dspInfo.dspMode = DISPLAY_MODE_LCD_ONLY;
+		}
+		else if (DISPLAY_MODE_HDMI_ONLY == m_dspInfo.dspMode)
+		{
+			m_dspInfo.dspMode = DISPLAY_MODE_UNKNOWN;
+		}
+	}
+	else
+	{
+		m_bHDMIConnected = false;
+
 		m_dspInfo.dspMode = DISPLAY_MODE_LCD_ONLY;
 	}
-	else {
-		m_bHDMIConnected = false;
-		m_dspInfo.dspMode = DISPLAY_MODE_LCD_ONLY;
-	}
+
+	//m_hdmiStatusMutex.Unlock();
 
 	m_pNxPlayer->SetDisplayMode(m_dspInfo.dspMode);
-
-	m_hdmiStatusMutex.Unlock();
 }
 
 bool PlayerVideoFrame::eventFilter(QObject *watched, QEvent *event)
@@ -1127,13 +1147,6 @@ bool PlayerVideoFrame::PlayVideo()
 				// Test code for Thumbnail
 				//m_pNxPlayer->MakeThumbnail(m_FileList.GetList(m_iCurFileListIdx).toStdString().c_str(),
 				//							20 * 1000, 200, "/nexell/daudio/NxGstVideoPlayer/snapshot.jpg");
-
-				m_dspInfo.dspWidth = width();
-				m_dspInfo.dspHeight = height();
-				m_dspInfo.dspMode = (m_bHDMIConnected && m_bHDMIModeSet) ? DISPLAY_MODE_LCD_HDMI : DISPLAY_MODE_LCD_ONLY;
-				NXLOGI("%s() dsp_mode(%s)", __FUNCTION__, (m_dspInfo.dspMode==DISPLAY_MODE_LCD_ONLY) ? "LCD Only":"LCD_HDMI");
-				m_dspInfo.subDspWidth = DEFAULT_SUB_DSP_WIDTH;
-				m_dspInfo.subDspHeight = DEFAULT_SUB_DSP_HEIGHT;
 
 				iResult = m_pNxPlayer->InitMediaPlayer(cbEventCallback, NULL,
 													   m_FileList.GetList(m_iCurFileListIdx).toStdString().c_str(),

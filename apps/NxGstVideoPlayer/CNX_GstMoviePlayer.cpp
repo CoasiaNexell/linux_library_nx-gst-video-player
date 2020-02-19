@@ -82,11 +82,10 @@ int CNX_GstMoviePlayer::SetAspectRatio(DISPLAY_INFO dspInfo)
 		return -1;
 	}
 	NXLOGI("%s() m_dstDspRect(%d, %d, %d, %d)",
-			__FUNCTION__, m_dstDspRect.iX, m_dstDspRect.iY,
-			m_dstDspRect.iWidth, m_dstDspRect.iHeight);
+			__FUNCTION__, m_dstDspRect.left, m_dstDspRect.top,
+			m_dstDspRect.right, m_dstDspRect.bottom);
 
 	// Set aspect ratio for the secondary display
-	if (dspInfo.dspMode == DISPLAY_MODE_LCD_HDMI)
 	{
 		memset(&m_dstSubDspRect, 0, sizeof(DSP_RECT));
 		GetAspectRatio(m_MediaInfo.video_width, m_MediaInfo.video_height,
@@ -98,8 +97,8 @@ int CNX_GstMoviePlayer::SetAspectRatio(DISPLAY_INFO dspInfo)
 		}
 	}
 	NXLOGI("%s() m_dstSubDspRect(%d, %d, %d, %d)",
-			__FUNCTION__, m_dstSubDspRect.iX, m_dstSubDspRect.iY,
-			m_dstSubDspRect.iWidth, m_dstSubDspRect.iHeight);
+			__FUNCTION__, m_dstSubDspRect.left, m_dstSubDspRect.top,
+			m_dstSubDspRect.right, m_dstSubDspRect.bottom);
 	return 0;
 }
 
@@ -271,15 +270,15 @@ void CNX_GstMoviePlayer::PrintMediaInfo( const char *pUri )
 {
 	NXLOGD( "FileName : %s\n", pUri );
 	NXLOGI("%s() container(%s), video codec(%s)"
-		   ", audio codec(%s), seekable(%s), width(%d), height(%d)"
+		   ", audio codec(%s), seekable(%s), video_width(%d), video_height(%d)"
 		   ", duration: (%" GST_TIME_FORMAT ")\r"
 		   , __FUNCTION__
 		   , m_MediaInfo.container_format
 		   , m_MediaInfo.video_mime_type
 		   , m_MediaInfo.audio_mime_type
 		   , m_MediaInfo.isSeekable ? "yes":"no"
-		   , m_MediaInfo.iWidth
-		   , m_MediaInfo.iHeight
+		   , m_MediaInfo.video_width
+		   , m_MediaInfo.video_height
 		   , GST_TIME_ARGS (m_MediaInfo.iDuration));
 }
 
@@ -563,32 +562,39 @@ void CNX_GstMoviePlayer::GetAspectRatio(int srcWidth, int srcHeight,
 	double xRatio = (double)dspWidth / (double)srcWidth;
 	double yRatio = (double)dspHeight / (double)srcHeight;
 
+	int width, height, x = 0, y = 0;
+
 	if( xRatio > yRatio )
 	{
-		pDspDstRect->iWidth    = (int)((double)srcWidth * yRatio);
-		pDspDstRect->iHeight   = dspHeight;
+		width    = (int)((double)srcWidth * yRatio);
+		height   = dspHeight;
 	}
 	else
 	{
-		pDspDstRect->iWidth    = dspWidth;
-		pDspDstRect->iHeight   = (int)((double)srcHeight * xRatio);
+		width    = dspWidth;
+		height   = (int)((double)srcHeight * xRatio);
 	}
 
-	if(dspWidth != pDspDstRect->iWidth)
+	if(dspWidth != width)
 	{
-		if(dspWidth > pDspDstRect->iWidth)
+		if(dspWidth > width)
 		{
-			pDspDstRect->iX = (dspWidth - pDspDstRect->iWidth)/2;
+			x = (dspWidth - width)/2;
 		}
 	}
 
-	if(dspHeight != pDspDstRect->iHeight)
+	if(dspHeight != height)
 	{
-		if(dspHeight > pDspDstRect->iHeight)
+		if(dspHeight > height)
 		{
-			pDspDstRect->iY = (dspHeight - pDspDstRect->iHeight)/2;
+			y = (dspHeight - height)/2;
 		}
 	}
+
+	pDspDstRect->left = x;
+	pDspDstRect->right = x + width;
+	pDspDstRect->top = y;
+	pDspDstRect->bottom = y + height;
 }
 
 double CNX_GstMoviePlayer::GetVideoSpeed()
