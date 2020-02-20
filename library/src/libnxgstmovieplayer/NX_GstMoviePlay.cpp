@@ -71,7 +71,6 @@ struct Sink
     gboolean            removing;
     GstElement          *pipeline;
     GstElement          *tee;
-    enum DISPLAY_TYPE   type;
 };
 
 struct MOVIE_TYPE {
@@ -89,7 +88,6 @@ struct MOVIE_TYPE {
     GstElement  *tee;
     GstElement  *tee_queue_primary;
     GstPad      *tee_primary_pad;
-    struct Sink	*secondary_sink;
 
     // For Audio
     GstElement  *audio_queue;
@@ -313,7 +311,7 @@ NX_GST_RET set_subtitle_element(MP_HANDLE handle)
 
     if (!handle)
     {
-        NXGLOGE("handle is NULL", __func__);
+        NXGLOGE("handle is NULL");
         return NX_GST_RET_ERROR;
     }
 
@@ -327,7 +325,7 @@ NX_GST_RET set_subtitle_element(MP_HANDLE handle)
 
     if (!handle->capsfilter || !handle->subtitle_queue || !handle->fakesink)
     {
-        NXGLOGE("Failed to create subtitle elements", __func__);
+        NXGLOGE("Failed to create subtitle elements");
         return NX_GST_RET_ERROR;
     }
     gst_caps_unref(cap);
@@ -657,7 +655,7 @@ NX_GST_RET set_demux_element(MP_HANDLE handle)
 
     if (!handle)
     {
-        NXGLOGE("handle is NULL", __func__);
+        NXGLOGE("handle is NULL");
         return NX_GST_RET_ERROR;
     }
 
@@ -707,7 +705,7 @@ NX_GST_RET set_audio_elements(MP_HANDLE handle)
 
     if (!handle)
     {
-        NXGLOGE("handle is NULL", __func__);
+        NXGLOGE("handle is NULL");
         return NX_GST_RET_ERROR;
     }
 
@@ -720,13 +718,13 @@ NX_GST_RET set_audio_elements(MP_HANDLE handle)
         handle->audio_parser = gst_element_factory_make("mpegaudioparse", "mpegaudioparse");
         if (!handle->audio_parser)
         {
-            NXGLOGE("Failed to create mpegaudioparse element", __func__);
+            NXGLOGE("Failed to create mpegaudioparse element");
             return NX_GST_RET_ERROR;
         }
         handle->audio_decoder = gst_element_factory_make("mpg123audiodec", "mpg123audiodec");
         if (!handle->audio_decoder)
         {
-            NXGLOGE("Failed to create mpg123audiodec element", __func__);
+            NXGLOGE("Failed to create mpg123audiodec element");
             return NX_GST_RET_ERROR;
         }
     }
@@ -735,7 +733,7 @@ NX_GST_RET set_audio_elements(MP_HANDLE handle)
         handle->audio_decoder = gst_element_factory_make("decodebin", "decodebin");
         if (!handle->audio_decoder)
         {
-            NXGLOGE("Failed to create decodebin element", __func__);
+            NXGLOGE("Failed to create decodebin element");
             return NX_GST_RET_ERROR;
         }
     }
@@ -747,7 +745,7 @@ NX_GST_RET set_audio_elements(MP_HANDLE handle)
     if (!handle->audio_queue || !handle->audioconvert ||
         !handle->audioresample || !handle->alsasink)
     {
-        NXGLOGE("Failed to create audio elements", __func__);
+        NXGLOGE("Failed to create audio elements");
         return NX_GST_RET_ERROR;
     }
 
@@ -762,7 +760,7 @@ NX_GST_RET set_video_elements(MP_HANDLE handle)
 
     if (!handle)
     {
-        NXGLOGE("handle is NULL", __func__);
+        NXGLOGE("handle is NULL");
         return NX_GST_RET_ERROR;
     }
 
@@ -775,7 +773,7 @@ NX_GST_RET set_video_elements(MP_HANDLE handle)
         handle->video_parser = gst_element_factory_make("h264parse", "parser");
         if (!handle->video_parser)
         {
-            NXGLOGE("Failed to create h264parse element", __func__);
+            NXGLOGE("Failed to create h264parse element");
             return NX_GST_RET_ERROR;
         }
     }
@@ -785,7 +783,7 @@ NX_GST_RET set_video_elements(MP_HANDLE handle)
         handle->video_parser = gst_element_factory_make("mpegvideoparse", "parser");
         if (!handle->video_parser)
         {
-            NXGLOGE("Failed to create mpegvideoparse element", __func__);
+            NXGLOGE("Failed to create mpegvideoparse element");
             return NX_GST_RET_ERROR;
         }
     }
@@ -810,7 +808,7 @@ NX_GST_RET set_video_elements(MP_HANDLE handle)
     handle->tee = gst_element_factory_make("tee", "tee");
     if(!handle->video_queue || !handle->video_decoder)
     {
-        NXGLOGE("Failed to create video elements", __func__);
+        NXGLOGE("Failed to create video elements");
         return NX_GST_RET_ERROR;
     }
 
@@ -832,7 +830,7 @@ NX_GST_RET set_source_element(MP_HANDLE handle)
     handle->source = gst_element_factory_make("filesrc", "source");
     if (NULL == handle->source)
     {
-        NXGLOGE("Failed to create filesrc element", __func__);
+        NXGLOGE("Failed to create filesrc element");
         return NX_GST_RET_ERROR;
     }
     g_object_set(handle->source, "location", handle->uri, NULL);
@@ -890,7 +888,7 @@ NX_GST_RET add_elements_to_bin(MP_HANDLE handle)
 
     if (!handle)
     {
-        NXGLOGE("handle is NULL", __func__);
+        NXGLOGE("handle is NULL");
         return NX_GST_RET_ERROR;
     }
 
@@ -917,15 +915,15 @@ NX_GST_RET link_video_elements(MP_HANDLE handle)
     {
         if (!gst_element_link(handle->video_queue, handle->video_parser))
         {
-            NXGLOGE("Failed to link video elements with video_queue<-->video_parser", __func__);
+            NXGLOGE("Failed to link video elements with video_queue<-->video_parser");
             return NX_GST_RET_ERROR;
         }
         if (!gst_element_link(handle->video_parser, handle->video_decoder))
         {
-            NXGLOGE("Failed to link video elements with video_parser<-->video_decoder", __func__);
+            NXGLOGE("Failed to link video elements with video_parser<-->video_decoder");
             return NX_GST_RET_ERROR;
         }
-        NXGLOGI("Succeed to link video elements with video_queue<-->video_parser<-->video_decoder", __func__);
+        NXGLOGI("Succeed to link video elements with video_queue<-->video_parser<-->video_decoder");
     }
     else
     {
@@ -945,7 +943,7 @@ NX_GST_RET link_video_elements(MP_HANDLE handle)
     {
         NXGLOGE("Failed to link video_decoder<-->tee");
     }
-    NXGLOGI("Succeed to link video elements with video_decoder<-->tee", __func__);
+    NXGLOGI("Succeed to link video elements with video_decoder<-->tee");
 
     return NX_GST_RET_OK;
 }
@@ -1064,19 +1062,19 @@ NX_GST_RET link_display(MP_HANDLE handle, enum DISPLAY_TYPE type)
     GstPad *sinkpad;
     GstPadTemplate *templ;
     DSP_RECT rect;
+    gchar *video_sink_name, *queue_name;
 
-    sink->type = type;
     sink->tee = handle->tee;
     sink->pipeline = handle->pipeline;
 
-    // Request tee pad
+    // Request a pad from tee
     templ = gst_element_class_get_pad_template (GST_ELEMENT_GET_CLASS (sink->tee), "src_%u");
     sink->tee_pad = gst_element_request_pad (sink->tee, templ, NULL, NULL);
-    NXGLOGI("Obtained request pad %s for the %s display",
+    NXGLOGI("Obtained request pad %s:%s for the %s display",
             GST_DEBUG_PAD_NAME(sink->tee_pad),
             (type == DISPLAY_TYPE_PRIMARY)?"primary":"secondary");
 
-    // Create elements 'queue' and 'nxvideosink_hdmi'
+    // Create elements 'queue' and 'nxvideosink'
     if (DISPLAY_TYPE_PRIMARY == type)
     {
         sink->queue = gst_element_factory_make ("queue2", "queue_primary");
@@ -1088,12 +1086,15 @@ NX_GST_RET link_display(MP_HANDLE handle, enum DISPLAY_TYPE type)
         sink->nxvideosink = gst_element_factory_make ("nxvideosink", "nxvideosink_hdmi");
     }
 
-    if (DISPLAY_TYPE_PRIMARY == type)
-    {
+    g_object_set (G_OBJECT (sink->nxvideosink), "async", false, NULL);
+    g_object_get (G_OBJECT (sink->queue), "name", &queue_name, NULL);
+    g_object_get (G_OBJECT (sink->nxvideosink), "name", &video_sink_name, NULL);
+
+    NXGLOGI("queue_name(%s) videosink(%s)", queue_name, video_sink_name);
+
+    if (DISPLAY_TYPE_PRIMARY == type) {
         rect = handle->primary_dsp_rect;
-    }
-    else
-    {
+    } else {
         rect = handle->secondary_dsp_rect;
     }
     g_object_set(G_OBJECT(sink->nxvideosink), "dst-x", rect.left, NULL);
@@ -1104,7 +1105,7 @@ NX_GST_RET link_display(MP_HANDLE handle, enum DISPLAY_TYPE type)
 
     if (!sink->queue || !sink->nxvideosink)
     {
-        NXGLOGE("Failed to create dual display elements", __func__);
+        NXGLOGE("Failed to create dual display elements");
         return NX_GST_RET_ERROR;
     }
     sink->removing = FALSE;
@@ -1118,7 +1119,8 @@ NX_GST_RET link_display(MP_HANDLE handle, enum DISPLAY_TYPE type)
     // Link queue<-->nxvideosink
     if (!gst_element_link_many(sink->queue, sink->nxvideosink, NULL))
     {
-        NXGLOGE("Failed to link queue<-->nxvideosink_hdmi");
+        NXGLOGE("Failed to link %s<-->%s", queue_name, video_sink_name);
+        return NX_GST_RET_ERROR;
     }
 
     // Set sync state
@@ -1127,26 +1129,32 @@ NX_GST_RET link_display(MP_HANDLE handle, enum DISPLAY_TYPE type)
 
     // Link tee_pad<-->queue sink pad
     sinkpad = gst_element_get_static_pad(sink->queue, "sink");
-    if (gst_pad_link(sink->tee_pad, sinkpad) != GST_PAD_LINK_OK)
+    gboolean ret = gst_pad_link(sink->tee_pad, sinkpad);
+    if (GST_PAD_LINK_OK != ret)
     {
-        NXGLOGE("tee_pad could not be linked.");
+        NXGLOGI("%s to unlink %s:%s from %s:%s",
+                (ret == GST_PAD_LINK_OK) ? "Succeed":"Failed",
+                GST_DEBUG_PAD_NAME(sink->tee_pad),
+                GST_DEBUG_PAD_NAME(sinkpad));
         gst_object_unref (sinkpad);
         return NX_GST_RET_ERROR;
     }
-    NXGLOGI("Succeed to link %s:%s and %s:%s",
-            GST_DEBUG_PAD_NAME(sink->tee_pad),
-            GST_DEBUG_PAD_NAME(sinkpad));
-    gst_object_unref (sinkpad);
-
-    if (DISPLAY_TYPE_PRIMARY == type)
-    {
-        primary_sinks = g_list_append (primary_sinks, sink);
-    }
     else
     {
-        handle->secondary_sink = sink;
+        NXGLOGI("Succeed to link %s:%s and %s:%s",
+                GST_DEBUG_PAD_NAME(sink->tee_pad),
+                GST_DEBUG_PAD_NAME(sinkpad));
+    }
+    gst_object_unref (sinkpad);
+
+    if (DISPLAY_TYPE_PRIMARY == type) {
+        primary_sinks = g_list_append (primary_sinks, sink);
+    } else {
         secondary_sinks = g_list_append (secondary_sinks, sink);
     }
+
+    g_free (queue_name);
+    g_free (video_sink_name);
 
     return NX_GST_RET_OK;
 }
@@ -1155,7 +1163,7 @@ static GstPadProbeReturn
 unlink_display_cb (GstPad* pad, GstPadProbeInfo* info, gpointer user_data)
 {
     struct Sink *sink = (struct Sink *)user_data;
-    GstStateChangeReturn ret;
+    GstStateChangeReturn state_ret;
 
     NXGLOGI();
 
@@ -1168,47 +1176,40 @@ unlink_display_cb (GstPad* pad, GstPadProbeInfo* info, gpointer user_data)
     // unlink queue<-->tee_pad
     GstPad *sinkpad;
     sinkpad = gst_element_get_static_pad (sink->queue, "sink");
-    if (!gst_pad_unlink (sink->tee_pad, sinkpad))
-    {
-        NXGLOGE("Failed to unlink %s", gst_pad_get_name(sinkpad));
-    }
-    NXGLOGI("Succeed to unlink %s from %s",
-            GST_DEBUG_PAD_NAME(sink->tee_pad),	// tee
-            GST_DEBUG_PAD_NAME(sinkpad));	    // src_%u
+    gboolean ret = gst_pad_unlink (sink->tee_pad, sinkpad);
+    NXGLOGI("%s to unlink %s:%s from %s:%s",
+            (ret == true) ? "Succeed":"Failed",
+            GST_DEBUG_PAD_NAME(sink->tee_pad),
+            GST_DEBUG_PAD_NAME(sinkpad));
     gst_object_unref (sinkpad);
 
-    // set state of 'nxvideosink_hdmi' to NULL
-    ret = gst_element_set_state (sink->nxvideosink, GST_STATE_NULL);
-    if (ret == GST_STATE_CHANGE_FAILURE)
-    {
-        NXGLOGE("Failed to set nxvideosink_hdmi to the NULL state");
+    // set state of 'nxvideosink' and 'queue' to NULL
+    state_ret = gst_element_set_state (sink->nxvideosink, GST_STATE_NULL);
+    if (state_ret == GST_STATE_CHANGE_FAILURE) {
+        NXGLOGE("Failed to set nxvideosink to the NULL state");
     }
-
-    // set state of 'queue' to NULL
-    ret = gst_element_set_state (sink->queue, GST_STATE_NULL);
-    if (ret == GST_STATE_CHANGE_FAILURE)
-    {
+    state_ret = gst_element_set_state (sink->queue, GST_STATE_NULL);
+    if (state_ret == GST_STATE_CHANGE_FAILURE) {
         NXGLOGE("Failed to set queue to the NULL state");
     }
 
-    // remove queue and nxvideosink_hdmi
-    if (!gst_bin_remove (GST_BIN (sink->pipeline), sink->queue))
-    {
+    // remove queue and nxvideosink
+    if (!gst_bin_remove (GST_BIN (sink->pipeline), sink->queue)) {
         NXGLOGE("Failed to remove queue from bin");
     }
-    if (!gst_bin_remove (GST_BIN (sink->pipeline), sink->nxvideosink))
-    {
-        NXGLOGE("Failed to remove nxvideosink_hdmi from bin");
+    if (!gst_bin_remove (GST_BIN (sink->pipeline), sink->nxvideosink)) {
+        NXGLOGE("Failed to remove nxvideosink from bin");
     }
 
-    // release_request_pad and unref 'tee_secondary_pad'
+
+    // release_request_pad and unref 'tee_pad'
     gst_element_release_request_pad (sink->tee, sink->tee_pad);
     gst_object_unref (sink->tee_pad);
 
     // GStreamer-CRITICAL **: gst_object_unref: assertion '((GObject *) object)->ref_count > 0' failed
-    // unref queue and nxvideosink_hdmi
+    // unref queue and nxvideosink
     //gst_object_unref (sink->queue);
-    //gst_object_unref (sink->nxvideosink_hdmi);
+    //gst_object_unref (sink->nxvideosink);
 
     NXGLOGI("- GST_PAD_PROBE_REMOVE");
     return GST_PAD_PROBE_REMOVE;
@@ -1252,7 +1253,7 @@ NX_GST_RET NX_GSTMP_SetDisplayMode(MP_HANDLE handle, enum DISPLAY_MODE in_mode)
     }
 
     if ((in_mode < DISPLAY_MODE_LCD_ONLY) ||
-        (in_mode > DISPLAY_MODE_UNKNOWN))
+        (in_mode > DISPLAY_MODE_NONE))
     {
         NXGLOGE("Failed to set display mode - Invalid Display Mode");
         return NX_GST_RET_ERROR;
@@ -1271,12 +1272,9 @@ NX_GST_RET NX_GSTMP_SetDisplayMode(MP_HANDLE handle, enum DISPLAY_MODE in_mode)
         {
             if (DISPLAY_MODE_LCD_ONLY == old_mode)
             {
-                if (DISPLAY_MODE_UNKNOWN == in_mode)
-                {
+                if (DISPLAY_MODE_NONE == in_mode) {
                     unlink_display(DISPLAY_TYPE_PRIMARY);
-                }
-                else
-                {
+                } else {
                     link_display(handle, DISPLAY_TYPE_SECONDARY);
                     if (DISPLAY_MODE_HDMI_ONLY == in_mode)
                     {
@@ -1286,12 +1284,9 @@ NX_GST_RET NX_GSTMP_SetDisplayMode(MP_HANDLE handle, enum DISPLAY_MODE in_mode)
             }
             else if (DISPLAY_MODE_HDMI_ONLY == old_mode)
             {
-                if (DISPLAY_MODE_UNKNOWN == in_mode)
-                {
+                if (DISPLAY_MODE_NONE == in_mode) {
                     unlink_display(DISPLAY_TYPE_SECONDARY);
-                }
-                else
-                {
+                } else {
                     link_display(handle, DISPLAY_TYPE_PRIMARY);
                     if (DISPLAY_MODE_LCD_ONLY == in_mode)
                     {
@@ -1301,13 +1296,10 @@ NX_GST_RET NX_GSTMP_SetDisplayMode(MP_HANDLE handle, enum DISPLAY_MODE in_mode)
             }
             else if (DISPLAY_MODE_LCD_HDMI == old_mode)
             {
-                if (DISPLAY_MODE_UNKNOWN == in_mode)
-                {
+                if (DISPLAY_MODE_NONE == in_mode) {
                     unlink_display(DISPLAY_TYPE_PRIMARY);
                     unlink_display(DISPLAY_TYPE_SECONDARY);
-                }
-                else
-                {
+                } else {
                     if (DISPLAY_MODE_LCD_ONLY == in_mode)
                     {
                         unlink_display(DISPLAY_TYPE_SECONDARY);
@@ -1320,16 +1312,11 @@ NX_GST_RET NX_GSTMP_SetDisplayMode(MP_HANDLE handle, enum DISPLAY_MODE in_mode)
             }
             else
             {
-                if (DISPLAY_MODE_LCD_ONLY == in_mode)
-                {
+                if (DISPLAY_MODE_LCD_ONLY == in_mode) {
                     link_display(handle, DISPLAY_TYPE_PRIMARY);
-                }
-                else if (DISPLAY_MODE_HDMI_ONLY == in_mode)
-                {
+                } else if (DISPLAY_MODE_HDMI_ONLY == in_mode) {
                     link_display(handle, DISPLAY_TYPE_SECONDARY);
-                }
-                if (DISPLAY_MODE_LCD_HDMI == in_mode)
-                {
+                } else if (DISPLAY_MODE_LCD_HDMI == in_mode) {
                     link_display(handle, DISPLAY_TYPE_PRIMARY);
                     link_display(handle, DISPLAY_TYPE_SECONDARY);
                 }
@@ -1358,7 +1345,7 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
 
     if(NULL == handle)
     {
-        NXGLOGE("Failed to alloc memory for handle", __func__);
+        NXGLOGE("Failed to alloc memory for handle");
         return NX_GST_RET_ERROR;
     }
     handle->uri = g_strdup(pfilePath);
@@ -1387,7 +1374,7 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
 
     if(handle->pipeline_is_linked)
     {
-        NXGLOGE("pipeline is already linked", __func__);
+        NXGLOGE("pipeline is already linked");
         // TODO:
         return NX_GST_RET_OK;
     }
@@ -1395,7 +1382,7 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
     handle->pipeline = gst_pipeline_new("NxGstMoviePlay");
     if (NULL == handle->pipeline)
     {
-        NXGLOGE("pipeline is NULL", __func__);
+        NXGLOGE("pipeline is NULL");
         return NX_GST_RET_ERROR;
     }
     handle->bus = gst_pipeline_get_bus(GST_PIPELINE(handle->pipeline));
@@ -1455,14 +1442,14 @@ NX_GST_RET NX_GSTMP_Open(MP_HANDLE *pHandle,
     if(*pHandle)
     {
         // TODO:
-        NXGLOGE("handle is not freed", __func__);
+        NXGLOGE("handle is not freed");
         return NX_GST_RET_ERROR;
     }
 
     MP_HANDLE handle = (MP_HANDLE)g_malloc0(sizeof(MOVIE_TYPE));
     if (NULL == handle)
     {
-        NXGLOGE("Failed to alloc handle", __func__);
+        NXGLOGE("Failed to alloc handle");
         return NX_GST_RET_ERROR;
     }
 
@@ -1471,7 +1458,7 @@ NX_GST_RET NX_GSTMP_Open(MP_HANDLE *pHandle,
 
     handle->owner = cbOwner;
     handle->callback = cb;
-    handle->display_mode = DISPLAY_MODE_UNKNOWN;
+    handle->display_mode = DISPLAY_MODE_NONE;
 
     _CAutoLock lock(&handle->apiLock);
 
@@ -1495,7 +1482,7 @@ void NX_GSTMP_Close(MP_HANDLE handle)
 
     if (NULL == handle)
     {
-        NXGLOGE("handle is already NULL", __func__);
+        NXGLOGE("handle is already NULL");
         return;
     }
 
@@ -1619,13 +1606,13 @@ int64_t NX_GSTMP_GetPosition(MP_HANDLE handle)
         }
         else
         {
-            NXGLOGE("Invalid state to query POSITION", __func__);
+            NXGLOGE("Invalid state to query POSITION");
             return -1;
         }
     }
     else
     {
-        NXGLOGE("Failed to query POSITION", __func__);
+        NXGLOGE("Failed to query POSITION");
         return -1;
     }
 
@@ -1665,13 +1652,13 @@ int64_t NX_GSTMP_GetDuration(MP_HANDLE handle)
         }
         else
         {
-            NXGLOGE("Invalid state to query DURATION", __func__);
+            NXGLOGE("Invalid state to query DURATION");
             return -1;
         }
     }
     else
     {
-        NXGLOGE("Failed to query DURATION", __func__);
+        NXGLOGE("Failed to query DURATION");
         return -1;
     }
 
@@ -1692,7 +1679,7 @@ NX_GST_RET NX_GSTMP_SetVolume(MP_HANDLE handle, int volume)
     }
 
     gdouble vol = (double)volume/100.;
-    NXGLOGI("set volume to %f", __func__, vol);
+    NXGLOGI("set volume to %f", vol);
     g_object_set(G_OBJECT (handle->volume), "volume", vol, NULL);
 
     FUNC_OUT();
@@ -1776,7 +1763,7 @@ static NX_GST_RET seek_to_time (MP_HANDLE handle, gint64 time_nanoseconds)
                           GST_SEEK_TYPE_NONE,		/* GstSeekType stop_type */
                           GST_CLOCK_TIME_NONE))		/* gint64 stop */
     {
-        NXGLOGE("Failed to seek %lld!", __func__, time_nanoseconds);
+        NXGLOGE("Failed to seek %lld!", time_nanoseconds);
         return NX_GST_RET_ERROR;
     }
     /* And wait for this seek to complete */
@@ -1795,8 +1782,8 @@ NX_GST_RET NX_GSTMP_Seek(MP_HANDLE handle, gint64 seekTime)
     
     if (!handle || !handle->pipeline_is_linked)
     {
-        NXGLOGE(": invalid state or invalid operation.(%p,%d)\n",
-                __func__, handle, handle->pipeline_is_linked);
+        NXGLOGE("Invalid state or invalid operation.(%p,%d)\n",
+                handle, handle->pipeline_is_linked);
         return ret;
     }
 
@@ -1810,13 +1797,13 @@ NX_GST_RET NX_GSTMP_Seek(MP_HANDLE handle, gint64 seekTime)
         }
         else
         {
-            NXGLOGE("Invalid state to seek", __func__);
+            NXGLOGE("Invalid state to seek");
             ret = NX_GST_RET_ERROR;
         }
     }
     else
     {
-        NXGLOGE("Failed to seek", __func__);
+        NXGLOGE("Failed to seek");
         ret = NX_GST_RET_ERROR;
     }
 
@@ -1848,7 +1835,7 @@ NX_GST_RET NX_GSTMP_Play(MP_HANDLE handle)
         NXGLOGI("set_state(PLAYING) ==> ret(%s)", get_gst_state_change_ret(ret));
         if (GST_STATE_CHANGE_FAILURE == ret)
         {
-            NXGLOGE("Failed to set the pipeline to the PLAYING state(ret=%d)", __func__, ret);
+            NXGLOGE("Failed to set the pipeline to the PLAYING state(ret=%d)", ret);
             return NX_GST_RET_ERROR;
         }
     }
@@ -2152,5 +2139,5 @@ const char* get_display_mode_str(enum DISPLAY_MODE mode)
         default:
             break;
     }
-    return "DISPLAY_MODE_UNKNOWN";
+    return "DISPLAY_MODE_NONE";
 }

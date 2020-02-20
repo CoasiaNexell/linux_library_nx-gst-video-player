@@ -13,7 +13,7 @@ extern "C" {
 #define LOG_TAG "[NxGstVPLAYER]"
 #endif
 
-#define	VBS_MSG				0
+#define	VBS_MSG			0
 #define	DBG_FUNCTION		0
 
 void nx_gst_info(const char *format, ...);
@@ -57,11 +57,11 @@ void nx_gst_debug(const char *format, ...);
 
 #else   // DEBUG
 
-#define	FUNC_IN()			    do{}while(0)
-#define	FUNC_OUT()			    do{}while(0)
+#define	FUNC_IN()			do{}while(0)
+#define	FUNC_OUT()			do{}while(0)
 
-#define NXGLOGD(fmt, arg...)    do{}while(0)
-#define NXGLOGV(fmt, arg...)    do{}while(0)
+#define NXGLOGD(fmt, arg...)            do{}while(0)
+#define NXGLOGV(fmt, arg...)            do{}while(0)
 
 #endif   // DEBUG
 

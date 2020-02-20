@@ -176,7 +176,7 @@ PlayerVideoFrame::PlayerVideoFrame(QWidget *parent)
 											DEFAULT_RGB_LAYER_IDX, DEFAULT_SUB_DSP_WIDTH,
 											DEFAULT_SUB_DSP_HEIGHT);
 	}
-	
+
 	m_dspInfo.dspWidth = width();
 	m_dspInfo.dspHeight = height();
 	m_dspInfo.dspMode = (m_bHDMIConnected && m_bHDMIModeSet) ? DISPLAY_MODE_LCD_HDMI : DISPLAY_MODE_LCD_ONLY;
@@ -599,9 +599,9 @@ void PlayerVideoFrame::HDMIStatusChanged(int status)
 		{
 			m_dspInfo.dspMode = m_bHDMIConnected ? DISPLAY_MODE_LCD_HDMI : DISPLAY_MODE_LCD_ONLY;
 		}
-		else if (DISPLAY_MODE_UNKNOWN == m_dspInfo.dspMode)
+		else if (DISPLAY_MODE_NONE == m_dspInfo.dspMode)
 		{
-			m_dspInfo.dspMode = m_bHDMIConnected ? DISPLAY_MODE_HDMI_ONLY : DISPLAY_MODE_UNKNOWN;
+			m_dspInfo.dspMode = m_bHDMIConnected ? DISPLAY_MODE_HDMI_ONLY : DISPLAY_MODE_NONE;
 		}
 	}
 	else if (status == NX_EVENT_MEDIA_HDMI_DISCONNECTED)
@@ -614,7 +614,7 @@ void PlayerVideoFrame::HDMIStatusChanged(int status)
 		}
 		else if (DISPLAY_MODE_HDMI_ONLY == m_dspInfo.dspMode)
 		{
-			m_dspInfo.dspMode = DISPLAY_MODE_UNKNOWN;
+			m_dspInfo.dspMode = DISPLAY_MODE_NONE;
 		}
 	}
 	else

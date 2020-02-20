@@ -7,6 +7,7 @@
 #include "GstDiscover.h"
 #include "NX_GstLog.h"
 #define LOG_TAG "[GstDiscover]"
+#include "NX_GstTypes.h"
 
 //#define ASYNC_DISCOVER
 
@@ -349,7 +350,12 @@ static int start_discover(const char* filePath, struct GST_MEDIA_INFO *pMediaInf
     FUNC_IN();
 
     GError *err = NULL;
-    gchar *uri = g_strconcat("file://", filePath, NULL);
+    gchar *uri;
+
+    if (gst_uri_is_valid (filePath))
+        uri = g_strdup (filePath);
+    else
+        uri = gst_filename_to_uri (filePath, NULL);
 
     DiscoverData data;
     memset (&data, 0, sizeof (data));
@@ -411,6 +417,27 @@ static int start_discover(const char* filePath, struct GST_MEDIA_INFO *pMediaInf
     FUNC_OUT();
 
     return 0;
+}
+
+int get_demux_type(const gchar* mimeType)
+{
+    int idx = 0;
+    int len = strlen(mimeType);
+    const char *str;
+
+    while (CONTAINER_DESC[idx].container_type) {
+        str = CONTAINER_DESC[idx].container_type;
+        NXGLOGI("str = %s", str);
+        idx++;
+
+        if (str && strncmp(mimeType, str, len) == 0)
+        {
+            NXGLOGI("## %s, %s ==> %s", str, mimeType, CONTAINER_DESC[idx].demux_name);
+            return CONTAINER_DESC[idx].demux_name;
+        }
+    }
+
+    return -1;
 }
 
 gboolean isSupportedMimeType(const gchar* mimeType)

@@ -109,7 +109,8 @@ struct _GST_STREAM_INFO {
     /*! \brief Total stream duration  */
     gint64			iDuration;
 };
-typedef struct _GST_STREAM_INFO	GST_STREAM_INFO;/*! \typedef GST_STREAM_INFO */
+/*! \typedef GST_STREAM_INFO */
+typedef struct _GST_STREAM_INFO	GST_STREAM_INFO;
 
 /*! \struct GST_MEDIA_INFO
  * \brief Describes the media information */
@@ -178,7 +179,7 @@ enum DISPLAY_MODE {
     /*! \brief If both the primary LCD and the secondary HDMI display are supported */
     DISPLAY_MODE_LCD_HDMI   = 2,
     /*! \brief Unknown */
-    DISPLAY_MODE_UNKNOWN    = 3
+    DISPLAY_MODE_NONE       = 3
 };
 
 /*! \enum DISPLAY_TYPE
@@ -188,6 +189,106 @@ enum DISPLAY_TYPE {
     DISPLAY_TYPE_PRIMARY,
     /*! \brief If the display type is secondary */
     DISPLAY_TYPE_SECONDARY
+};
+
+/*! \enum DEMUX_TYPE
+ * \brief Describes demux type */
+enum DEMUX_TYPE {
+    /*! \brief mpegtsdemux */
+    DEMUX_TYPE_MPEGTSDEMUX,
+    /*! \brief qtdemux */
+    DEMUX_TYPE_QTDEMUX,
+    /*! \brief oggdemux */
+    DEMUX_TYPE_OGGDEMUX,
+    /*! \brief rmdemux */
+    DEMUX_TYPE_RMDEMUX,
+    /*! \brief avidemux */
+    DEMUX_TYPE_AVIDEMUX,
+    /*! \brief asfdemux */
+    DEMUX_TYPE_ASFDEMUX,
+    /*! \brief matroskademux */
+    DEMUX_TYPE_MATROSKADEMUX,
+    /*! \brief flvdemux */
+    DEMUX_TYPE_FLVDEMUX,
+    /*! \brief mpegdemux */
+    DEMUX_TYPE_MPEGDEMUX,
+    /*! \brief dvdemux */
+    DEMUX_TYPE_DVDEMUX,
+    /*! \brief wavparse */
+    DEMUX_TYPE_WAVPARSE,
+};
+
+static struct {
+    char *container_type;
+    enum DEMUX_TYPE demux_index;
+    char *demux_name;
+} CONTAINER_DESC[] = {
+    {"video/mpegts",            DEMUX_TYPE_MPEGTSDEMUX,     "mpegtsdemux"},
+    {"video/quicktime",         DEMUX_TYPE_QTDEMUX,         "qtdemux"},
+    {"application/ogg",         DEMUX_TYPE_OGGDEMUX,        "oggdemux"},
+    {"application/vnd.rn-realmedia", DEMUX_TYPE_RMDEMUX,    "rmdemux"},
+    {"video/x-msvideo",         DEMUX_TYPE_AVIDEMUX,        "avidemux"},
+    {"video/x-ms-asf",          DEMUX_TYPE_ASFDEMUX,        "asfdemux"},
+    {"video/x-matroska",        DEMUX_TYPE_MATROSKADEMUX,   "matroskademux"},
+    {"video/x-flv",             DEMUX_TYPE_FLVDEMUX,        "flvdemux"},
+    {"video/mpeg",              DEMUX_TYPE_MPEGDEMUX,       "mpegdemux"},
+    {"video/x-dv",              DEMUX_TYPE_DVDEMUX,         "dvdemux"},
+    {"application/x-3gp",       DEMUX_TYPE_QTDEMUX ,        "qtdemux"},
+    {"application/x-annodex",   DEMUX_TYPE_OGGDEMUX,        "oggdemux"},
+    {"audio/x-wav",             DEMUX_TYPE_WAVPARSE,        "wavparse"},
+    //{"application/x-id3",     DEMUX_TYPE_,       ""},
+    //{"audio/x-flac",         DEMUX_TYPE_,       ""},
+    //{"audio/x-m4a",         DEMUX_TYPE_,       ""},
+    //{"audio/mpeg",         DEMUX_TYPE_,       ""},
+    //{"audio/x-ac3",         DEMUX_TYPE_,       ""},
+    //{"audio/x-dts",         DEMUX_TYPE_,       ""},
+    { NULL, },
+};
+
+/*! \enum VIDEO_TYPE
+ * \brief Describes a video codec type */
+enum VIDEO_TYPE {
+    /*! \brief H.264 */
+    VIDEO_TYPE_H264,
+    /*! \brief H.263 */
+    VIDEO_TYPE_H263,
+    /*! \brief MPEG v4 */
+    VIDEO_TYPE_MPEG_V4,
+    /*! \brief MPEG v2 */
+    VIDEO_TYPE_MPEG_V2,
+    /*! \brief FLV */
+    VIDEO_TYPE_FLV,
+    /*! \brief Real Video */
+    VIDEO_TYPE_RV,
+    /*! \brief Divx */
+    VIDEO_TYPE_DIVX,
+    /*! \brief ASF */
+    VIDEO_TYPE_ASF,
+    /*! \brief WMV */
+    VIDEO_TYPE_WMV,
+    /*! \brief Theora */
+    VIDEO_TYPE_THEORA,
+    /*! \brief XVID */
+    VIDEO_TYPE_XVID,
+};
+
+static struct {
+    char *type;
+    enum VIDEO_TYPE index;
+    char *parser;
+} VIDEO_TYPE_DESC[] = {
+    {"video/x-h264",            VIDEO_TYPE_H264,        "h264parse"},
+	{"video/x-h263",            VIDEO_TYPE_H263,        NULL},
+	{"video/mpeg",              VIDEO_TYPE_MPEG_V4,     "mpegvideoparse"},
+	{"video/mpeg",              VIDEO_TYPE_MPEG_V2,     NULL},
+	{"video/x-flash-video",     VIDEO_TYPE_FLV,         NULL},
+	{"video/x-pn-realvideo",    VIDEO_TYPE_RV,          NULL},
+	{"video/x-divx",            VIDEO_TYPE_DIVX,        NULL},
+	{"video/x-ms-asf",          VIDEO_TYPE_ASF,         NULL},
+	{"video/x-wmv",             VIDEO_TYPE_WMV,         NULL},
+	{"video/x-theora",          VIDEO_TYPE_THEORA,      NULL},
+	{"video/x-xvid",            VIDEO_TYPE_XVID,        NULL},
+	{NULL,},
 };
 
 #ifdef __cplusplus
