@@ -19,7 +19,8 @@ COBJS  	:= \
 
 CPPOBJS	:=
 CPPOBJS += \
-	NX_GstMoviePlay.o
+	NX_GstMoviePlay.o \
+	NX_GstMediaInfo.o
 
 CFLAGS		+= -Wall -Wextra `pkg-config --cflags glib-2.0 gstreamer-1.0 gstreamer-pbutils-1.0 gdk-pixbuf-2.0`
 CFLAGS		+= -fPIC

@@ -72,9 +72,13 @@ int CNX_GstMoviePlayer::SetAspectRatio(DISPLAY_INFO dspInfo)
 			__FUNCTION__, dspInfo.dspWidth, dspInfo.dspHeight,
 			dspInfo.dspMode, dspInfo.subDspWidth, dspInfo.subDspHeight);
 
+	int video_width = m_MediaInfo.StreamInfo[0].VideoInfo[0].width;
+	int video_height = m_MediaInfo.StreamInfo[0].VideoInfo[0].height;
+
 	// Set aspect ratio for the primary display
 	memset(&m_dstDspRect, 0, sizeof(DSP_RECT));
-	GetAspectRatio(m_MediaInfo.video_width, m_MediaInfo.video_height,
+
+	GetAspectRatio(video_width, video_height,
 				   dspInfo.dspWidth, dspInfo.dspHeight,
 				   &m_dstDspRect);
 	if (0 > SetDisplayInfo(DISPLAY_TYPE_PRIMARY, dspInfo.dspWidth, dspInfo.dspHeight, m_dstDspRect)) {
@@ -88,7 +92,7 @@ int CNX_GstMoviePlayer::SetAspectRatio(DISPLAY_INFO dspInfo)
 	// Set aspect ratio for the secondary display
 	{
 		memset(&m_dstSubDspRect, 0, sizeof(DSP_RECT));
-		GetAspectRatio(m_MediaInfo.video_width, m_MediaInfo.video_height,
+		GetAspectRatio(video_width, video_height,
 						dspInfo.subDspWidth, dspInfo.subDspHeight,
 						&m_dstSubDspRect);
 		if(0 > SetDisplayInfo(DISPLAY_TYPE_SECONDARY, dspInfo.subDspWidth, dspInfo.subDspHeight, m_dstSubDspRect)) {
@@ -262,24 +266,6 @@ NX_MEDIA_STATE CNX_GstMoviePlayer::GetState()
 		return MP_STATE_STOPPED;
 	}
 	return (NX_MEDIA_STATE)NX_GSTMP_GetState(m_hPlayer);
-}
-
-//================================================================================================================
-//public methods	video information
-void CNX_GstMoviePlayer::PrintMediaInfo( const char *pUri )
-{
-	NXLOGD( "FileName : %s\n", pUri );
-	NXLOGI("%s() container(%s), video codec(%s)"
-		   ", audio codec(%s), seekable(%s), video_width(%d), video_height(%d)"
-		   ", duration: (%" GST_TIME_FORMAT ")\r"
-		   , __FUNCTION__
-		   , m_MediaInfo.container_format
-		   , m_MediaInfo.video_mime_type
-		   , m_MediaInfo.audio_mime_type
-		   , m_MediaInfo.isSeekable ? "yes":"no"
-		   , m_MediaInfo.video_width
-		   , m_MediaInfo.video_height
-		   , GST_TIME_ARGS (m_MediaInfo.iDuration));
 }
 
 //================================================================================================================

@@ -133,78 +133,60 @@ static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
 */
     if (GST_IS_DISCOVERER_CONTAINER_INFO (sinfo))
     {
-        pMediaInfo->n_container++;
-        //gst_stream_container_information(sinfo, pMediaInfo);
-        if (pMediaInfo->container_format) {
-            g_free (pMediaInfo->container_format);
-            pMediaInfo->container_format = NULL;
-        }
-        pMediaInfo->container_format = g_strdup(mime_type);
-        /*gchar *container_format;
-        if (tags) gst_tag_list_get_string (tags, GST_TAG_CONTAINER_FORMAT, &container_format);
-
-        NXGLOGI("n_container(%d) container_format(%s)"
-                , pMediaInfo->n_container
-                , pMediaInfo->container_format);
-
-        if (container_format)
-            g_free(container_format);*/
+        pMediaInfo->container_type = get_container_type(mime_type);
     }
     else if (GST_IS_DISCOVERER_VIDEO_INFO (sinfo))
     {
-        pMediaInfo->n_video++;
-        //gst_stream_video_information(sinfo, pMediaInfo);
-        if (pMediaInfo->video_mime_type) {
-            g_free (pMediaInfo->video_mime_type);
-            pMediaInfo->video_mime_type = NULL;
-        }
-        pMediaInfo->video_mime_type = g_strdup(mime_type);
-
-        GstDiscovererVideoInfo *video_info = (GstDiscovererVideoInfo *) sinfo;
-        pMediaInfo->video_width = gst_discoverer_video_info_get_width (video_info);
-        pMediaInfo->video_height = gst_discoverer_video_info_get_height (video_info);
-
-        if ((structure != NULL) && (g_str_has_prefix(mime_type, "video/mpeg")))
+        pMediaInfo->StreamInfo->n_video++;
+        pMediaInfo->StreamInfo->VideoInfo->type = get_video_codec_type(mime_type);
+        if ((structure != NULL) && (g_strcmp0(mime_type, "video/mpeg") == 0))
         {
             gst_structure_get_int (structure, "mpegversion", &video_mpegversion);
-            pMediaInfo->video_mpegversion = video_mpegversion;
+            pMediaInfo->StreamInfo->VideoInfo->mpegversion = video_mpegversion;
+        }
+        if (video_mpegversion > 0 && video_mpegversion < 4)
+        {
+            pMediaInfo->StreamInfo->VideoInfo->type = VIDEO_TYPE_MPEG_V2;
         }
 
-        NXGLOGI("n_video(%u), video_mime_type(%s)(%d), video_width(%d), video_height(%d)"
-                , pMediaInfo->n_video, pMediaInfo->video_mime_type
-                , pMediaInfo->video_mpegversion
-                , pMediaInfo->video_width, pMediaInfo->video_height);
+        GstDiscovererVideoInfo *video_info = (GstDiscovererVideoInfo *) sinfo;
+        pMediaInfo->StreamInfo->VideoInfo->width = gst_discoverer_video_info_get_width (video_info);
+        pMediaInfo->StreamInfo->VideoInfo->height = gst_discoverer_video_info_get_height (video_info);
+
+        NXGLOGI("n_video(%u), video_type(%d)(%d), video_width(%d), video_height(%d)",
+                pMediaInfo->StreamInfo->n_video,
+                pMediaInfo->StreamInfo->VideoInfo->type,
+                pMediaInfo->StreamInfo->VideoInfo->mpegversion,
+                pMediaInfo->StreamInfo->VideoInfo->width,
+                pMediaInfo->StreamInfo->VideoInfo->height);
     }
     else if (GST_IS_DISCOVERER_AUDIO_INFO (sinfo))
     {
-        pMediaInfo->n_audio++;
-        //gst_stream_audio_information(sinfo, pMediaInfo);
-        if (pMediaInfo->audio_mime_type) {
-            g_free (pMediaInfo->audio_mime_type);
-            pMediaInfo->audio_mime_type = NULL;
-        }
-        pMediaInfo->audio_mime_type = g_strdup(mime_type);
-
-        if ((structure != NULL) && (g_str_has_prefix(mime_type, "audio/mpeg")))
+        pMediaInfo->StreamInfo->n_audio++;
+        pMediaInfo->StreamInfo->AudioInfo->type = get_audio_codec_type(mime_type);
+        if ((structure != NULL) && (g_strcmp0(mime_type, "audio/mpeg") == 0))
         {
             gst_structure_get_int (structure, "mpegversion", &audio_mpegversion);
-            pMediaInfo->audio_mpegversion = audio_mpegversion;
+            pMediaInfo->StreamInfo->AudioInfo->mpegaudioversion = audio_mpegversion;
         }
-        NXGLOGI("n_audio(%d) audio_mime_type(%s)(%d)",
-                pMediaInfo->n_audio,
-                pMediaInfo->audio_mime_type, pMediaInfo->audio_mpegversion);
+        if (audio_mpegversion > 0 && audio_mpegversion < 4)
+        {
+            pMediaInfo->StreamInfo->AudioInfo->type = AUDIO_TYPE_MPEG_V2;
+        }
+
+        NXGLOGI("n_audio(%d) audio_mime_type(%d)(%d)",
+                pMediaInfo->StreamInfo->n_audio,
+                pMediaInfo->StreamInfo->AudioInfo->type,
+                pMediaInfo->StreamInfo->AudioInfo->mpegversion);
     }
     else if (GST_IS_DISCOVERER_SUBTITLE_INFO (sinfo))
     {
-        pMediaInfo->n_subtitle++;
-        //gst_stream_subtitle_information(sinfo, pMediaInfo);
-        if (pMediaInfo->subtitle_codec) {
-            g_free (pMediaInfo->subtitle_codec);
-            pMediaInfo->subtitle_codec = NULL;
-        }
-        pMediaInfo->subtitle_codec = g_strdup(mime_type);
-        NXGLOGI("n_subtitle(%d) subtitle_codec(%s)",
-                pMediaInfo->n_subtitle, pMediaInfo->subtitle_codec);
+        pMediaInfo->StreamInfo->n_subtitle++;
+        pMediaInfo->StreamInfo->SubtitleInfo->type = get_subtitle_codec_type(mime_type);
+
+        NXGLOGI("n_subtitle(%d) subtitle_type(%d)",
+                pMediaInfo->StreamInfo->n_subtitle,
+                pMediaInfo->StreamInfo->SubtitleInfo->type);
     }
 
     FUNC_OUT();
@@ -322,8 +304,8 @@ void parse_GstDiscovererInfo(GstDiscovererInfo *info, GError *err,
 
     gst_discoverer_stream_info_unref(sinfo);
 
-    pMediaInfo->isSeekable = isSeekable;
-    pMediaInfo->iDuration = duration;
+    pMediaInfo->StreamInfo->seekable = isSeekable;
+    pMediaInfo->StreamInfo->duration = duration;
 }
 
 #ifdef ASYNC_DISCOVER
@@ -425,40 +407,137 @@ int get_demux_type(const gchar* mimeType)
     int len = strlen(mimeType);
     const char *str;
 
-    while (CONTAINER_DESC[idx].container_type) {
-        str = CONTAINER_DESC[idx].container_type;
-        NXGLOGI("str = %s", str);
-        idx++;
+    while (CONTAINER_DESC[idx].mimetype) {
+        str = CONTAINER_DESC[idx].mimetype;
+        NXGLOGV("str = %s", str);
 
         if (str && strncmp(mimeType, str, len) == 0)
         {
-            NXGLOGI("## %s, %s ==> %s", str, mimeType, CONTAINER_DESC[idx].demux_name);
-            return CONTAINER_DESC[idx].demux_name;
+            NXGLOGI("%s ==> [%d] %s", mimeType, CONTAINER_DESC[idx].demux_type, CONTAINER_DESC[idx].demux_name);
+            return CONTAINER_DESC[idx].demux_type;
         }
+        idx++;
     }
 
     return -1;
 }
 
-gboolean isSupportedMimeType(const gchar* mimeType)
+int get_container_type(const gchar* mimeType)
 {
+    int idx = 0;
+    int len = strlen(mimeType);
+    const char *str;
+
+    while (CONTAINER_DESC[idx].mimetype) {
+        str = CONTAINER_DESC[idx].mimetype;
+        NXGLOGV("str = %s mimetype = %s", str, mimeType);
+
+        if (str && strncmp(mimeType, str, len) == 0)
+        {
+            NXGLOGI("%s ==> [%d] - %s", mimeType, CONTAINER_DESC[idx].type, CONTAINER_DESC[idx].mimetype);
+            return CONTAINER_DESC[idx].type;
+        }
+        idx++;
+    }
+
+    return -1;
+}
+
+int get_video_codec_type(const gchar* mimeType)
+{
+    int idx = 0;
+    int len = strlen(mimeType);
+    const char *str;
+
+    while (VIDEO_DESC[idx].mimetype) {
+        str = VIDEO_DESC[idx].mimetype;
+        NXGLOGV("str = %s mimetype = %s", str, mimeType);
+
+        if (str && strncmp(mimeType, str, len) == 0)
+        {
+            NXGLOGI("%s ==> [%d]", mimeType, VIDEO_DESC[idx].type);
+            return VIDEO_DESC[idx].type;
+        }
+        idx++;
+    }
+
+    return -1;
+}
+
+int get_audio_codec_type(const gchar* mimeType)
+{
+    int idx = 0;
+    int len = strlen(mimeType);
+    const char *str;
+
+    while (AUDIO_DESC[idx].mimetype) {
+        str = AUDIO_DESC[idx].mimetype;
+        NXGLOGV("str = %s mimetype = %s", str, mimeType);
+
+        if (str && strncmp(mimeType, str, len) == 0)
+        {
+            NXGLOGI("%s ==> [%d]", mimeType, AUDIO_DESC[idx].type);
+            return AUDIO_DESC[idx].type;
+        }
+        idx++;
+    }
+
+    return -1;
+}
+
+int get_subtitle_codec_type(const gchar* mimeType)
+{
+    int idx = 0;
+    int len = strlen(mimeType);
+    const char *str;
+
+    while (SUBTITLE_DESC[idx].mimetype) {
+        str = SUBTITLE_DESC[idx].mimetype;
+        NXGLOGV("str = %s mimetype = %s", str, mimeType);
+
+        if (str && strncmp(mimeType, str, len) == 0)
+        {
+            NXGLOGI("%s ==> [%d]", mimeType, SUBTITLE_DESC[idx].type);
+            return SUBTITLE_DESC[idx].type;
+        }
+        idx++;
+    }
+
+    return -1;
+}
+
+gboolean isSupportedContents(struct GST_MEDIA_INFO *pMediaInfo)
+{
+    NXGLOGI();
+    CONTAINER_TYPE container_type = pMediaInfo->container_type;
+    NXGLOGI("container_type(%d)", container_type);
+    VIDEO_TYPE video_type = pMediaInfo->StreamInfo[0].VideoInfo[0].type;
+    NXGLOGI("video_type(%d)", video_type);
+    SUBTITLE_TYPE subtitle_type = pMediaInfo->StreamInfo[0].SubtitleInfo[0].type;
+
     /* Quicktime, 3GP, Matroska, AVI, MPEG (vob) */
-    if ((g_strcmp0(mimeType, "video/quicktime") == 0) ||
-        (g_strcmp0(mimeType, "application/x-3gp") == 0) ||
-        (g_strcmp0(mimeType, "video/x-matroska") == 0) ||
-        (g_strcmp0(mimeType, "video/x-msvideo") == 0) ||
-        (g_strcmp0(mimeType, "avidemux") == 0) ||
-        (g_strcmp0(mimeType, "video/mpeg") == 0) ||
+    if ((container_type == CONTAINER_TYPE_MPEGTS) ||
+        (container_type == CONTAINER_TYPE_QUICKTIME) ||
+        (container_type == CONTAINER_TYPE_MSVIDEO) ||
+        (container_type == CONTAINER_TYPE_MATROSKA) ||
+        (container_type == CONTAINER_TYPE_3GP) ||
+        (container_type == CONTAINER_TYPE_MPEG)
 #ifdef SW_V_DECODER
-        (g_strcmp0(mimeType, "video/x-flv") == 0) ||
+        || (container_type == CONTAINER_TYPE_FLV)
 #endif
-        (g_strcmp0(mimeType, "video/mpegts") == 0))
+        )
     {
+        if (video_type >= VIDEO_TYPE_FLV)
+        {
+            NXGLOGE("Not supported video type(%d)", video_type);
+            return FALSE;
+        }
+
         return TRUE;
     }
     else
     {
-        NXGLOGE("Not supported mime-type(%s)", mimeType);
+        NXGLOGE("Not supported container type(%d)", container_type);
         return FALSE;
     }
 }
@@ -475,7 +554,7 @@ enum NX_GST_ERROR StartDiscover(const char* pUri, struct GST_MEDIA_INFO **pInfo)
         NXGLOGE("Failed to discover");
         return NX_GST_ERROR_DISCOVER_FAILED;
     }
-    if (FALSE == isSupportedMimeType((*pInfo)->container_format))
+    if (FALSE == isSupportedContents(*pInfo))
     {
         return NX_GST_ERROR_NOT_SUPPORTED_CONTENTS;
     }
@@ -484,4 +563,3 @@ enum NX_GST_ERROR StartDiscover(const char* pUri, struct GST_MEDIA_INFO **pInfo)
 
     return NX_GST_ERROR_NONE;
 }
-

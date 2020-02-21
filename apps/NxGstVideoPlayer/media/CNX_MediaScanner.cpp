@@ -37,7 +37,7 @@
 #if 1
 #ifdef CONFIG_NXP4330
 const static char *pstVideoDefaultExtension[] = {
-	"mp4",	"avi",	"mkv",	"divx",	"rmvb",	"flv",	"ts",	"m2ts",	"ps",
+	"mp4",	"avi",	"mkv",	"divx",	"rmvb",	"flv",	"ts",	"m2ts",	"ps", "vob"
 };
 #elif CONFIG_NXP3220
 const static char *pstVideoDefaultExtension[] = {

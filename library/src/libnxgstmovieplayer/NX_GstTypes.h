@@ -93,69 +93,6 @@ struct DSP_RECT {
     int32_t     bottom;
 };
 
-/*! \def MAX_STREAM_INFO
- * \brief Maximum number of stream information */
-#define	MAX_STREAM_INFO		20
-
-/*! \struct _GST_STREAM_INFO
- * \brief Describes the stream information */
-struct _GST_STREAM_INFO {
-    /*! \brief Total number of audio */
-    gint32			iAudioNum;
-    /*! \brief Total number of videos */
-    gint32			iVideoNum;
-    /*! \brief Total number of subtitles */
-    gint32			iSubTitleNum;
-    /*! \brief Total stream duration  */
-    gint64			iDuration;
-};
-/*! \typedef GST_STREAM_INFO */
-typedef struct _GST_STREAM_INFO	GST_STREAM_INFO;
-
-/*! \struct GST_MEDIA_INFO
- * \brief Describes the media information */
-struct GST_MEDIA_INFO {
-    /*! \brief Container type */
-    gchar*          container_format;
-    /*! \brief Total number of container */
-    gint32			n_container;
-    /*! \brief Total number of videos */
-    gint32			n_video;
-    /*! \brief Total number of audio */
-    gint32			n_audio;
-    /*! \brief Total number of subtitles */
-    gint32			n_subtitle;
-    /*! \brief If the content is seekable */
-    gboolean        isSeekable;
-    /*! \brief Total stream duration */
-    gint64          iDuration;
-    /*! \brief The information for each stream */
-    GST_STREAM_INFO	StreamInfo[MAX_STREAM_INFO];
-
-    /*! \brief Video codec type */
-    gchar*          video_mime_type;
-    /*! \brief Video mpeg version */
-    gint32			video_mpegversion;
-
-    struct DSP_RECT        dsp_rect;
-    
-    /*! \brief Video Width */
-    gint32          video_width;
-    /*! \brief Video Height */
-    gint32          video_height;
-
-    /*! \brief Audio codec type */
-    gchar*          audio_mime_type;
-    /*! \brief Audio mpeg version */
-    gint32			audio_mpegversion;
-
-    /*! \brief Subtitle codec type */
-    gchar*			subtitle_codec;
-
-    /*! \brief URI type */
-    NX_URI_TYPE		uriType;
-};
-
 /*! \enum SUBTITLE_INFO
  * \brief Describes the subtitle information */
 struct SUBTITLE_INFO {
@@ -193,7 +130,9 @@ enum DISPLAY_TYPE {
 
 /*! \enum DEMUX_TYPE
  * \brief Describes demux type */
-enum DEMUX_TYPE {
+typedef enum {
+    /*! \brief unknown */
+    DEMUX_TYPE_UNKNOWN = -1,
     /*! \brief mpegtsdemux */
     DEMUX_TYPE_MPEGTSDEMUX,
     /*! \brief qtdemux */
@@ -215,80 +154,171 @@ enum DEMUX_TYPE {
     /*! \brief dvdemux */
     DEMUX_TYPE_DVDEMUX,
     /*! \brief wavparse */
-    DEMUX_TYPE_WAVPARSE,
-};
+    DEMUX_TYPE_WAVPARSE
+} DEMUX_TYPE;
 
-static struct {
-    char *container_type;
-    enum DEMUX_TYPE demux_index;
-    char *demux_name;
-} CONTAINER_DESC[] = {
-    {"video/mpegts",            DEMUX_TYPE_MPEGTSDEMUX,     "mpegtsdemux"},
-    {"video/quicktime",         DEMUX_TYPE_QTDEMUX,         "qtdemux"},
-    {"application/ogg",         DEMUX_TYPE_OGGDEMUX,        "oggdemux"},
-    {"application/vnd.rn-realmedia", DEMUX_TYPE_RMDEMUX,    "rmdemux"},
-    {"video/x-msvideo",         DEMUX_TYPE_AVIDEMUX,        "avidemux"},
-    {"video/x-ms-asf",          DEMUX_TYPE_ASFDEMUX,        "asfdemux"},
-    {"video/x-matroska",        DEMUX_TYPE_MATROSKADEMUX,   "matroskademux"},
-    {"video/x-flv",             DEMUX_TYPE_FLVDEMUX,        "flvdemux"},
-    {"video/mpeg",              DEMUX_TYPE_MPEGDEMUX,       "mpegdemux"},
-    {"video/x-dv",              DEMUX_TYPE_DVDEMUX,         "dvdemux"},
-    {"application/x-3gp",       DEMUX_TYPE_QTDEMUX ,        "qtdemux"},
-    {"application/x-annodex",   DEMUX_TYPE_OGGDEMUX,        "oggdemux"},
-    {"audio/x-wav",             DEMUX_TYPE_WAVPARSE,        "wavparse"},
-    //{"application/x-id3",     DEMUX_TYPE_,       ""},
-    //{"audio/x-flac",         DEMUX_TYPE_,       ""},
-    //{"audio/x-m4a",         DEMUX_TYPE_,       ""},
-    //{"audio/mpeg",         DEMUX_TYPE_,       ""},
-    //{"audio/x-ac3",         DEMUX_TYPE_,       ""},
-    //{"audio/x-dts",         DEMUX_TYPE_,       ""},
-    { NULL, },
-};
+typedef enum {
+    CONTAINER_TYPE_MPEGTS,
+    CONTAINER_TYPE_QUICKTIME,
+    CONTAINER_TYPE_MSVIDEO,
+    CONTAINER_TYPE_ASF,
+    CONTAINER_TYPE_MATROSKA,
+    CONTAINER_TYPE_MPEG,
+    CONTAINER_TYPE_3GP,
+    CONTAINER_TYPE_FLV,
+    CONTAINER_TYPE_OGG,
+    CONTAINER_TYPE_REALMEDIA,
+    CONTAINER_TYPE_DV,
+    CONTAINER_TYPE_ANNODEX,
+    CONTAINER_TYPE_WAV,
+    CONTAINER_TYPE_UNKNOWN,
+} CONTAINER_TYPE;
 
 /*! \enum VIDEO_TYPE
  * \brief Describes a video codec type */
-enum VIDEO_TYPE {
-    /*! \brief H.264 */
-    VIDEO_TYPE_H264,
+typedef enum {
     /*! \brief H.263 */
     VIDEO_TYPE_H263,
+    /*! \brief H.264 */
+    VIDEO_TYPE_H264,
     /*! \brief MPEG v4 */
     VIDEO_TYPE_MPEG_V4,
     /*! \brief MPEG v2 */
     VIDEO_TYPE_MPEG_V2,
+    /*! \brief Divx */
+    VIDEO_TYPE_DIVX,
+    /*! \brief XVID */
+    VIDEO_TYPE_XVID,
     /*! \brief FLV */
     VIDEO_TYPE_FLV,
     /*! \brief Real Video */
     VIDEO_TYPE_RV,
-    /*! \brief Divx */
-    VIDEO_TYPE_DIVX,
     /*! \brief ASF */
     VIDEO_TYPE_ASF,
     /*! \brief WMV */
     VIDEO_TYPE_WMV,
     /*! \brief Theora */
     VIDEO_TYPE_THEORA,
-    /*! \brief XVID */
-    VIDEO_TYPE_XVID,
-};
+    /*! \brief Unknown */
+    VIDEO_TYPE_UNKNOWN
+} VIDEO_TYPE;
 
-static struct {
-    char *type;
-    enum VIDEO_TYPE index;
-    char *parser;
-} VIDEO_TYPE_DESC[] = {
-    {"video/x-h264",            VIDEO_TYPE_H264,        "h264parse"},
-	{"video/x-h263",            VIDEO_TYPE_H263,        NULL},
-	{"video/mpeg",              VIDEO_TYPE_MPEG_V4,     "mpegvideoparse"},
-	{"video/mpeg",              VIDEO_TYPE_MPEG_V2,     NULL},
-	{"video/x-flash-video",     VIDEO_TYPE_FLV,         NULL},
-	{"video/x-pn-realvideo",    VIDEO_TYPE_RV,          NULL},
-	{"video/x-divx",            VIDEO_TYPE_DIVX,        NULL},
-	{"video/x-ms-asf",          VIDEO_TYPE_ASF,         NULL},
-	{"video/x-wmv",             VIDEO_TYPE_WMV,         NULL},
-	{"video/x-theora",          VIDEO_TYPE_THEORA,      NULL},
-	{"video/x-xvid",            VIDEO_TYPE_XVID,        NULL},
-	{NULL,},
+typedef enum {
+    AUDIO_TYPE_RAW,
+	AUDIO_TYPE_MPEG,
+    AUDIO_TYPE_MPEG_V2,
+	AUDIO_TYPE_MP3,
+	AUDIO_TYPE_AAC,
+	AUDIO_TYPE_WMA,
+	AUDIO_TYPE_OGG,
+	AUDIO_TYPE_AC3,
+	AUDIO_TYPE_AC3_PRI,
+	AUDIO_TYPE_FLAC,
+	AUDIO_TYPE_RA,
+	AUDIO_TYPE_DTS,
+	AUDIO_TYPE_DTS_PRI,
+	AUDIO_TYPE_WAV,
+    AUDIO_TYPE_UNKNOWN,
+} AUDIO_TYPE;
+
+typedef enum {
+    SUBTITLE_TYPE_RAW,
+    SUBTITLE_TYPE_SSA,
+    SUBTITLE_TYPE_ASS,
+    SUBTITLE_TYPE_USF,
+    SUBTITLE_TYPE_DVD,
+    SUBTITLE_TYPE_DVB,
+    SUBTITLE_TYPE_UNKNOWN,
+} SUBTITLE_TYPE;
+
+typedef struct {
+    int32_t     stream_id;
+    SUBTITLE_TYPE   type;
+    char*       language_code;
+} GST_SUBTITLE_INFO;
+
+typedef struct {
+    int32_t     stream_id;
+    AUDIO_TYPE  type;
+    int32_t     mpegversion;
+    int32_t     mpegaudioversion;
+    int32_t     n_channels;
+    int32_t     samplerate;
+    int32_t     bitrate;
+} GST_AUDIO_INFO;
+
+typedef struct {
+    int32_t         stream_id;
+    VIDEO_TYPE      type;
+    int32_t         mpegversion;
+    int32_t         width;
+    int32_t         height;
+    int32_t         framerate;
+} GST_VIDEO_INFO;
+
+/*! \def MAX_STREAM_INFO
+ * \brief Maximum number of stream information */
+#define	MAX_STREAM_INFO		20
+
+/*! \struct _GST_STREAM_INFO
+ * \brief Describes the stream information */
+typedef struct _GST_STREAM_INFO {
+    /*! \brief Total number of videos */
+    int32_t             n_video;
+    /*! \brief Total number of audio */
+    int32_t             n_audio;
+    /*! \brief Total number of subtitles */
+    int32_t             n_subtitle;
+    /*! \brief Total duration */
+    int32_t             duration;
+    /*! \brief If the content is seekable */
+    int32_t             seekable;
+
+    /*! \brief Video stream information */
+    GST_VIDEO_INFO      VideoInfo[MAX_STREAM_INFO];
+    /*! \brief Audio stream information */
+    GST_AUDIO_INFO      AudioInfo[MAX_STREAM_INFO];
+    /*! \brief Subtitle stream information */
+    GST_SUBTITLE_INFO   SubtitleInfo[MAX_STREAM_INFO];
+} GST_STREAM_INFO;
+
+/*! \struct GST_MEDIA_INFO
+ * \brief Describes the media information */
+struct GST_MEDIA_INFO {
+    /*! \brief Container format */
+    CONTAINER_TYPE      container_type;
+    /*! \brief Demux Type */
+    DEMUX_TYPE          demux_type;
+    /*! \brief Total number of programs */
+    int32_t         n_program;
+    /*! \brief The selected program number */
+    int32_t         program_number;
+
+    /*gint32			n_container;
+    gint32			n_video;
+    gint32			n_audio;
+    gint32			n_subtitle;
+    gboolean        isSeekable;
+    gint64          iDuration;*/
+    
+    /*! \brief The information for each stream */
+    GST_STREAM_INFO	StreamInfo[MAX_STREAM_INFO];
+
+    /*gchar*          video_mime_type;
+    gint32			video_mpegversion;*/
+
+    struct DSP_RECT        dsp_rect;
+    
+    /*gint32          video_width;
+    gint32          video_height;
+
+    gchar*          audio_mime_type;
+    gint32			audio_mpegversion;
+
+    gchar*			subtitle_codec;*/
+
+    /*! \brief URI type */
+    NX_URI_TYPE		uriType;
 };
 
 #ifdef __cplusplus

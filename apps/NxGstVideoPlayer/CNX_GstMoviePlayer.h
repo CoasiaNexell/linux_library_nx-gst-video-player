@@ -87,7 +87,6 @@ public:
 	int Stop();
 
 	// MediaPlayer common information
-    void PrintMediaInfo(const char* pUri);
 	int64_t GetMediaPosition();
 	int64_t GetMediaDuration();
 	NX_MEDIA_STATE GetState();
