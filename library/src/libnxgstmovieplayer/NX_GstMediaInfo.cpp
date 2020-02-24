@@ -29,16 +29,14 @@
 #include "NX_GstLog.h"
 #define LOG_TAG "[NxGstMediaInfo]"
 
-NX_GST_RET  NX_GST_Open_MediaInfo(GST_MEDIA_INFO **ty_handle)
+NX_GST_RET  NX_GST_OpenMediaInfo(GST_MEDIA_INFO **media_handle)
 {
 	FUNC_IN();
 
 	GST_MEDIA_INFO *handle = NULL;
 	handle = (GST_MEDIA_INFO *)g_malloc0(sizeof(GST_MEDIA_INFO));
-
 	if (handle == NULL)
 	{
-		NXGLOGE("handle == NULL");
 		return NX_GST_RET_ERROR;
 	}
 
@@ -49,25 +47,37 @@ NX_GST_RET  NX_GST_Open_MediaInfo(GST_MEDIA_INFO **ty_handle)
 		gst_init(NULL, NULL);
 	}
 
-	*ty_handle = handle;
+	*media_handle = handle;
 
 	FUNC_OUT();
 
 	return NX_GST_RET_OK;
 }
 
-NX_GST_RET  NX_GST_Get_MediaInfo(GST_MEDIA_INFO *ty_media_handle,  const char *uri)
+NX_GST_ERROR  NX_GST_GetMediaInfo(GST_MEDIA_INFO *media_handle,  const char *uri)
 {
-    StartDiscover(uri, &ty_media_handle);
+	FUNC_IN();
+	enum NX_GST_ERROR err;
+
+//#ifdef DISCOVER
+#if 1
+     err = StartDiscover(uri, media_handle);
+#else
+
+#endif
+
+	FUNC_OUT();
+
+	return err;
 }
 
-NX_GST_RET  NX_GST_Close_MediaInfo(GST_MEDIA_INFO *ty_handle)
+NX_GST_RET  NX_GST_CloseMediaInfo(GST_MEDIA_INFO *media_handle)
 {
 	FUNC_IN();
 
-	g_free(ty_handle);
-	
-	ty_handle = NULL;
+	g_free(media_handle);
+
+	media_handle = NULL;
 
 	FUNC_OUT();
 }

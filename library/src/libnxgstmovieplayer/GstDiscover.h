@@ -7,15 +7,6 @@
 extern "C" {
 #endif	//	__cplusplus
 
-enum NX_GST_ERROR
-{
-    NX_GST_ERROR_NONE,
-    NX_GST_ERROR_DISCOVER_FAILED,
-    NX_GST_ERROR_NOT_SUPPORTED_CONTENTS,
-    NX_GST_ERROR_DEMUX_LINK_FAILED,
-    NX_GST_ERROR_NUM_ERRORS	
-};
-
 static struct {
     char *mimetype;
     CONTAINER_TYPE  type;
@@ -52,7 +43,7 @@ static struct {
     {"video/x-h264",            VIDEO_TYPE_H264,        "h264parse"},
 	{"video/x-h263",            VIDEO_TYPE_H263,        NULL},
 	{"video/mpeg",              VIDEO_TYPE_MPEG_V4,     NULL},
-	{"video/mpeg",              VIDEO_TYPE_MPEG_V2,     "mpegvideoparse"},
+    {"video/x-h265",            VIDEO_TYPE_H265,        NULL},
 	{"video/x-flash-video",     VIDEO_TYPE_FLV,         NULL},
 	{"video/x-pn-realvideo",    VIDEO_TYPE_RV,          NULL},
 	{"video/x-divx",            VIDEO_TYPE_DIVX,        NULL},
@@ -98,7 +89,7 @@ static struct {
 	{NULL,                      SUBTITLE_TYPE_UNKNOWN,    NULL},
 };
 
-enum NX_GST_ERROR StartDiscover(const char* pUri, struct GST_MEDIA_INFO **pInfo);
+enum NX_GST_ERROR StartDiscover(const char* pUri, struct GST_MEDIA_INFO *pInfo);
 
 #ifdef __cplusplus
 }

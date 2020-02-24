@@ -23,7 +23,7 @@
 #include "NX_GstIface.h"
 #include "GstDiscover.h"
 #include "NX_GstThumbnail.h"
-
+#include "NX_GstMediaInfo.h"
 #include "NX_GstLog.h"
 #define LOG_TAG "[NxGstVPLAYER]"
 
@@ -716,8 +716,7 @@ NX_GST_RET set_audio_elements(MP_HANDLE handle)
     handle->audio_queue = gst_element_factory_make("queue2", "audio_queue");
 
     // Audio parser & Audio decoder
-    if ((handle->gst_media_info.StreamInfo[0].AudioInfo[0].type == AUDIO_TYPE_MPEG) &&
-        (handle->gst_media_info.StreamInfo[0].AudioInfo[0].mpegaudioversion <= 2))
+    if (handle->gst_media_info.StreamInfo[0].AudioInfo[0].type == AUDIO_TYPE_MPEG_V2)
     {
         handle->audio_parser = gst_element_factory_make("mpegaudioparse", "mpegaudioparse");
         if (!handle->audio_parser)
@@ -911,26 +910,21 @@ NX_GST_RET add_elements_to_bin(MP_HANDLE handle)
 NX_GST_RET link_video_elements(MP_HANDLE handle)
 {
     if ((handle->gst_media_info.StreamInfo[0].VideoInfo[0].type == VIDEO_TYPE_H264) ||
-        ((handle->gst_media_info.StreamInfo[0].VideoInfo[0].type == VIDEO_TYPE_MPEG_V2) &&
-            (handle->gst_media_info.StreamInfo[0].VideoInfo[0].mpegversion <=2)))
+        (handle->gst_media_info.StreamInfo[0].VideoInfo[0].type == VIDEO_TYPE_MPEG_V2))
     {
-        if (!gst_element_link(handle->video_queue, handle->video_parser))
+        if (!gst_element_link_many(handle->video_queue, handle->video_parser,
+                        handle->video_decoder, NULL))
         {
-            NXGLOGE("Failed to link video elements with video_queue<-->video_parser");
+            NXGLOGE("Failed to link video_queue<-->video_parser<-->video_decoder");
             return NX_GST_RET_ERROR;
         }
-        if (!gst_element_link(handle->video_parser, handle->video_decoder))
-        {
-            NXGLOGE("Failed to link video elements with video_parser<-->video_decoder");
-            return NX_GST_RET_ERROR;
-        }
-        NXGLOGI("Succeed to link video elements with video_queue<-->video_parser<-->video_decoder");
+        NXGLOGI("Succeed to link video_queue<-->video_parser<-->video_decoder");
     }
     else
     {
         if (!gst_element_link(handle->video_queue, handle->video_decoder))
         {
-            NXGLOGE("Failed to link video elements");
+            NXGLOGE("Failed to link video_queue<-->video_decoder");
             return NX_GST_RET_ERROR;
         }
         else
@@ -951,8 +945,7 @@ NX_GST_RET link_video_elements(MP_HANDLE handle)
 
 NX_GST_RET link_audio_elements(MP_HANDLE handle)
 {
-    if ((handle->gst_media_info.StreamInfo[0].AudioInfo[0].type == AUDIO_TYPE_MPEG) &&
-             (handle->gst_media_info.StreamInfo[0].AudioInfo[0].mpegaudioversion <= 2))
+    if (handle->gst_media_info.StreamInfo[0].AudioInfo[0].type == AUDIO_TYPE_MPEG_V2)
     {
         if (!gst_element_link(handle->audio_queue, handle->audio_parser))
         {
@@ -1202,15 +1195,12 @@ unlink_display_cb (GstPad* pad, GstPadProbeInfo* info, gpointer user_data)
         NXGLOGE("Failed to remove nxvideosink from bin");
     }
 
-
     // release_request_pad and unref 'tee_pad'
     gst_element_release_request_pad (sink->tee, sink->tee_pad);
     gst_object_unref (sink->tee_pad);
 
-    // GStreamer-CRITICAL **: gst_object_unref: assertion '((GObject *) object)->ref_count > 0' failed
-    // unref queue and nxvideosink
-    //gst_object_unref (sink->queue);
-    //gst_object_unref (sink->nxvideosink);
+    NXGLOGV("%s:%d ref_count is %d", __FILE__, __LINE__,
+            GST_OBJECT_REFCOUNT(sink->queue));
 
     NXGLOGI("- GST_PAD_PROBE_REMOVE");
     return GST_PAD_PROBE_REMOVE;
@@ -1335,24 +1325,22 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
 
     FUNC_IN();
 
-    GstStateChangeReturn ret;
-
-    struct GST_MEDIA_INFO *pGstMInfo = (struct GST_MEDIA_INFO*)g_malloc0(sizeof(struct GST_MEDIA_INFO));
-    if (NULL == pGstMInfo)
-    {
-        NXGLOGE("Failed to alloc the memory to start discovering");
-        return NX_GST_RET_ERROR;
-    }
-
     if(NULL == handle)
     {
-        NXGLOGE("Failed to alloc memory for handle");
+        NXGLOGE("handle is NULL");
         return NX_GST_RET_ERROR;
     }
     handle->filePath = g_strdup(pfilePath);
     handle->error = NX_GST_ERROR_NONE;
 
-    enum NX_GST_ERROR err = StartDiscover(pfilePath, &pGstMInfo);
+    // Start to parse media info
+    struct GST_MEDIA_INFO *pGstMInfo;
+    NX_GST_RET result = NX_GST_OpenMediaInfo(&pGstMInfo);
+    if (NX_GST_RET_OK != result) {
+        return NX_GST_RET_ERROR;
+    }
+
+    enum NX_GST_ERROR err = NX_GST_GetMediaInfo(pGstMInfo, pfilePath);
     if (NX_GST_ERROR_NONE != err)
     {
         handle->error = err;
@@ -1360,7 +1348,6 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
         return NX_GST_RET_ERROR;
     }
     memcpy(&handle->gst_media_info, pGstMInfo, sizeof(struct GST_MEDIA_INFO));
-
     NXGLOGD("container(%d), video type(%d),"
             "video_width(%d), video_height(%d),"
             "audio codec(%d), seekable(%s),"
@@ -1372,6 +1359,8 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
             pGstMInfo->StreamInfo->AudioInfo->type,
             pGstMInfo->StreamInfo->seekable ? "yes":"no",
             GST_TIME_ARGS (pGstMInfo->StreamInfo->duration));
+    NX_GST_CloseMediaInfo(pGstMInfo);
+    // Done to parse media info
 
     if(handle->pipeline_is_linked)
     {
@@ -1390,8 +1379,8 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
     handle->bus_watch_id = gst_bus_add_watch(handle->bus, (GstBusFunc)gst_bus_callback, handle);
     gst_object_unref(handle->bus);
 
-    if ((pGstMInfo->StreamInfo[0].n_subtitle > 0) &&
-        (pGstMInfo->StreamInfo[0].SubtitleInfo[0].type == SUBTITLE_TYPE_RAW))
+    if ((handle->gst_media_info.StreamInfo[0].n_subtitle > 0) &&
+        (handle->gst_media_info.StreamInfo[0].SubtitleInfo[0].type == SUBTITLE_TYPE_RAW))
     {
         set_subtitle_element(handle);
     }
@@ -1421,7 +1410,7 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
 
     handle->pipeline_is_linked = TRUE;
 
-    ret = gst_element_set_state(handle->pipeline, GST_STATE_READY);
+    GstStateChangeReturn ret = gst_element_set_state(handle->pipeline, GST_STATE_READY);
     if (ret == GST_STATE_CHANGE_FAILURE) {
         NXGLOGE("Failed to set the pipeline to the READY state");
         return NX_GST_RET_ERROR;
@@ -1504,7 +1493,7 @@ void NX_GSTMP_Close(MP_HANDLE handle)
         stop_my_thread(handle);
     }
 
-    g_free(handle->uri);
+    g_free(handle->filePath);
     g_free(handle);
 
     pthread_mutex_destroy(&handle->apiLock);

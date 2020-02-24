@@ -45,47 +45,6 @@ static void print_tag_foreach (const GstTagList *tags, const gchar *tag, gpointe
     FUNC_OUT();
 }
 
-/* Print information regarding a stream */
-static void print_stream_info (GstDiscovererStreamInfo *info, gint depth,
-                                struct GST_MEDIA_INFO* pMediaInfo)
-{
-    FUNC_IN();
-
-    gchar *desc = NULL;
-    GstCaps *caps;
-
-    // TODO: Need to display the log after fixing the crash when playing NTT DoCoMo
-    //const gchar *stream_type = gst_discoverer_stream_info_get_stream_type_nick(info);
-    caps = gst_discoverer_stream_info_get_caps(info);
-    if (caps)
-    {
-        if (gst_caps_is_fixed(caps))
-            desc = gst_pb_utils_get_codec_description(caps);
-        else
-            desc = gst_caps_to_string(caps);
-
-        gst_caps_unref(caps);
-    }
-
-    // TODO: Need to display the log after fixing the crash when playing NTT DoCoMo
-    //NXGLOGI("## %*s%s: %s ==> %s", 2 * depth, " ",
-    //        (stream_type ? stream_type : ""), (desc ? desc : ""));
-
-    if (desc)
-    {
-        g_free(desc);
-        desc = NULL;
-    }
-
-    const GstTagList *tags = gst_discoverer_stream_info_get_tags(info);
-    if (tags) {
-        NXGLOGI ("** %*sTags:", 2 * (depth + 1), " ");
-        gst_tag_list_foreach(tags, print_tag_foreach, GINT_TO_POINTER(depth + 2));
-    }
-
-    FUNC_OUT();
-}
-
 static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
                                    struct GST_MEDIA_INFO* pMediaInfo)
 {
@@ -115,7 +74,7 @@ static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
     gst_caps_unref (caps);
 
     const gchar *mime_type = gst_structure_get_name(structure);
-    NXGLOGV("%*s%s: %s ==> %s",
+    NXGLOGI("%*s%s: %s ==> %s",
             (2 * 1), " ", (stream_type ? stream_type : ""),
             (desc ? desc : ""), (mime_type ? mime_type : ""));
     if (desc)
@@ -124,69 +83,101 @@ static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
         desc = NULL;
     }
 
-    // TODO:
-/*	tags = gst_discoverer_stream_info_get_tags (sinfo);
+	const GstTagList *tags = gst_discoverer_stream_info_get_tags (sinfo);
     if (tags) {
-        NXGLOGI("** %s() %*sTags:", 2 * (depth + 1), " ");
+        NXGLOGI("** %*sTags:", 2 * (depth + 1), " ");
         gst_tag_list_foreach (tags, print_tag_foreach, GINT_TO_POINTER (depth + 2));
+        NXGLOGI ("** %*sTags:End", 2 * (depth + 1), " ");
     }
-*/
+
     if (GST_IS_DISCOVERER_CONTAINER_INFO (sinfo))
     {
+        pMediaInfo->n_container++;
         pMediaInfo->container_type = get_container_type(mime_type);
+        NXGLOGI("n_container(%d) container_type(%d)",
+                pMediaInfo->n_container, pMediaInfo->container_type);
     }
     else if (GST_IS_DISCOVERER_VIDEO_INFO (sinfo))
     {
-        pMediaInfo->StreamInfo->n_video++;
-        pMediaInfo->StreamInfo->VideoInfo->type = get_video_codec_type(mime_type);
+        GstDiscovererVideoInfo *video_info = (GstDiscovererVideoInfo *) sinfo;
+        guint width = gst_discoverer_video_info_get_width (video_info);
+        guint height = gst_discoverer_video_info_get_height (video_info);
+        guint framerate = gst_discoverer_video_info_get_framerate_num(video_info);
+
+        const char* stream_id = gst_discoverer_stream_info_get_stream_id(video_info);
+        if (width == 0 || height == 0 || stream_id == NULL)
+        {
+            NXGLOGE("Invalid video");
+            return;
+        }
+
+        int32_t index = pMediaInfo->StreamInfo->n_video;
+        pMediaInfo->StreamInfo->VideoInfo[index].type = get_video_codec_type(mime_type);
         if ((structure != NULL) && (g_strcmp0(mime_type, "video/mpeg") == 0))
         {
             gst_structure_get_int (structure, "mpegversion", &video_mpegversion);
-            pMediaInfo->StreamInfo->VideoInfo->mpegversion = video_mpegversion;
-        }
-        if (video_mpegversion > 0 && video_mpegversion < 4)
-        {
-            pMediaInfo->StreamInfo->VideoInfo->type = VIDEO_TYPE_MPEG_V2;
+            if (video_mpegversion > 0 && video_mpegversion < 4) {
+                pMediaInfo->StreamInfo->VideoInfo[index].type = VIDEO_TYPE_MPEG_V2;
+            }
         }
 
-        GstDiscovererVideoInfo *video_info = (GstDiscovererVideoInfo *) sinfo;
-        pMediaInfo->StreamInfo->VideoInfo->width = gst_discoverer_video_info_get_width (video_info);
-        pMediaInfo->StreamInfo->VideoInfo->height = gst_discoverer_video_info_get_height (video_info);
+        pMediaInfo->StreamInfo->VideoInfo[index].stream_id = stream_id;
+        pMediaInfo->StreamInfo->VideoInfo[index].width = width;
+        pMediaInfo->StreamInfo->VideoInfo[index].height = height;
+        pMediaInfo->StreamInfo->VideoInfo[index].framerate = framerate;
+        pMediaInfo->StreamInfo->n_video++;
 
-        NXGLOGI("n_video(%u), video_type(%d)(%d), video_width(%d), video_height(%d)",
+        NXGLOGI("n_video(%u), stream_id(%s), video_width(%d), "
+                "video_height(%d), framerate(%d), video_type(%d)",
                 pMediaInfo->StreamInfo->n_video,
-                pMediaInfo->StreamInfo->VideoInfo->type,
-                pMediaInfo->StreamInfo->VideoInfo->mpegversion,
-                pMediaInfo->StreamInfo->VideoInfo->width,
-                pMediaInfo->StreamInfo->VideoInfo->height);
+                stream_id, framerate, width, height,
+                pMediaInfo->StreamInfo->VideoInfo[index].type);
     }
     else if (GST_IS_DISCOVERER_AUDIO_INFO (sinfo))
     {
-        pMediaInfo->StreamInfo->n_audio++;
-        pMediaInfo->StreamInfo->AudioInfo->type = get_audio_codec_type(mime_type);
+        const char* stream_id = gst_discoverer_stream_info_get_stream_id(sinfo);
+        guint n_channels = gst_discoverer_audio_info_get_channels(sinfo);
+        guint samplerate = gst_discoverer_audio_info_get_sample_rate(sinfo);
+        guint bitrate = gst_discoverer_audio_info_get_bitrate(sinfo);
+
+        int32_t index = pMediaInfo->StreamInfo->n_audio;
+        pMediaInfo->StreamInfo->AudioInfo[index].type = get_audio_codec_type(mime_type);
         if ((structure != NULL) && (g_strcmp0(mime_type, "audio/mpeg") == 0))
         {
             gst_structure_get_int (structure, "mpegversion", &audio_mpegversion);
-            pMediaInfo->StreamInfo->AudioInfo->mpegaudioversion = audio_mpegversion;
-        }
-        if (audio_mpegversion > 0 && audio_mpegversion < 4)
-        {
-            pMediaInfo->StreamInfo->AudioInfo->type = AUDIO_TYPE_MPEG_V2;
+            if (audio_mpegversion > 0 && audio_mpegversion < 4) {
+                pMediaInfo->StreamInfo->AudioInfo[index].type = AUDIO_TYPE_MPEG_V2;
+            }
         }
 
-        NXGLOGI("n_audio(%d) audio_mime_type(%d)(%d)",
+        pMediaInfo->StreamInfo->AudioInfo[index].stream_id = stream_id;
+        pMediaInfo->StreamInfo->AudioInfo[index].n_channels = n_channels;
+        pMediaInfo->StreamInfo->AudioInfo[index].samplerate = samplerate;
+        pMediaInfo->StreamInfo->AudioInfo[index].bitrate = bitrate;
+        pMediaInfo->StreamInfo->n_audio++;
+
+        NXGLOGI("n_audio(%d) n_channels(%d), samplerate(%d),"
+                "bitrate(%d), stream_id(%s), audio_mime_type(%d)",
                 pMediaInfo->StreamInfo->n_audio,
-                pMediaInfo->StreamInfo->AudioInfo->type,
-                pMediaInfo->StreamInfo->AudioInfo->mpegversion);
+                n_channels, samplerate, bitrate, stream_id,
+                pMediaInfo->StreamInfo->AudioInfo[index].type);
     }
     else if (GST_IS_DISCOVERER_SUBTITLE_INFO (sinfo))
     {
+        int32_t index = pMediaInfo->StreamInfo->n_subtitle;
+        pMediaInfo->StreamInfo->SubtitleInfo[index].type = get_subtitle_codec_type(mime_type);
+        pMediaInfo->StreamInfo->SubtitleInfo[index].stream_id = gst_discoverer_stream_info_get_stream_id(sinfo);
         pMediaInfo->StreamInfo->n_subtitle++;
-        pMediaInfo->StreamInfo->SubtitleInfo->type = get_subtitle_codec_type(mime_type);
 
-        NXGLOGI("n_subtitle(%d) subtitle_type(%d)",
+        NXGLOGI("n_subtitle(%d), stream_id(%s), subtitle_type(%d), subtitle_lang(%s)",
                 pMediaInfo->StreamInfo->n_subtitle,
-                pMediaInfo->StreamInfo->SubtitleInfo->type);
+                pMediaInfo->StreamInfo->SubtitleInfo[index].stream_id,
+                pMediaInfo->StreamInfo->SubtitleInfo[index].type,
+                gst_discoverer_subtitle_info_get_language(sinfo));
+    }
+    else
+    {
+        NXGLOGI("Unknown stream info");
     }
 
     FUNC_OUT();
@@ -201,9 +192,6 @@ static void print_topology(GstDiscovererStreamInfo *sinfo, gint depth,
         NXGLOGE("GstDiscovererStreamInfo is NULL");
         return;
     }
-
-    // Print Stream Info
-    print_stream_info (sinfo, depth, pMediaInfo);
 
     // Get Stream Info
     get_gst_stream_info(sinfo, depth, pMediaInfo);
@@ -542,19 +530,19 @@ gboolean isSupportedContents(struct GST_MEDIA_INFO *pMediaInfo)
     }
 }
 
-enum NX_GST_ERROR StartDiscover(const char* pUri, struct GST_MEDIA_INFO **pInfo)
+enum NX_GST_ERROR StartDiscover(const char* pUri, struct GST_MEDIA_INFO *pInfo)
 {
     enum NX_GST_ERROR ret = 0;
 
     NXGLOGI();
 
-    ret = start_discover(pUri, *pInfo);
+    ret = start_discover(pUri, pInfo);
     if (ret < 0)
     {
         NXGLOGE("Failed to discover");
         return NX_GST_ERROR_DISCOVER_FAILED;
     }
-    if (FALSE == isSupportedContents(*pInfo))
+    if (FALSE == isSupportedContents(pInfo))
     {
         return NX_GST_ERROR_NOT_SUPPORTED_CONTENTS;
     }

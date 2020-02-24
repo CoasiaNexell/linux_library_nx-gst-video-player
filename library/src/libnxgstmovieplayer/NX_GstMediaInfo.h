@@ -11,9 +11,9 @@ extern "C" {
 #define LOG_TAG "[NxGstMediaInfo]"
 #endif
 
-NX_GST_RET  NX_GST_Open_MediaInfo(GST_MEDIA_INFO **ty_handle);
-NX_GST_RET  NX_GST_Get_MediaInfo(GST_MEDIA_INFO *ty_media_handle, const char *uri);
-NX_GST_RET  NX_GST_Close_MediaInfo(GST_MEDIA_INFO *ty_handle);
+NX_GST_RET      NX_GST_OpenMediaInfo(GST_MEDIA_INFO **media_handle);
+NX_GST_ERROR    NX_GST_GetMediaInfo(GST_MEDIA_INFO *media_handle, const char *uri);
+NX_GST_RET      NX_GST_CloseMediaInfo(GST_MEDIA_INFO *media_handle);
 
 #ifdef __cplusplus
 }

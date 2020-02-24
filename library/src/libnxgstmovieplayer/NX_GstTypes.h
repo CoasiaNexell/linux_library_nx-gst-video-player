@@ -54,6 +54,15 @@ typedef enum {
     NX_GST_RET_OK
 } NX_GST_RET;
 
+enum NX_GST_ERROR
+{
+    NX_GST_ERROR_NONE,
+    NX_GST_ERROR_DISCOVER_FAILED,
+    NX_GST_ERROR_NOT_SUPPORTED_CONTENTS,
+    NX_GST_ERROR_DEMUX_LINK_FAILED,
+    NX_GST_ERROR_NUM_ERRORS
+};
+
 /*! \enum NX_URI_TYPE
  * \brief Describes the URI types */
 typedef enum
@@ -191,6 +200,8 @@ typedef enum {
     VIDEO_TYPE_XVID,
     /*! \brief FLV */
     VIDEO_TYPE_FLV,
+    /*! \brief H.265 */
+    VIDEO_TYPE_H265,
     /*! \brief Real Video */
     VIDEO_TYPE_RV,
     /*! \brief ASF */
@@ -232,25 +243,22 @@ typedef enum {
 } SUBTITLE_TYPE;
 
 typedef struct {
-    int32_t     stream_id;
+    char*           stream_id;
     SUBTITLE_TYPE   type;
-    char*       language_code;
+    char*           language_code;
 } GST_SUBTITLE_INFO;
 
 typedef struct {
-    int32_t     stream_id;
-    AUDIO_TYPE  type;
-    int32_t     mpegversion;
-    int32_t     mpegaudioversion;
-    int32_t     n_channels;
-    int32_t     samplerate;
-    int32_t     bitrate;
+    char*           stream_id;
+    AUDIO_TYPE      type;
+    int32_t         n_channels;
+    int32_t         samplerate;
+    int32_t         bitrate;
 } GST_AUDIO_INFO;
 
 typedef struct {
-    int32_t         stream_id;
+    char*           stream_id;
     VIDEO_TYPE      type;
-    int32_t         mpegversion;
     int32_t         width;
     int32_t         height;
     int32_t         framerate;
@@ -287,35 +295,18 @@ typedef struct _GST_STREAM_INFO {
 struct GST_MEDIA_INFO {
     /*! \brief Container format */
     CONTAINER_TYPE      container_type;
+    int32_t             n_container;
     /*! \brief Demux Type */
     DEMUX_TYPE          demux_type;
     /*! \brief Total number of programs */
-    int32_t         n_program;
+    int32_t             n_program;
     /*! \brief The selected program number */
-    int32_t         program_number;
-
-    /*gint32			n_container;
-    gint32			n_video;
-    gint32			n_audio;
-    gint32			n_subtitle;
-    gboolean        isSeekable;
-    gint64          iDuration;*/
+    int32_t             program_number;
     
     /*! \brief The information for each stream */
     GST_STREAM_INFO	StreamInfo[MAX_STREAM_INFO];
 
-    /*gchar*          video_mime_type;
-    gint32			video_mpegversion;*/
-
     struct DSP_RECT        dsp_rect;
-    
-    /*gint32          video_width;
-    gint32          video_height;
-
-    gchar*          audio_mime_type;
-    gint32			audio_mpegversion;
-
-    gchar*			subtitle_codec;*/
 
     /*! \brief URI type */
     NX_URI_TYPE		uriType;
