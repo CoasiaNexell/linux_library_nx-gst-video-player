@@ -12,7 +12,7 @@ extern "C" {
 #endif
 
 NX_GST_RET      NX_GST_OpenMediaInfo(GST_MEDIA_INFO **media_handle);
-NX_GST_ERROR    NX_GST_GetMediaInfo(GST_MEDIA_INFO *media_handle, const char *uri);
+NX_GST_ERROR    NX_GST_GetMediaInfo(GST_MEDIA_INFO *media_handle, const char *filePath);
 NX_GST_RET      NX_GST_CloseMediaInfo(GST_MEDIA_INFO *media_handle);
 
 #ifdef __cplusplus

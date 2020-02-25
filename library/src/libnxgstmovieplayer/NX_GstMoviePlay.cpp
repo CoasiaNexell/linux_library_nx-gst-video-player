@@ -530,13 +530,66 @@ static void print_tag(const GstTagList *list, const gchar *tag, gpointer unused)
 
         if (i == 0)
         {
-            NXGLOGV("%15s: %s", gst_tag_get_nick (tag), str);
+            NXGLOGI("%15s: %s", gst_tag_get_nick (tag), str);
         } else {
-            NXGLOGV("               : %s", str);
+            NXGLOGI("               : %s", str);
         }
 
         g_free (str);
     }
+}
+
+static void
+print_tag_foreach (const GstTagList * tags, const gchar * tag,
+    gpointer user_data)
+{
+    GValue val = { 0, };
+    gchar *str;
+    gint depth = GPOINTER_TO_INT (user_data);
+
+    if (!gst_tag_list_copy_value (&val, tags, tag))
+        return;
+
+    if (G_VALUE_HOLDS_STRING (&val))
+        str = g_value_dup_string (&val);
+    else
+        str = gst_value_serialize (&val);
+
+    NXGLOGI ("%*s%s: %s\n", 2 * depth, " ", gst_tag_get_nick (tag), str);
+    g_free (str);
+
+    g_value_unset (&val);
+}
+
+static void
+dump_collection (GstStreamCollection * collection)
+{
+  guint i;
+  GstTagList *tags;
+  GstCaps *caps;
+
+  for (i = 0; i < gst_stream_collection_get_size (collection); i++) {
+    GstStream *stream = gst_stream_collection_get_stream (collection, i);
+    NXGLOGI (" Stream %u type %s flags 0x%x\n", i,
+        gst_stream_type_get_name (gst_stream_get_stream_type (stream)),
+        gst_stream_get_stream_flags (stream));
+    NXGLOGI ("  ID: %s\n", gst_stream_get_stream_id (stream));
+
+    caps = gst_stream_get_caps (stream);
+    if (caps) {
+      gchar *caps_str = gst_caps_to_string (caps);
+      NXGLOGI ("  caps: %s\n", caps_str);
+      g_free (caps_str);
+      gst_caps_unref (caps);
+    }
+
+    tags = gst_stream_get_tags (stream);
+    if (tags) {
+      NXGLOGI ("  tags:\n");
+      gst_tag_list_foreach (tags, print_tag_foreach, GUINT_TO_POINTER (3));
+      gst_tag_list_unref (tags);
+    }
+  }
 }
 
 static gboolean gst_bus_callback(GstBus *bus, GstMessage *msg, MP_HANDLE handle)
@@ -563,7 +616,7 @@ static gboolean gst_bus_callback(GstBus *bus, GstMessage *msg, MP_HANDLE handle)
                    (msg->type == GST_MESSAGE_WARNING)?"warning":"error", err->message);
             g_error_free (err);
 
-            NXGLOGI("Debug details: %s", debug);
+            NXGLOGE("Debug details: %s", debug);
             g_free (debug);
 
             handle->callback(NULL, (int)MP_EVENT_GST_ERROR, 0, 0);
@@ -594,11 +647,26 @@ static gboolean gst_bus_callback(GstBus *bus, GstMessage *msg, MP_HANDLE handle)
             NXGLOGI("TODO:%s", gst_message_type_get_name(GST_MESSAGE_TYPE(msg)));
             break;
         }
+        case GST_MESSAGE_STREAM_COLLECTION:
+        {
+            GstStreamCollection *collection = NULL;
+            GstObject *src = GST_MESSAGE_SRC (msg);
+
+            gst_message_parse_stream_collection (msg, &collection);
+            if (collection) {
+                NXGLOGI ("Got a collection from %s:\n",
+                    src ? GST_OBJECT_NAME (src) : "Unknown");
+                dump_collection (collection);
+                gst_object_unref (collection);
+            }
+            break;
+        }
         case GST_MESSAGE_STREAM_STATUS:
         {
-            GstStreamStatusType t;
+            GstStreamStatusType type;
             GstElement *owner;
-            gst_message_parse_stream_status(msg, &t, &owner);
+            gst_message_parse_stream_status(msg, &type, &owner);
+			//NXGLOGI("type:   %d", type);
             break;
         }
         case GST_MESSAGE_ASYNC_DONE:
@@ -892,7 +960,8 @@ NX_GST_RET add_elements_to_bin(MP_HANDLE handle)
         return NX_GST_RET_ERROR;
     }
 
-    gst_bin_add_many(GST_BIN(handle->pipeline), handle->source, handle->demuxer, NULL);
+    gst_bin_add_many(GST_BIN(handle->pipeline), handle->source,
+                    handle->demuxer, NULL);
 
     add_video_elements_to_bin(handle);
     add_audio_elements_to_bin(handle);
@@ -1012,17 +1081,10 @@ NX_GST_RET link_elements(MP_HANDLE handle)
         return NX_GST_RET_ERROR;
     }
 
-    if (!gst_element_link_many(handle->source, handle->demuxer, NULL))
-    {
-        NXGLOGE("Failed to link %s<-->%s",
-                gst_element_get_name(handle->source), gst_element_get_name(handle->demuxer));
-        return NX_GST_RET_ERROR;
-    }
-    else
-    {
-        NXGLOGI("Succeed to link %s<-->%s",
-                gst_element_get_name(handle->source), gst_element_get_name(handle->demuxer));
-    }
+    gboolean ret = false;
+    ret = gst_element_link_many(handle->source, handle->demuxer, NULL);
+    NXGLOGI("%s to link %s<-->%s", (!ret) ? "Failed":"Succeed",
+            gst_element_get_name(handle->source), gst_element_get_name(handle->demuxer));
 
     link_video_elements(handle);
     link_audio_elements(handle);

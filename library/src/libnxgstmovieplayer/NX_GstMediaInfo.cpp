@@ -26,6 +26,7 @@
 #include <gst/gst.h>
 #include "NX_GstMediaInfo.h"
 #include "GstDiscover.h"
+#include "NX_TypeFind.h"
 #include "NX_GstLog.h"
 #define LOG_TAG "[NxGstMediaInfo]"
 
@@ -54,16 +55,18 @@ NX_GST_RET  NX_GST_OpenMediaInfo(GST_MEDIA_INFO **media_handle)
 	return NX_GST_RET_OK;
 }
 
-NX_GST_ERROR  NX_GST_GetMediaInfo(GST_MEDIA_INFO *media_handle,  const char *uri)
+NX_GST_ERROR  NX_GST_GetMediaInfo(GST_MEDIA_INFO *media_handle,  const char *filePath)
 {
 	FUNC_IN();
 	enum NX_GST_ERROR err;
 
 //#ifdef DISCOVER
 #if 1
-     err = StartDiscover(uri, media_handle);
-#else
-
+     err = StartDiscover(filePath, media_handle);
+	 if (media_handle->demux_type == DEMUX_TYPE_MPEGTSDEMUX)
+	 {
+		 start_typefind(filePath);
+	 }
 #endif
 
 	FUNC_OUT();

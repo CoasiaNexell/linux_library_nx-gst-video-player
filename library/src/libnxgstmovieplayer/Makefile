@@ -9,13 +9,15 @@ INCLUDE		+= -I. -I../../prebuilt/include
 ######################################################################
 # Library
 #LIBRARY		+= -lnx_renderer
+LIBRARY += -lgstmpegts-1.0
 
 ######################################################################
 # Target
 COBJS  	:= \
 	GstDiscover.o \
 	NX_GstLog.o	\
-	NX_GstThumbnail.o
+	NX_GstThumbnail.o \
+	NX_TypeFind.o
 
 CPPOBJS	:=
 CPPOBJS += \
