@@ -18,6 +18,7 @@
 //------------------------------------------------------------------------------
 
 #include <gst/gst.h>
+#include <gst/mpegts/mpegts.h>
 #include <string.h>
 
 #include "NX_GstIface.h"
@@ -530,9 +531,9 @@ static void print_tag(const GstTagList *list, const gchar *tag, gpointer unused)
 
         if (i == 0)
         {
-            NXGLOGI("%15s: %s", gst_tag_get_nick (tag), str);
+            NXGLOGV("%15s: %s", gst_tag_get_nick (tag), str);
         } else {
-            NXGLOGI("               : %s", str);
+            NXGLOGV("               : %s", str);
         }
 
         g_free (str);
@@ -653,9 +654,10 @@ static gboolean gst_bus_callback(GstBus *bus, GstMessage *msg, MP_HANDLE handle)
             GstObject *src = GST_MESSAGE_SRC (msg);
 
             gst_message_parse_stream_collection (msg, &collection);
-            if (collection) {
-                NXGLOGI ("Got a collection from %s:\n",
-                    src ? GST_OBJECT_NAME (src) : "Unknown");
+            if (collection)
+            {
+                NXGLOGI("Got a collection from %s:\n",
+                        src ? GST_OBJECT_NAME (src) : "Unknown");
                 dump_collection (collection);
                 gst_object_unref (collection);
             }
@@ -666,7 +668,7 @@ static gboolean gst_bus_callback(GstBus *bus, GstMessage *msg, MP_HANDLE handle)
             GstStreamStatusType type;
             GstElement *owner;
             gst_message_parse_stream_status(msg, &type, &owner);
-			//NXGLOGI("type:   %d", type);
+			//NXGLOGI("Received stream_status type:   %d", type);
             break;
         }
         case GST_MESSAGE_ASYNC_DONE:

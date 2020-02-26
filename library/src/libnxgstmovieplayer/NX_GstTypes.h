@@ -167,6 +167,7 @@ typedef enum {
 } DEMUX_TYPE;
 
 typedef enum {
+    CONTAINER_TYPE_UNKNOWN = -1,
     CONTAINER_TYPE_MPEGTS,
     CONTAINER_TYPE_QUICKTIME,
     CONTAINER_TYPE_MSVIDEO,
@@ -180,12 +181,13 @@ typedef enum {
     CONTAINER_TYPE_DV,
     CONTAINER_TYPE_ANNODEX,
     CONTAINER_TYPE_WAV,
-    CONTAINER_TYPE_UNKNOWN,
 } CONTAINER_TYPE;
 
 /*! \enum VIDEO_TYPE
  * \brief Describes a video codec type */
 typedef enum {
+    /*! \brief Unknown */
+    VIDEO_TYPE_UNKNOWN = 1,
     /*! \brief H.263 */
     VIDEO_TYPE_H263,
     /*! \brief H.264 */
@@ -210,11 +212,10 @@ typedef enum {
     VIDEO_TYPE_WMV,
     /*! \brief Theora */
     VIDEO_TYPE_THEORA,
-    /*! \brief Unknown */
-    VIDEO_TYPE_UNKNOWN
 } VIDEO_TYPE;
 
 typedef enum {
+    AUDIO_TYPE_UNKNOWN = -1,
     AUDIO_TYPE_RAW,
 	AUDIO_TYPE_MPEG,
     AUDIO_TYPE_MPEG_V2,
@@ -229,17 +230,16 @@ typedef enum {
 	AUDIO_TYPE_DTS,
 	AUDIO_TYPE_DTS_PRI,
 	AUDIO_TYPE_WAV,
-    AUDIO_TYPE_UNKNOWN,
 } AUDIO_TYPE;
 
 typedef enum {
+    SUBTITLE_TYPE_UNKNOWN = -1,
     SUBTITLE_TYPE_RAW,
     SUBTITLE_TYPE_SSA,
     SUBTITLE_TYPE_ASS,
     SUBTITLE_TYPE_USF,
     SUBTITLE_TYPE_DVD,
     SUBTITLE_TYPE_DVB,
-    SUBTITLE_TYPE_UNKNOWN,
 } SUBTITLE_TYPE;
 
 typedef struct {
@@ -293,15 +293,15 @@ typedef struct _GST_STREAM_INFO {
 /*! \struct GST_MEDIA_INFO
  * \brief Describes the media information */
 struct GST_MEDIA_INFO {
+    /*! \brief The number of program */
+    int32_t             n_program;
+    /*! \brief The program number */
+    unsigned int        program_number[MAX_STREAM_INFO];
     /*! \brief Container format */
     CONTAINER_TYPE      container_type;
-    int32_t             n_container;
     /*! \brief Demux Type */
     DEMUX_TYPE          demux_type;
     /*! \brief Total number of programs */
-    int32_t             n_program;
-    /*! \brief The selected program number */
-    int32_t             program_number;
     
     /*! \brief The information for each stream */
     GST_STREAM_INFO	StreamInfo[MAX_STREAM_INFO];

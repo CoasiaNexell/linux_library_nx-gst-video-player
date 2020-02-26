@@ -92,10 +92,10 @@ static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
 
     if (GST_IS_DISCOVERER_CONTAINER_INFO (sinfo))
     {
-        pMediaInfo->n_container++;
         pMediaInfo->container_type = get_container_type(mime_type);
-        NXGLOGI("n_container(%d) container_type(%d)",
-                pMediaInfo->n_container, pMediaInfo->container_type);
+        pMediaInfo->demux_type = get_demux_type(mime_type);
+        NXGLOGI("container_type(%d) demux_type(%d)",
+                pMediaInfo->container_type, pMediaInfo->demux_type);
     }
     else if (GST_IS_DISCOVERER_VIDEO_INFO (sinfo))
     {

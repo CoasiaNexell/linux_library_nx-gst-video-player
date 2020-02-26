@@ -55,19 +55,24 @@ NX_GST_RET  NX_GST_OpenMediaInfo(GST_MEDIA_INFO **media_handle)
 	return NX_GST_RET_OK;
 }
 
-NX_GST_ERROR  NX_GST_GetMediaInfo(GST_MEDIA_INFO *media_handle,  const char *filePath)
+NX_GST_ERROR  NX_GST_GetMediaInfo(GST_MEDIA_INFO *media_handle, const char *filePath)
 {
 	FUNC_IN();
-	enum NX_GST_ERROR err;
+	enum NX_GST_ERROR err = NX_GST_ERROR_NONE;
 
-//#ifdef DISCOVER
-#if 1
-     err = StartDiscover(filePath, media_handle);
-	 if (media_handle->demux_type == DEMUX_TYPE_MPEGTSDEMUX)
-	 {
-		 start_typefind(filePath);
-	 }
-#endif
+	CONTAINER_TYPE type = CONTAINER_TYPE_UNKNOWN;
+	start_typefind(filePath, &type);
+	if (CONTAINER_TYPE_MPEGTS == type)
+	{
+		NXGLOGI("start to parse ts data");
+		start_ts(filePath, media_handle);
+		NXGLOGI("done to parse ts data");
+		err = StartDiscover(filePath, media_handle);
+	}
+	else
+	{
+		err = StartDiscover(filePath, media_handle);
+	}
 
 	FUNC_OUT();
 
