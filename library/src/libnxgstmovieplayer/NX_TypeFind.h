@@ -7,8 +7,10 @@
 extern "C" {
 #endif	//	__cplusplus
 
-gint start_typefind (const char* filePath, CONTAINER_TYPE *type);
-gint start_ts(const char* filePath, struct GST_MEDIA_INFO *media_info);
+gint
+start_typefind (const char* filePath, CONTAINER_TYPE *type);
+gint
+start_ts(const char* filePath, struct GST_MEDIA_INFO *media_info);
 
 #ifdef __cplusplus
 }

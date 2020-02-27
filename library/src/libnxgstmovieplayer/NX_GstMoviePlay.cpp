@@ -1409,6 +1409,8 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
     {
         handle->error = err;
         NXGLOGE("%s", get_nx_gst_error(err));
+
+        NX_GST_CloseMediaInfo(pGstMInfo);
         return NX_GST_RET_ERROR;
     }
     memcpy(&handle->gst_media_info, pGstMInfo, sizeof(struct GST_MEDIA_INFO));

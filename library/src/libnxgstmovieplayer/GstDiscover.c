@@ -62,6 +62,7 @@ static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
             desc = gst_pb_utils_get_codec_description(caps);
         else
             desc = gst_caps_to_string (caps);
+        NXGLOGI("caps:%s", desc ? desc:"");
     }
 
     GstStructure *structure = gst_caps_get_structure(caps, 0);
@@ -102,7 +103,8 @@ static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
         GstDiscovererVideoInfo *video_info = (GstDiscovererVideoInfo *) sinfo;
         guint width = gst_discoverer_video_info_get_width (video_info);
         guint height = gst_discoverer_video_info_get_height (video_info);
-        guint framerate = gst_discoverer_video_info_get_framerate_num(video_info);
+        guint framerate_num = gst_discoverer_video_info_get_framerate_num(video_info);
+        guint framerate_denom = gst_discoverer_video_info_get_framerate_denom(video_info);
 
         const char* stream_id = gst_discoverer_stream_info_get_stream_id(video_info);
         if (width == 0 || height == 0 || stream_id == NULL)
@@ -124,14 +126,15 @@ static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
         pMediaInfo->StreamInfo->VideoInfo[index].stream_id = stream_id;
         pMediaInfo->StreamInfo->VideoInfo[index].width = width;
         pMediaInfo->StreamInfo->VideoInfo[index].height = height;
-        pMediaInfo->StreamInfo->VideoInfo[index].framerate = framerate;
+        pMediaInfo->StreamInfo->VideoInfo[index].framerate_num = framerate_num;
+        pMediaInfo->StreamInfo->VideoInfo[index].framerate_denom = framerate_denom;
         pMediaInfo->StreamInfo->n_video++;
 
-        NXGLOGI("n_video(%u), stream_id(%s), video_width(%d), "
-                "video_height(%d), framerate(%d), video_type(%d)",
+        NXGLOGI("n_video(%u), video_width(%d), video_height(%d), "
+                "framerate(%d/%d), video_type(%d), stream_id(%s)",
                 pMediaInfo->StreamInfo->n_video,
-                stream_id, framerate, width, height,
-                pMediaInfo->StreamInfo->VideoInfo[index].type);
+                framerate_num/framerate_denom, width, height,
+                pMediaInfo->StreamInfo->VideoInfo[index].type, stream_id);
     }
     else if (GST_IS_DISCOVERER_AUDIO_INFO (sinfo))
     {
@@ -439,7 +442,7 @@ int get_video_codec_type(const gchar* mimeType)
 
     while (VIDEO_DESC[idx].mimetype) {
         str = VIDEO_DESC[idx].mimetype;
-        NXGLOGV("str = %s mimetype = %s", str, mimeType);
+        NXGLOGI("str = %s mimetype = %s", str, mimeType);
 
         if (str && strncmp(mimeType, str, len) == 0)
         {

@@ -187,7 +187,7 @@ typedef enum {
  * \brief Describes a video codec type */
 typedef enum {
     /*! \brief Unknown */
-    VIDEO_TYPE_UNKNOWN = 1,
+    VIDEO_TYPE_UNKNOWN = -1,
     /*! \brief H.263 */
     VIDEO_TYPE_H263,
     /*! \brief H.264 */
@@ -261,7 +261,8 @@ typedef struct {
     VIDEO_TYPE      type;
     int32_t         width;
     int32_t         height;
-    int32_t         framerate;
+    int32_t         framerate_num;
+    int32_t         framerate_denom;
 } GST_VIDEO_INFO;
 
 /*! \def MAX_STREAM_INFO
@@ -277,6 +278,14 @@ typedef struct _GST_STREAM_INFO {
     int32_t             n_audio;
     /*! \brief Total number of subtitles */
     int32_t             n_subtitle;
+
+    /*! \brief Currently playing video */
+    int32_t             current_video;
+    /*! \brief Currently playing audio */
+    int32_t             current_audio;
+    /*! \brief Currently playing subtitles */
+    int32_t             current_subtitle;
+
     /*! \brief Total duration */
     int32_t             duration;
     /*! \brief If the content is seekable */
@@ -293,7 +302,7 @@ typedef struct _GST_STREAM_INFO {
 /*! \struct GST_MEDIA_INFO
  * \brief Describes the media information */
 struct GST_MEDIA_INFO {
-    /*! \brief The number of program */
+    /*! \brief Total number of programs */
     int32_t             n_program;
     /*! \brief The program number */
     unsigned int        program_number[MAX_STREAM_INFO];

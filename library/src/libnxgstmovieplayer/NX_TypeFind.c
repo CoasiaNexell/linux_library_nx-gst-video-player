@@ -99,33 +99,37 @@ gint start_typefind (const char* filePath, CONTAINER_TYPE *type)
     memset(&handle, 0, sizeof(TypeFindSt));
     handle.container_type = *type;
 
+    NXGLOGI();
+
     // init GStreamer
     if(!gst_is_initialized()) {
         gst_init(NULL, NULL);
     }
     handle.loop = g_main_loop_new (NULL, FALSE);
 
-    NXGLOGI("Create a new pipeline to hold the elements");
+    // Create a new pipeline to hold the elements
     handle.pipeline = gst_pipeline_new("pipe");
 
     handle.bus = gst_pipeline_get_bus (GST_PIPELINE (handle.pipeline));
     gst_bus_add_watch (handle.bus, my_bus_callback, handle.loop);
     gst_object_unref (handle.bus);
 
-    NXGLOGI("Create file source and typefind element");
+    // Create file source and typefind element
     handle.filesrc = gst_element_factory_make ("filesrc", "source");
     g_object_set (G_OBJECT (handle.filesrc), "location", filePath, NULL);
     handle.typefind = gst_element_factory_make ("typefind", "typefinder");
     g_signal_connect (handle.typefind, "have-type", G_CALLBACK (cb_typefound), &handle);
     handle.fakesink = gst_element_factory_make ("fakesink", "sink");
 
-    NXGLOGI("Add elements");
+    // Add & link elements
     gst_bin_add_many (GST_BIN (handle.pipeline), handle.filesrc, handle.typefind, handle.fakesink, NULL);
     gst_element_link_many (handle.filesrc, handle.typefind, handle.fakesink, NULL);
+
+    // Set the state to PLAYING
     gst_element_set_state (GST_ELEMENT (handle.pipeline), GST_STATE_PLAYING);
     g_main_loop_run (handle.loop);
 
-    NXGLOGI("Release");
+    // "Release"
     *type = handle.container_type;
     gst_element_set_state (GST_ELEMENT (handle.pipeline), GST_STATE_NULL);
     gst_object_unref (GST_OBJECT (handle.pipeline));

@@ -644,8 +644,8 @@ bool CNX_GstMoviePlayer::HasSubTitleStream()
 		NXLOGE("%s: Error! Handle is not initialized!", __FUNCTION__);
 		return false;
 	}
-	NXLOGI("%s() %s", __FUNCTION__, ((m_MediaInfo.n_subtitle > 0)?"true":"false"));
-	return (m_MediaInfo.n_subtitle > 0) ? true:false;
+	NXLOGI("%s() %s", __FUNCTION__, ((m_MediaInfo.StreamInfo[0].n_subtitle > 0)?"true":"false"));
+	return (m_MediaInfo.StreamInfo[0].n_subtitle > 0) ? true:false;
 }
 
 int CNX_GstMoviePlayer::MakeThumbnail(const char *pUri, int64_t pos_msec, int32_t width, const char *outPath)
