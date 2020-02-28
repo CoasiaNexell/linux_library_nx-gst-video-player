@@ -72,9 +72,9 @@ int CNX_GstMoviePlayer::SetAspectRatio(DISPLAY_INFO dspInfo)
 			__FUNCTION__, dspInfo.dspWidth, dspInfo.dspHeight,
 			dspInfo.dspMode, dspInfo.subDspWidth, dspInfo.subDspHeight);
 
-	int video_width = m_MediaInfo.StreamInfo[0].VideoInfo[0].width;
-	int video_height = m_MediaInfo.StreamInfo[0].VideoInfo[0].height;
-
+	int index = m_MediaInfo.current_program_idx;
+	int video_width = m_MediaInfo.ProgramInfo[index].StreamInfo[0].VideoInfo[0].width;
+	int video_height = m_MediaInfo.ProgramInfo[index].StreamInfo[0].VideoInfo[0].height;
 	// Set aspect ratio for the primary display
 	memset(&m_dstDspRect, 0, sizeof(DSP_RECT));
 
@@ -644,8 +644,10 @@ bool CNX_GstMoviePlayer::HasSubTitleStream()
 		NXLOGE("%s: Error! Handle is not initialized!", __FUNCTION__);
 		return false;
 	}
-	NXLOGI("%s() %s", __FUNCTION__, ((m_MediaInfo.StreamInfo[0].n_subtitle > 0)?"true":"false"));
-	return (m_MediaInfo.StreamInfo[0].n_subtitle > 0) ? true:false;
+	int index = m_MediaInfo.current_program_idx;
+	NXLOGI("%s() %s", __FUNCTION__,
+		((m_MediaInfo.ProgramInfo[index].StreamInfo[0].n_subtitle > 0)?"true":"false"));
+	return (m_MediaInfo.ProgramInfo[index].StreamInfo[0].n_subtitle > 0) ? true:false;
 }
 
 int CNX_GstMoviePlayer::MakeThumbnail(const char *pUri, int64_t pos_msec, int32_t width, const char *outPath)

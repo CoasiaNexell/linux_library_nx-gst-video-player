@@ -24,7 +24,7 @@
 #include "config.h"
 #endif
 
-#define DUMP_DESCRIPTORS 1
+#define DUMP_DESCRIPTORS 0
 
 #include <glib.h>
 #include <glib-object.h>
@@ -843,8 +843,8 @@ dump_pat (GstMpegtsSection * section, MpegTsSt *handle)
   for (i = 0; i < len; i++) {
     GstMpegtsPatProgram *patp = g_ptr_array_index (pat, i);
     handle->media_info->program_number[i] = patp->program_number;
-        NXGLOGI("## n_program(%d), handle->media_info->program_number[%d] = %d",
-                handle->media_info->n_program, i, handle->media_info->program_number[i]);
+    NXGLOGI("n_program(%d), handle->media_info->program_number[%d] = %d",
+            handle->media_info->n_program, i, handle->media_info->program_number[i]);
     // program_number
     NXGLOGI
         ("     program_number:%6d (0x%04x), network_or_program_map_PID:0x%04x",
@@ -1345,7 +1345,27 @@ dump_collection (GstStreamCollection * collection, MpegTsSt *handle)
     NXGLOGI (" Stream %u type %s flags 0x%x", i,
         gst_stream_type_get_name (stype),
         gst_stream_get_stream_flags (stream));
-    NXGLOGI ("  ID: %s", gst_stream_get_stream_id (stream));
+    const char* stream_id = gst_stream_get_stream_id (stream);
+    NXGLOGI ("  ID: %s", stream_id);
+
+    gchar **split_str = NULL;
+    gint len_split_str = 0;
+
+    split_str = g_strsplit_set(stream_id, ":/", -1);
+    len_split_str = g_strv_length(split_str);
+    handle->media_info->current_program = atoi(split_str[1]);
+    NXGLOGI("len_split_str = %d, split_str[1]=%s, "
+            "handle->media_info->current_program=%d",
+            len_split_str, split_str[1], handle->media_info->current_program);
+    g_strfreev(split_str);
+
+    for (int i=0; i<handle->media_info->n_program; i++)
+    {
+        if (handle->media_info->program_number[i] == handle->media_info->current_program) {
+            handle->media_info->current_program_idx = i;
+            NXGLOGI("Found matched program number! idx:%d", i);
+        }
+    }
 
     caps = gst_stream_get_caps (stream);
     if (caps) {
@@ -1365,27 +1385,31 @@ dump_collection (GstStreamCollection * collection, MpegTsSt *handle)
       gst_tag_list_unref (tags);
     }
 
+    int current_program_idx = handle->media_info->current_program_idx;
     // n_video, n_audio, n_subtitle
     if (stype & GST_STREAM_TYPE_AUDIO)
     {
         gint audio_mpegversion, channels, samplerate;
 
-        handle->media_info->StreamInfo->AudioInfo[0].type = get_audio_codec_type(mime_type);
+        handle->media_info->ProgramInfo[current_program_idx].StreamInfo->AudioInfo[0].type = get_audio_codec_type(mime_type);
         if (gst_structure_get_int (structure, "mpegversion", &audio_mpegversion))
         {
-            if (audio_mpegversion <4) {
-                handle->media_info->StreamInfo->AudioInfo[0].type = AUDIO_TYPE_MPEG_V2;
-            }
+            if (audio_mpegversion == 1) {
+                handle->media_info->ProgramInfo[current_program_idx].StreamInfo->AudioInfo[0].type = AUDIO_TYPE_MPEG_V1;
+            } else if (audio_mpegversion == 2) {
+                handle->media_info->ProgramInfo[current_program_idx].StreamInfo->AudioInfo[0].type = AUDIO_TYPE_MPEG_V2;
+            } 
+
         }
         if (gst_structure_get_int(structure, "channels", &channels))
-            handle->media_info->StreamInfo->AudioInfo[0].n_channels = channels;
+            handle->media_info->ProgramInfo[current_program_idx].StreamInfo->AudioInfo[0].n_channels = channels;
         if (gst_structure_get_int(structure, "rate", &samplerate))
-            handle->media_info->StreamInfo->AudioInfo[0].samplerate = samplerate;
+            handle->media_info->ProgramInfo[current_program_idx].StreamInfo->AudioInfo[0].samplerate = samplerate;
 
         // tag - bitrate
         NXGLOGI("n_channels(%d), samplerate(%d), type(%d)",
                 channels, samplerate,
-                handle->media_info->StreamInfo->AudioInfo[0].type);
+                handle->media_info->ProgramInfo[current_program_idx].StreamInfo->AudioInfo[0].type);
     }
     else if (stype & GST_STREAM_TYPE_VIDEO)
     {
@@ -1395,18 +1419,20 @@ dump_collection (GstStreamCollection * collection, MpegTsSt *handle)
         const gchar *stream_id = gst_stream_get_stream_id (stream);
         //int32_t index = handle->media_info->StreamInfo->n_video;
 
-        handle->media_info->StreamInfo->VideoInfo[0].type = video_type;
+        handle->media_info->ProgramInfo[current_program_idx].StreamInfo->VideoInfo[0].type = video_type;
         if ((structure != NULL) && (video_type == VIDEO_TYPE_MPEG_V4))
         {
             gst_structure_get_int (structure, "mpegversion", &video_mpegversion);
-            if (video_mpegversion > 0 && video_mpegversion < 4) {
-                handle->media_info->StreamInfo->VideoInfo[0].type = VIDEO_TYPE_MPEG_V2;
+            if (video_mpegversion == 1) {
+                handle->media_info->ProgramInfo[current_program_idx].StreamInfo->VideoInfo[0].type = VIDEO_TYPE_MPEG_V1;
+            } else if (video_mpegversion == 2) {
+                handle->media_info->ProgramInfo[current_program_idx].StreamInfo->VideoInfo[0].type = VIDEO_TYPE_MPEG_V2;
             }
         }
 
-        handle->media_info->StreamInfo->VideoInfo[0].stream_id = stream_id;
+        handle->media_info->ProgramInfo[current_program_idx].StreamInfo->VideoInfo[0].stream_id = stream_id;
         NXGLOGI("video_mpegversion(%d) type(%d) stream_id(%s)",
-                video_mpegversion, handle->media_info->StreamInfo->VideoInfo[0].type,
+                video_mpegversion, handle->media_info->ProgramInfo[current_program_idx].StreamInfo->VideoInfo[0].type,
                 stream_id);
     } else if (stype & GST_STREAM_TYPE_TEXT) {
     }
@@ -1555,6 +1581,7 @@ on_decodebin_pad_added(GstElement *element, GstPad *pad, gpointer data)
         return;
     }
 
+    int current_program_idx = handle->media_info->current_program_idx;
     const char *mime_type = gst_structure_get_name(structure);
     NXGLOGI("MIME-type:%s", mime_type);
     if (g_str_has_prefix(mime_type, "video/"))
@@ -1564,14 +1591,14 @@ on_decodebin_pad_added(GstElement *element, GstPad *pad, gpointer data)
         if (gst_structure_get_int(structure, "width", &width) &&
             gst_structure_get_int(structure, "height", &height))
         {
-            handle->media_info->StreamInfo->VideoInfo[0].width = width;
-            handle->media_info->StreamInfo->VideoInfo[0].height = height;
+            handle->media_info->ProgramInfo[current_program_idx].StreamInfo->VideoInfo[0].width = width;
+            handle->media_info->ProgramInfo[current_program_idx].StreamInfo->VideoInfo[0].height = height;
         }
 
         if (gst_structure_get_fraction(structure, "framerate", &num, &den))
         {
-            handle->media_info->StreamInfo->VideoInfo[0].framerate_num = num;
-            handle->media_info->StreamInfo->VideoInfo[0].framerate_denom = den;
+            handle->media_info->ProgramInfo[current_program_idx].StreamInfo->VideoInfo[0].framerate_num = num;
+            handle->media_info->ProgramInfo[current_program_idx].StreamInfo->VideoInfo[0].framerate_denom = den;
         }
 
         NXGLOGI("width(%d), height(%d), framerate(%d/%d)", width, height, num, den);
@@ -1593,22 +1620,24 @@ on_decodebin_pad_added(GstElement *element, GstPad *pad, gpointer data)
     {
         gint audio_mpegversion, channels, samplerate;
 
-        handle->media_info->StreamInfo->AudioInfo[0].type = get_audio_codec_type(mime_type);
+        handle->media_info->ProgramInfo[current_program_idx].StreamInfo->AudioInfo[0].type = get_audio_codec_type(mime_type);
         if (gst_structure_get_int (structure, "mpegversion", &audio_mpegversion))
         {
-            if (audio_mpegversion <4) {
-                handle->media_info->StreamInfo->AudioInfo[0].type = AUDIO_TYPE_MPEG_V2;
+            if (audio_mpegversion == 1) {
+                handle->media_info->ProgramInfo[current_program_idx].StreamInfo->AudioInfo[0].type = AUDIO_TYPE_MPEG_V1;
+            } else if (audio_mpegversion == 2) {
+                handle->media_info->ProgramInfo[current_program_idx].StreamInfo->AudioInfo[0].type = AUDIO_TYPE_MPEG_V2;
             }
         }
         if (gst_structure_get_int(structure, "channels", &channels))
-            handle->media_info->StreamInfo->AudioInfo[0].n_channels = channels;
+            handle->media_info->ProgramInfo[current_program_idx].StreamInfo->AudioInfo[0].n_channels = channels;
         if (gst_structure_get_int(structure, "rate", &samplerate))
-            handle->media_info->StreamInfo->AudioInfo[0].samplerate = samplerate;
+            handle->media_info->ProgramInfo[current_program_idx].StreamInfo->AudioInfo[0].samplerate = samplerate;
         // tag - bitrate
 
         NXGLOGI("n_channels(%d), samplerate(%d), type(%d)",
                 channels, samplerate,
-                handle->media_info->StreamInfo->AudioInfo[0].type);
+                handle->media_info->ProgramInfo[current_program_idx].StreamInfo->AudioInfo[0].type);
 
         target_sink = handle->typefind;
         NXGLOGV("element %s will be linked to %s\n",
@@ -1674,6 +1703,7 @@ start_ts(const char* filePath, struct GST_MEDIA_INFO *media_info)
     gst_bin_add_many (GST_BIN (handle.pipeline), handle.filesrc,
                         handle.demuxer, handle.video_queue,
                         handle.decodebin, handle.typefind, handle.fakesink, NULL);
+
     if (!gst_element_link_many (handle.filesrc, handle.demuxer, NULL))
         NXGLOGE("Failed to link filesrc<-->demuxer");
     if (!gst_element_link_many (handle.video_queue, handle.decodebin, NULL))

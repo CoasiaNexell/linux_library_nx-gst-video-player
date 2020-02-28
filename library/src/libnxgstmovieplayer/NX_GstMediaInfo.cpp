@@ -30,7 +30,7 @@
 #include "NX_GstLog.h"
 #define LOG_TAG "[NxGstMediaInfo]"
 
-NX_GST_RET  NX_GST_OpenMediaInfo(GST_MEDIA_INFO **media_handle)
+NX_GST_RET	OpenMediaInfo(GST_MEDIA_INFO **media_handle)
 {
 	FUNC_IN();
 
@@ -55,7 +55,7 @@ NX_GST_RET  NX_GST_OpenMediaInfo(GST_MEDIA_INFO **media_handle)
 	return NX_GST_RET_OK;
 }
 
-NX_GST_ERROR  NX_GST_GetMediaInfo(GST_MEDIA_INFO *media_handle, const char *filePath)
+NX_GST_ERROR  GetMediaInfo(GST_MEDIA_INFO *media_handle, const char *filePath)
 {
 	FUNC_IN();
 	enum NX_GST_ERROR err = NX_GST_ERROR_NONE;
@@ -79,7 +79,7 @@ NX_GST_ERROR  NX_GST_GetMediaInfo(GST_MEDIA_INFO *media_handle, const char *file
 	return err;
 }
 
-NX_GST_RET  NX_GST_CloseMediaInfo(GST_MEDIA_INFO *media_handle)
+NX_GST_RET  CloseMediaInfo(GST_MEDIA_INFO *media_handle)
 {
 	FUNC_IN();
 

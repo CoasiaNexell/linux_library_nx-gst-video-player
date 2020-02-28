@@ -196,6 +196,8 @@ typedef enum {
     VIDEO_TYPE_MPEG_V4,
     /*! \brief MPEG v2 */
     VIDEO_TYPE_MPEG_V2,
+    /*! \brief MPEG v1 */
+    VIDEO_TYPE_MPEG_V1,
     /*! \brief Divx */
     VIDEO_TYPE_DIVX,
     /*! \brief XVID */
@@ -218,6 +220,7 @@ typedef enum {
     AUDIO_TYPE_UNKNOWN = -1,
     AUDIO_TYPE_RAW,
 	AUDIO_TYPE_MPEG,
+    AUDIO_TYPE_MPEG_V1,
     AUDIO_TYPE_MPEG_V2,
 	AUDIO_TYPE_MP3,
 	AUDIO_TYPE_AAC,
@@ -299,21 +302,31 @@ typedef struct _GST_STREAM_INFO {
     GST_SUBTITLE_INFO   SubtitleInfo[MAX_STREAM_INFO];
 } GST_STREAM_INFO;
 
+#define PROGRAM_MAX			16
+typedef struct PROGRAM_INFO
+{
+    /*! \brief The stream information of the currently playing program */
+    GST_STREAM_INFO	StreamInfo[MAX_STREAM_INFO];        // programs info
+} PROGRAM_INFO;
+
 /*! \struct GST_MEDIA_INFO
  * \brief Describes the media information */
 struct GST_MEDIA_INFO {
     /*! \brief Total number of programs */
     int32_t             n_program;
     /*! \brief The program number */
-    unsigned int        program_number[MAX_STREAM_INFO];
+    unsigned int        program_number[MAX_STREAM_INFO];// 0x4351, 0x4415, ...
+    /*! \brief Currently playing program */
+    int32_t             current_program;
+    int32_t             current_program_idx;
+
     /*! \brief Container format */
     CONTAINER_TYPE      container_type;
     /*! \brief Demux Type */
     DEMUX_TYPE          demux_type;
-    /*! \brief Total number of programs */
-    
-    /*! \brief The information for each stream */
-    GST_STREAM_INFO	StreamInfo[MAX_STREAM_INFO];
+    /*! \brief The stream information of the currently playing program */
+    PROGRAM_INFO        ProgramInfo[PROGRAM_MAX];
+    //GST_STREAM_INFO     StreamInfo[MAX_STREAM_INFO];
 
     struct DSP_RECT        dsp_rect;
 
