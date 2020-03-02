@@ -300,33 +300,56 @@ typedef struct _GST_STREAM_INFO {
     GST_AUDIO_INFO      AudioInfo[MAX_STREAM_INFO];
     /*! \brief Subtitle stream information */
     GST_SUBTITLE_INFO   SubtitleInfo[MAX_STREAM_INFO];
-} GST_STREAM_INFO;
+} aa;//GST_STREAM_INFO;
 
 #define PROGRAM_MAX			16
 typedef struct PROGRAM_INFO
 {
-    /*! \brief The stream information of the currently playing program */
-    GST_STREAM_INFO	StreamInfo[MAX_STREAM_INFO];        // programs info
+    /*! \brief Total number of videos */
+    int32_t             n_video;
+    /*! \brief Total number of audio */
+    int32_t             n_audio;
+    /*! \brief Total number of subtitles */
+    int32_t             n_subtitle;
+
+    /*! \brief Currently playing video */
+    int32_t             current_video;
+    /*! \brief Currently playing audio */
+    int32_t             current_audio;
+    /*! \brief Currently playing subtitles */
+    int32_t             current_subtitle;
+
+    /*! \brief Total duration */
+    int64_t             duration;
+    /*! \brief If the content is seekable */
+    int32_t             seekable;
+
+    /*! \brief Video stream information */
+    GST_VIDEO_INFO      VideoInfo[MAX_STREAM_INFO];
+    /*! \brief Audio stream information */
+    GST_AUDIO_INFO      AudioInfo[MAX_STREAM_INFO];
+    /*! \brief Subtitle stream information */
+    GST_SUBTITLE_INFO   SubtitleInfo[MAX_STREAM_INFO];
 } PROGRAM_INFO;
 
 /*! \struct GST_MEDIA_INFO
  * \brief Describes the media information */
 struct GST_MEDIA_INFO {
-    /*! \brief Total number of programs */
-    int32_t             n_program;
-    /*! \brief The program number */
-    unsigned int        program_number[MAX_STREAM_INFO];// 0x4351, 0x4415, ...
-    /*! \brief Currently playing program */
-    int32_t             current_program;
-    int32_t             current_program_idx;
-
     /*! \brief Container format */
     CONTAINER_TYPE      container_type;
     /*! \brief Demux Type */
     DEMUX_TYPE          demux_type;
+
+    /*! \brief Total number of programs */
+    int32_t             n_program;
+    /*! \brief The program number */
+    unsigned int        program_number[PROGRAM_MAX];// 0x4351, 0x4415, ...
+    /*! \brief Currently playing program */
+    int32_t             current_program;
+    int32_t             current_program_idx;
+
     /*! \brief The stream information of the currently playing program */
     PROGRAM_INFO        ProgramInfo[PROGRAM_MAX];
-    //GST_STREAM_INFO     StreamInfo[MAX_STREAM_INFO];
 
     struct DSP_RECT        dsp_rect;
 

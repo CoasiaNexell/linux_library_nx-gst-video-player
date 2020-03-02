@@ -8,10 +8,10 @@ extern "C" {
 #endif	//	__cplusplus
 
 static struct {
-    char *mimetype;
+    const char *mimetype;
     CONTAINER_TYPE  type;
     DEMUX_TYPE demux_type;
-    char *demux_name;
+    const char *demux_name;
 } CONTAINER_DESC[] = {
     {"video/quicktime",         CONTAINER_TYPE_QUICKTIME,   DEMUX_TYPE_QTDEMUX,         "qtdemux"},
     {"application/ogg",         CONTAINER_TYPE_OGG,         DEMUX_TYPE_OGGDEMUX,        "oggdemux"},
@@ -36,9 +36,9 @@ static struct {
 };
 
 static struct {
-    char *mimetype;
+    const char *mimetype;
     VIDEO_TYPE type;
-    char *parser;
+    const char *parser;
 } VIDEO_DESC[] = {
     {"video/x-h264",            VIDEO_TYPE_H264,        "h264parse"},
 	{"video/x-h263",            VIDEO_TYPE_H263,        NULL},
@@ -55,9 +55,9 @@ static struct {
 };
 
 static struct {
-    char *mimetype;
+    const char *mimetype;
     AUDIO_TYPE type;
-    char *parser;
+    const char *parser;
 } AUDIO_DESC[] = {
     {"audio/x-raw",             AUDIO_TYPE_RAW,         NULL},
     {"audio/mpeg",              AUDIO_TYPE_MPEG,        NULL},
@@ -76,9 +76,9 @@ static struct {
 };
 
 static struct {
-    char *mimetype;
+    const char *mimetype;
     SUBTITLE_TYPE type;
-    char *parser;
+    const char *parser;
 } SUBTITLE_DESC[] = {
     {"text/x-raw",              SUBTITLE_TYPE_RAW,        NULL},
     {"application/x-ssa",       SUBTITLE_TYPE_SSA,        NULL},

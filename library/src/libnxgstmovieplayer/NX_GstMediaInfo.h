@@ -12,8 +12,9 @@ extern "C" {
 #endif
 
 NX_GST_RET      OpenMediaInfo(GST_MEDIA_INFO **media_handle);
-NX_GST_ERROR    GetMediaInfo(GST_MEDIA_INFO *media_handle, const char *filePath);
+NX_GST_ERROR    ParseMediaInfo(GST_MEDIA_INFO *media_handle, const char *filePath);
 NX_GST_RET      CloseMediaInfo(GST_MEDIA_INFO *media_handle);
+void            MediaInfoToStr(GST_MEDIA_INFO *media_info, const char *filePath);
 
 #ifdef __cplusplus
 }

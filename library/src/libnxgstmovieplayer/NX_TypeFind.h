@@ -10,7 +10,9 @@ extern "C" {
 gint
 start_typefind (const char* filePath, CONTAINER_TYPE *type);
 gint
-start_ts(const char* filePath, struct GST_MEDIA_INFO *media_info);
+get_program_info(const char* filePath, struct GST_MEDIA_INFO *media_info);
+gint
+get_stream_info(const char* filePath, int program_number, struct GST_MEDIA_INFO *media_info);
 
 #ifdef __cplusplus
 }

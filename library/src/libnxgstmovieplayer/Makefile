@@ -17,7 +17,8 @@ COBJS  	:= \
 	NX_GstLog.o	\
 	NX_GstThumbnail.o \
 	NX_TypeFind.o \
-	NX_TSParser.o
+	NX_TSProgram.o \
+	NX_TSStream.o
 
 CPPOBJS	:=
 CPPOBJS += \

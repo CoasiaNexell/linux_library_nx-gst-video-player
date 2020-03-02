@@ -227,7 +227,8 @@ NX_GST_RET NX_GSTMP_VideoMute(MP_HANDLE handle, int32_t bOnoff);
 /*!
  * \fn NX_GST_RET NX_GSTMP_SetVideoSpeed(MP_HANDLE handle, double rate);
  *
- * \brief This is used to control the playback rate. It’s available in PAUSED or PLAYING state.
+ * \brief This is used to control the playback rate.
+ * It’s available in PAUSED or PLAYING state.
  *
  * \param [in]  handle    Movie player handle
  * \param [in]  rate      Playback speed rate
@@ -274,7 +275,8 @@ NX_GST_RET NX_GSTMP_GetVideoSpeedSupport(MP_HANDLE handle);
  * \retval NX_GST_RET_ERROR On failure.
  * \retval NX_GST_RET_OK On succee.
  */
-NX_GST_RET NX_GSTMP_MakeThumbnail(const gchar *uri, gint64 pos_msec, gint width, const char *outPath);
+NX_GST_RET NX_GSTMP_MakeThumbnail(const gchar *uri, gint64 pos_msec,
+                        gint width, const char *outPath);
 
 #ifdef __cplusplus
 }

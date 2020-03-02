@@ -18,7 +18,6 @@
 //------------------------------------------------------------------------------
 
 #include <gst/gst.h>
-#include <gst/mpegts/mpegts.h>
 #include <string.h>
 
 #include "NX_GstIface.h"
@@ -409,10 +408,10 @@ static void on_pad_added_demux(GstElement *element,
         target_sink_pad = handle->audio_queue;
         sinkpad = gst_element_get_static_pad(target_sink_pad, "sink");
     }
-    else if ((handle->gst_media_info.ProgramInfo[index].StreamInfo[0].n_subtitle >= 1) &&
+    else if ((handle->gst_media_info.ProgramInfo[index].n_subtitle >= 1) &&
             g_str_has_prefix(padName, "subtitle_0"))
     {
-        if (handle->gst_media_info.ProgramInfo[index].StreamInfo[0].SubtitleInfo[0].type == SUBTITLE_TYPE_RAW)
+        if (handle->gst_media_info.ProgramInfo[index].SubtitleInfo[0].type == SUBTITLE_TYPE_RAW)
         {
             target_sink_pad = handle->subtitle_queue;
             sinkpad = gst_element_get_static_pad(target_sink_pad, "sink");
@@ -420,7 +419,7 @@ static void on_pad_added_demux(GstElement *element,
         else
         {
             NXGLOGE("Unsupported subtitle codec type %d",
-                    handle->gst_media_info.ProgramInfo[index].StreamInfo[0].SubtitleInfo[0].type);
+                    handle->gst_media_info.ProgramInfo[index].SubtitleInfo[0].type);
             if (padName)	g_free(padName);
             gst_caps_unref (caps);
             return;
@@ -440,7 +439,7 @@ static void on_pad_added_demux(GstElement *element,
     // Link pads [demuxer <--> video_queue/audio_queue/subtitle_queue]
     if (g_str_has_prefix(mime_type, "video/") ||
         g_str_has_prefix(mime_type, "audio/") ||
-        ((handle->gst_media_info.ProgramInfo[index].StreamInfo[0].n_subtitle >= 1) &&
+        ((handle->gst_media_info.ProgramInfo[index].n_subtitle >= 1) &&
             g_str_has_prefix(padName, "subtitle_0")))
     {
         if (NULL == sinkpad)
@@ -467,7 +466,7 @@ static void on_pad_added_demux(GstElement *element,
     }
 
 #ifdef TEST
-    if ((handle->gst_media_info.ProgramInfo[index].StreamInfo[0].n_subtitle >= 1) && g_str_has_prefix(padName, "subtitle"))
+    if ((handle->gst_media_info.ProgramInfo[index].n_subtitle >= 1) && g_str_has_prefix(padName, "subtitle"))
     {
         NXGLOGI("Add probe to pad");
         gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER,
@@ -763,6 +762,8 @@ NX_GST_RET set_demux_element(MP_HANDLE handle)
     else if (container_type == CONTAINER_TYPE_MPEGTS)       // MPEGTS
     {
         handle->demuxer = gst_element_factory_make("tsdemux", "tsdemux");
+        NXGLOGI("## Set program number %d", handle->gst_media_info.program_number[1]);
+        g_object_set (G_OBJECT (handle->demuxer), "program-number", handle->gst_media_info.program_number[1], NULL);
     }
 
     if (NULL == handle->demuxer)
@@ -790,8 +791,8 @@ NX_GST_RET set_audio_elements(MP_HANDLE handle)
 
     int index = handle->gst_media_info.current_program_idx;
     // Audio parser & Audio decoder
-    if ((handle->gst_media_info.ProgramInfo[index].StreamInfo[0].AudioInfo[0].type == AUDIO_TYPE_MPEG_V1) ||
-        (handle->gst_media_info.ProgramInfo[index].StreamInfo[0].AudioInfo[0].type == AUDIO_TYPE_MPEG_V2))
+    if ((handle->gst_media_info.ProgramInfo[index].AudioInfo[0].type == AUDIO_TYPE_MPEG_V1) ||
+        (handle->gst_media_info.ProgramInfo[index].AudioInfo[0].type == AUDIO_TYPE_MPEG_V2))
     {
         handle->audio_parser = gst_element_factory_make("mpegaudioparse", "mpegaudioparse");
         if (!handle->audio_parser)
@@ -847,7 +848,7 @@ NX_GST_RET set_video_elements(MP_HANDLE handle)
 
     int index = handle->gst_media_info.current_program_idx;
     // Video Parser
-    if (handle->gst_media_info.ProgramInfo[index].StreamInfo[0].VideoInfo[0].type == VIDEO_TYPE_H264)
+    if (handle->gst_media_info.ProgramInfo[index].VideoInfo[0].type == VIDEO_TYPE_H264)
     {
         handle->video_parser = gst_element_factory_make("h264parse", "parser");
         if (!handle->video_parser)
@@ -856,8 +857,8 @@ NX_GST_RET set_video_elements(MP_HANDLE handle)
             return NX_GST_RET_ERROR;
         }
     }
-    else if ((handle->gst_media_info.ProgramInfo[index].StreamInfo[0].VideoInfo[0].type == VIDEO_TYPE_MPEG_V1) ||
-            (handle->gst_media_info.ProgramInfo[index].StreamInfo[0].VideoInfo[0].type == VIDEO_TYPE_MPEG_V2))
+    else if ((handle->gst_media_info.ProgramInfo[index].VideoInfo[0].type == VIDEO_TYPE_MPEG_V1) ||
+            (handle->gst_media_info.ProgramInfo[index].VideoInfo[0].type == VIDEO_TYPE_MPEG_V2))
     {
         handle->video_parser = gst_element_factory_make("mpegvideoparse", "parser");
         if (!handle->video_parser)
@@ -926,9 +927,9 @@ void add_video_elements_to_bin(MP_HANDLE handle)
 
     int index = handle->gst_media_info.current_program_idx;
     // video_parser
-    if ((handle->gst_media_info.ProgramInfo[index].StreamInfo[0].VideoInfo[0].type == VIDEO_TYPE_H264) ||
-        (handle->gst_media_info.ProgramInfo[index].StreamInfo[0].VideoInfo[0].type == VIDEO_TYPE_MPEG_V1) ||
-        (handle->gst_media_info.ProgramInfo[index].StreamInfo[0].VideoInfo[0].type == VIDEO_TYPE_MPEG_V2))
+    if ((handle->gst_media_info.ProgramInfo[index].VideoInfo[0].type == VIDEO_TYPE_H264) ||
+        (handle->gst_media_info.ProgramInfo[index].VideoInfo[0].type == VIDEO_TYPE_MPEG_V1) ||
+        (handle->gst_media_info.ProgramInfo[index].VideoInfo[0].type == VIDEO_TYPE_MPEG_V2))
     {
         gst_bin_add(GST_BIN(handle->pipeline), handle->video_parser);
     }
@@ -937,8 +938,8 @@ void add_video_elements_to_bin(MP_HANDLE handle)
 void add_audio_elements_to_bin(MP_HANDLE handle)
 {
     int index = handle->gst_media_info.current_program_idx;
-    if ((handle->gst_media_info.ProgramInfo[index].StreamInfo[0].AudioInfo[0].type == AUDIO_TYPE_MPEG_V1) ||
-        (handle->gst_media_info.ProgramInfo[index].StreamInfo[0].AudioInfo[0].type == AUDIO_TYPE_MPEG_V2))
+    if ((handle->gst_media_info.ProgramInfo[index].AudioInfo[0].type == AUDIO_TYPE_MPEG_V1) ||
+        (handle->gst_media_info.ProgramInfo[index].AudioInfo[0].type == AUDIO_TYPE_MPEG_V2))
     {
         gst_bin_add_many(GST_BIN(handle->pipeline),
                     handle->audio_queue, handle->audio_parser, handle->audio_decoder,
@@ -980,8 +981,8 @@ NX_GST_RET add_elements_to_bin(MP_HANDLE handle)
 
     add_video_elements_to_bin(handle);
     add_audio_elements_to_bin(handle);
-    if (handle->gst_media_info.ProgramInfo[index].StreamInfo->n_subtitle >= 1 &&
-        (handle->gst_media_info.ProgramInfo[index].StreamInfo->SubtitleInfo->type == SUBTITLE_TYPE_RAW))
+    if (handle->gst_media_info.ProgramInfo[index].n_subtitle >= 1 &&
+        (handle->gst_media_info.ProgramInfo[index].SubtitleInfo->type == SUBTITLE_TYPE_RAW))
     {
         add_subtitle_elements_to_bin(handle);
     }
@@ -994,9 +995,9 @@ NX_GST_RET add_elements_to_bin(MP_HANDLE handle)
 NX_GST_RET link_video_elements(MP_HANDLE handle)
 {
     int index = handle->gst_media_info.current_program_idx;
-    if ((handle->gst_media_info.ProgramInfo[index].StreamInfo[0].VideoInfo[0].type == VIDEO_TYPE_H264) ||
-        (handle->gst_media_info.ProgramInfo[index].StreamInfo[0].VideoInfo[0].type == VIDEO_TYPE_MPEG_V1) ||
-        (handle->gst_media_info.ProgramInfo[index].StreamInfo[0].VideoInfo[0].type == VIDEO_TYPE_MPEG_V2))
+    if ((handle->gst_media_info.ProgramInfo[index].VideoInfo[0].type == VIDEO_TYPE_H264) ||
+        (handle->gst_media_info.ProgramInfo[index].VideoInfo[0].type == VIDEO_TYPE_MPEG_V1) ||
+        (handle->gst_media_info.ProgramInfo[index].VideoInfo[0].type == VIDEO_TYPE_MPEG_V2))
     {
         if (!gst_element_link_many(handle->video_queue, handle->video_parser,
                         handle->video_decoder, NULL))
@@ -1032,8 +1033,8 @@ NX_GST_RET link_video_elements(MP_HANDLE handle)
 NX_GST_RET link_audio_elements(MP_HANDLE handle)
 {
     int index = handle->gst_media_info.current_program_idx;
-    if ((handle->gst_media_info.ProgramInfo[index].StreamInfo[0].AudioInfo[0].type == AUDIO_TYPE_MPEG_V1) ||
-        (handle->gst_media_info.ProgramInfo[index].StreamInfo[0].AudioInfo[0].type == AUDIO_TYPE_MPEG_V2))
+    if ((handle->gst_media_info.ProgramInfo[index].AudioInfo[0].type == AUDIO_TYPE_MPEG_V1) ||
+        (handle->gst_media_info.ProgramInfo[index].AudioInfo[0].type == AUDIO_TYPE_MPEG_V2))
     {
         if (!gst_element_link(handle->audio_queue, handle->audio_parser))
         {
@@ -1109,8 +1110,8 @@ NX_GST_RET link_elements(MP_HANDLE handle)
 
     link_video_elements(handle);
     link_audio_elements(handle);
-    if (handle->gst_media_info.ProgramInfo[index].StreamInfo[0].n_subtitle >= 1 &&
-        handle->gst_media_info.ProgramInfo[index].StreamInfo[0].SubtitleInfo[0].type == SUBTITLE_TYPE_RAW)
+    if (handle->gst_media_info.ProgramInfo[index].n_subtitle >= 1 &&
+        handle->gst_media_info.ProgramInfo[index].SubtitleInfo[0].type == SUBTITLE_TYPE_RAW)
     {
         link_subtitle_elements(handle);
     }
@@ -1423,7 +1424,7 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
         return NX_GST_RET_ERROR;
     }
 
-    enum NX_GST_ERROR err = GetMediaInfo(pGstMInfo, pfilePath);
+    enum NX_GST_ERROR err = ParseMediaInfo(pGstMInfo, pfilePath);
     if (NX_GST_ERROR_NONE != err)
     {
         handle->error = err;
@@ -1432,6 +1433,9 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
         CloseMediaInfo(pGstMInfo);
         return NX_GST_RET_ERROR;
     }
+
+    MediaInfoToStr(pGstMInfo, pfilePath);
+
     memcpy(&handle->gst_media_info, pGstMInfo, sizeof(struct GST_MEDIA_INFO));
     int index = handle->gst_media_info.current_program_idx;
     NXGLOGD("container(%d), video type(%d),"
@@ -1439,12 +1443,12 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
             "audio codec(%d), seekable(%s),"
             "duration: (%" GST_TIME_FORMAT ")\r",
             pGstMInfo->container_type,
-            pGstMInfo->ProgramInfo[index].StreamInfo->VideoInfo->type,
-            pGstMInfo->ProgramInfo[index].StreamInfo->VideoInfo->width,
-            pGstMInfo->ProgramInfo[index].StreamInfo->VideoInfo->height,
-            pGstMInfo->ProgramInfo[index].StreamInfo->AudioInfo->type,
-            pGstMInfo->ProgramInfo[index].StreamInfo->seekable ? "yes":"no",
-            GST_TIME_ARGS (pGstMInfo->ProgramInfo[index].StreamInfo->duration));
+            pGstMInfo->ProgramInfo[index].VideoInfo->type,
+            pGstMInfo->ProgramInfo[index].VideoInfo->width,
+            pGstMInfo->ProgramInfo[index].VideoInfo->height,
+            pGstMInfo->ProgramInfo[index].AudioInfo->type,
+            pGstMInfo->ProgramInfo[index].seekable ? "yes":"no",
+            GST_TIME_ARGS (pGstMInfo->ProgramInfo[index].duration));
     CloseMediaInfo(pGstMInfo);
     // Done to parse media info
 
@@ -1465,8 +1469,8 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
     handle->bus_watch_id = gst_bus_add_watch(handle->bus, (GstBusFunc)gst_bus_callback, handle);
     gst_object_unref(handle->bus);
 
-    if ((handle->gst_media_info.ProgramInfo[index].StreamInfo[0].n_subtitle > 0) &&
-        (handle->gst_media_info.ProgramInfo[index].StreamInfo[0].SubtitleInfo[0].type == SUBTITLE_TYPE_RAW))
+    if ((handle->gst_media_info.ProgramInfo[index].n_subtitle > 0) &&
+        (handle->gst_media_info.ProgramInfo[index].SubtitleInfo[0].type == SUBTITLE_TYPE_RAW))
     {
         set_subtitle_element(handle);
     }
@@ -1602,16 +1606,6 @@ NX_GST_RET NX_GSTMP_GetMediaInfo(MP_HANDLE handle, GST_MEDIA_INFO *pGstMInfo)
     memcpy(pGstMInfo, &handle->gst_media_info, sizeof(GST_MEDIA_INFO));
  
     int index = handle->gst_media_info.current_program_idx;
-    NXGLOGI("container(%d), video mime-type(%d),"
-           "audio mime-type(%d), seekable(%s), video_width(%d), video_height(%d),"
-           "duration: (%" GST_TIME_FORMAT ")\r",
-           pGstMInfo->container_type,
-           pGstMInfo->ProgramInfo[index].StreamInfo->VideoInfo->type,
-           pGstMInfo->ProgramInfo[index].StreamInfo->AudioInfo->type,
-           pGstMInfo->ProgramInfo[index].StreamInfo->seekable ? "yes":"no",
-           pGstMInfo->ProgramInfo[index].StreamInfo->VideoInfo->width,
-           pGstMInfo->ProgramInfo[index].StreamInfo->VideoInfo->height,
-           GST_TIME_ARGS (pGstMInfo->ProgramInfo[index].StreamInfo->duration));
 
     FUNC_OUT();
 
@@ -1633,10 +1627,10 @@ NX_GSTMP_SetDisplayInfo(MP_HANDLE handle, enum DISPLAY_TYPE type,
     }
 
     int index = handle->gst_media_info.current_program_idx;
-    if (handle->gst_media_info.ProgramInfo[index].StreamInfo[0].VideoInfo[0].width > dspWidth)
+    if (handle->gst_media_info.ProgramInfo[index].VideoInfo[0].width > dspWidth)
     {
         NXGLOGE("Not supported content(width:%d)",
-                handle->gst_media_info.ProgramInfo[index].StreamInfo[0].VideoInfo[0].width);
+                handle->gst_media_info.ProgramInfo[index].VideoInfo[0].width);
         return NX_GST_RET_ERROR;
     }
 
@@ -2099,7 +2093,7 @@ NX_GST_RET NX_GSTMP_SetVideoSpeed(MP_HANDLE handle, double rate)
     }
 
     int index = handle->gst_media_info.current_program_idx;
-    if (false == handle->gst_media_info.ProgramInfo[index].StreamInfo[0].seekable)
+    if (false == handle->gst_media_info.ProgramInfo[index].seekable)
     {
         NXGLOGE("This video doesn't support 'seekable'");
         return NX_GST_RET_ERROR;
@@ -2125,7 +2119,7 @@ NX_GST_RET NX_GSTMP_GetVideoSpeedSupport(MP_HANDLE handle)
     }
 
     int index = handle->gst_media_info.current_program_idx;
-    return (handle->gst_media_info.ProgramInfo[index].StreamInfo[0].seekable) ? NX_GST_RET_OK : NX_GST_RET_ERROR;
+    return (handle->gst_media_info.ProgramInfo[index].seekable) ? NX_GST_RET_OK : NX_GST_RET_ERROR;
 }
 
 NX_GST_RET NX_GSTMP_MakeThumbnail(const gchar *uri, int64_t pos_msec, int32_t width, const char *outPath)
