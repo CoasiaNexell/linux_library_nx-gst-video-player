@@ -268,6 +268,12 @@ typedef struct {
     int32_t         framerate_denom;
 } GST_VIDEO_INFO;
 
+enum {
+	CODEC_TYPE_VIDEO,
+	CODEC_TYPE_AUDIO,
+    CODEC_TYPE_SUBTITLE,
+};
+
 /*! \def MAX_STREAM_INFO
  * \brief Maximum number of stream information */
 #define	MAX_STREAM_INFO		20

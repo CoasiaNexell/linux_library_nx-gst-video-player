@@ -59,26 +59,53 @@ NX_GST_ERROR  ParseMediaInfo(GST_MEDIA_INFO *media_handle, const char *filePath)
 {
 	FUNC_IN();
 	enum NX_GST_ERROR err = NX_GST_ERROR_NONE;
+#if 1
+	typefind_demux(media_handle, filePath);
+	NXGLOGI("## media_handle.demuxer:%d", media_handle->demux_type);
+	if (-1 == media_handle->demux_type) {
+		err = NX_GST_ERROR_NOT_SUPPORTED_CONTENTS;
+		return err;
+	}
 
-	CONTAINER_TYPE type = CONTAINER_TYPE_UNKNOWN;
-	start_typefind(filePath, &type);
-	if (CONTAINER_TYPE_MPEGTS == type)
+	// if ts, parse pat, pmt. else, set videotracktotalnum, video/audioInfo[].type
+	find_avcodec_num(media_handle, filePath);
+	if (media_handle->demux_type == DEMUX_TYPE_MPEGTSDEMUX)
 	{
-		get_program_info(filePath, media_handle);
-		MediaInfoToStr(media_handle, filePath);
-		//for (int i=0; i<media_handle->n_program; i++)
-		{
-			get_stream_info(filePath, media_handle->program_number[1], media_handle);
-			MediaInfoToStr(media_handle, filePath);
+		NXGLOGI("############### run???");
+	}
+	NXGLOGI("## n_video(%d), n_audio(%d), n_subtitle(%d)",
+			media_handle->ProgramInfo[0].n_video,
+			media_handle->ProgramInfo[0].n_audio,
+			media_handle->ProgramInfo[0].n_subtitle);
+
+	if (0 == media_handle->n_program) {
+		if ((media_handle->ProgramInfo[0].n_video > 0) || (media_handle->ProgramInfo[0].n_audio > 0)) {
+			media_handle->n_program = 1;
 		}
-		//err = StartDiscover(filePath, media_handle);
-	}
-	else
-	{
-		media_handle->n_program = 1;
-		err = StartDiscover(filePath, media_handle);
 	}
 
+	for (int pIdx=0; pIdx<media_handle->n_program; pIdx++)
+	{
+		NXGLOGI("####### pIdx(%d)", pIdx);
+		//get_stream_info(filePath, media_handle->program_number[i], media_handle);
+		for (int vIdx = 0; vIdx < media_handle->ProgramInfo[pIdx].n_video; vIdx++)
+		{
+			NXGLOGI("####### vIdx(%d)", vIdx);
+			typefind_codec_info(media_handle, filePath, CODEC_TYPE_VIDEO, pIdx, vIdx);
+		}
+		for (int aIdx = 0; aIdx < media_handle->ProgramInfo[pIdx].n_audio; aIdx++)
+		{
+			NXGLOGI("####### aIdx(%d)", aIdx);
+			typefind_codec_info(media_handle, filePath, CODEC_TYPE_AUDIO, pIdx, aIdx);
+		}
+		/*for (int sIdx = 0; sIdx < media_handle->ProgramInfo[pIdx].n_video; sIdx++)
+		{
+			typefind_codec_info(media_handle, filePath, CODEC_TYPE_SUBTITLE, pIdx, sIdx);
+		}*/
+	}
+#else
+	err = StartDiscover(filePath, media_handle);
+#endif
 	FUNC_OUT();
 
 	return err;
@@ -104,15 +131,20 @@ void MediaInfoToStr(GST_MEDIA_INFO *media_info, const char*filePath)
 	}
 
 	NXGLOGI("<=========== [GST_MEDIA_INFO] %s =========== ", filePath);
-	NXGLOGI("container_type:%d, demux_type:%d, \n"
+	NXGLOGI("container_type(%d), demux_type(%d), \n"
 			"n_program(%d), current_program(%d), current_program_idx(%d)\n",
 			media_info->container_type, media_info->demux_type,
 			media_info->n_program, media_info->current_program,
 			media_info->current_program_idx);
 
+	if (media_info->demux_type != DEMUX_TYPE_MPEGTSDEMUX)
+	{
+		media_info->n_program = 1;
+	}
+
 	for (int i=0; i<media_info->n_program; i++)
 	{
-		NXGLOGI("ProgramInfo[%d] - program_number[%d]:(%d), "
+		NXGLOGI("ProgramInfo[%d] - program_number[%d]:%d, "
 				"n_video(%d), n_audio(%d), n_subtitlte(%d), seekable(%d)",
 				i, i, media_info->program_number[i],
 				media_info->ProgramInfo[i].n_video,

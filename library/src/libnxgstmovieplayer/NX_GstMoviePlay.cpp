@@ -209,16 +209,14 @@ static void on_decodebin_pad_added(GstElement *element,
     GstElement *sink_pad_audio = handle->audioconvert;
 
     caps = gst_pad_get_current_caps(pad);
-    if (caps == NULL)
-    {
+    if (caps == NULL) {
         NXGLOGE("Failed to get current caps");
         return;
     }
 
     new_pad_structure = gst_caps_get_structure(caps, 0);
-    if (NULL == new_pad_structure)
-    {
-        NXGLOGE("Failed to get current caps");
+    if (NULL == new_pad_structure) {
+        NXGLOGE("Failed to get structure from caps");
         return;
     }
 
@@ -700,29 +698,6 @@ static gboolean gst_bus_callback(GstBus *bus, GstMessage *msg, MP_HANDLE handle)
     return TRUE;
 }
 
-void PrintMediaInfo(MP_HANDLE handle, const char *pUri)
-{
-    _CAutoLock lock(&handle->apiLock);
-
-    FUNC_IN();
-
-    int index = handle->gst_media_info.current_program_idx;
-
-    NXGLOGI("[%s] container(%d), video type(%d),"
-            "audio type(%d), seekable(%s), video_width(%d), video_height(%d),"
-            "duration: (%" GST_TIME_FORMAT ")\r",
-            pUri,
-            handle->gst_media_info.container_type,
-            handle->gst_media_info.ProgramInfo[index].StreamInfo[0].VideoInfo[0].type,
-            handle->gst_media_info.ProgramInfo[index].StreamInfo[0].AudioInfo[0].type,
-            handle->gst_media_info.ProgramInfo[index].StreamInfo[0].seekable ? "yes":"no",
-            handle->gst_media_info.ProgramInfo[index].StreamInfo[0].VideoInfo[0].width,
-            handle->gst_media_info.ProgramInfo[index].StreamInfo[0].VideoInfo[0].height,
-            GST_TIME_ARGS (handle->gst_media_info.ProgramInfo[index].StreamInfo[0].duration));
-
-    FUNC_OUT();
-}
-
 NX_GST_RET set_demux_element(MP_HANDLE handle)
 {
     FUNC_IN();
@@ -736,22 +711,19 @@ NX_GST_RET set_demux_element(MP_HANDLE handle)
     CONTAINER_TYPE  container_type = handle->gst_media_info.container_type;
 
     //	Set Demuxer
-    if ((container_type == CONTAINER_TYPE_QUICKTIME) ||	// Quicktime
-        (container_type == CONTAINER_TYPE_3GP))
-    {
+    if ((container_type == CONTAINER_TYPE_QUICKTIME) ||     // Quicktime
+        (container_type == CONTAINER_TYPE_3GP)) {
         handle->demuxer = gst_element_factory_make("qtdemux", "qtdemux");
-    }
-    else if (container_type == CONTAINER_TYPE_MATROSKA)     // MKV
-    {
+    } else if (container_type == CONTAINER_TYPE_MATROSKA) {     // MKV
         handle->demuxer = gst_element_factory_make("matroskademux", "matroskademux");
-    }
-    else if (container_type == CONTAINER_TYPE_MSVIDEO)      // AVI
-    {
+    } else if (container_type == CONTAINER_TYPE_MSVIDEO) {      // AVI
         handle->demuxer = gst_element_factory_make("avidemux", "avidemux");
-    }
-    else if (container_type == CONTAINER_TYPE_MPEG)         // MPEG (vob)
-    {
+    } else if (container_type == CONTAINER_TYPE_MPEG) {          // MPEG (vob)
         handle->demuxer = gst_element_factory_make("mpegpsdemux", "mpegpsdemux");
+    } else if (container_type == CONTAINER_TYPE_MPEGTS) {         // MPEGTS
+        handle->demuxer = gst_element_factory_make("tsdemux", "tsdemux");
+        NXGLOGI("## Set program number %d", handle->gst_media_info.program_number[1]);
+        g_object_set (G_OBJECT (handle->demuxer), "program-number", handle->gst_media_info.program_number[1], NULL);
     }
 #ifdef SW_V_DECODER
     else if (container_type == CONTAINER_TYPE_FLV)          // FLV
@@ -759,12 +731,6 @@ NX_GST_RET set_demux_element(MP_HANDLE handle)
         handle->demuxer = gst_element_factory_make("flvdemux", "flvdemux");
     }
 #endif
-    else if (container_type == CONTAINER_TYPE_MPEGTS)       // MPEGTS
-    {
-        handle->demuxer = gst_element_factory_make("tsdemux", "tsdemux");
-        NXGLOGI("## Set program number %d", handle->gst_media_info.program_number[1]);
-        g_object_set (G_OBJECT (handle->demuxer), "program-number", handle->gst_media_info.program_number[1], NULL);
-    }
 
     if (NULL == handle->demuxer)
     {
@@ -1210,7 +1176,7 @@ NX_GST_RET link_display(MP_HANDLE handle, enum DISPLAY_TYPE type)
     gboolean ret = gst_pad_link(sink->tee_pad, sinkpad);
     if (GST_PAD_LINK_OK != ret)
     {
-        NXGLOGI("%s to unlink %s:%s from %s:%s",
+        NXGLOGI("%s to link %s:%s to %s:%s",
                 (ret == GST_PAD_LINK_OK) ? "Succeed":"Failed",
                 GST_DEBUG_PAD_NAME(sink->tee_pad),
                 GST_DEBUG_PAD_NAME(sinkpad));
@@ -1605,7 +1571,8 @@ NX_GST_RET NX_GSTMP_GetMediaInfo(MP_HANDLE handle, GST_MEDIA_INFO *pGstMInfo)
 
     memcpy(pGstMInfo, &handle->gst_media_info, sizeof(GST_MEDIA_INFO));
  
-    int index = handle->gst_media_info.current_program_idx;
+    //int index = handle->gst_media_info.current_program_idx;
+    //MediaInfoToStr(pGstMInfo, "");
 
     FUNC_OUT();
 

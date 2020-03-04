@@ -1498,10 +1498,11 @@ _on_bus_message (GstBus * bus, GstMessage * message, MpegTsSt *handle)
         if (GST_MPEGTS_SECTION_PAT == section_type) {
             dump_pat(section, handle);
             gst_mpegts_section_unref(section);
+            g_idle_add (idle_exit_loop, handle->loop);
         } else if (GST_MPEGTS_SECTION_PMT == section_type) {
             dump_pmt(section, handle);
             gst_mpegts_section_unref(section);
-            g_idle_add (idle_exit_loop, handle->loop);
+            //g_idle_add (idle_exit_loop, handle->loop);
         }/* else if (GST_MPEGTS_SECTION_SDT == section_type) {
             dump_sdt(section);
             gst_mpegts_section_unref (section);
