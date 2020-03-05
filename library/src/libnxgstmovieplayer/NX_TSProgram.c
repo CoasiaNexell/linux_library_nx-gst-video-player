@@ -1467,7 +1467,6 @@ dump_collection (GstStreamCollection * collection, MpegTsSt *handle)
 			int32_t sub_idx = handle->media_info->ProgramInfo[cur_pro_idx].n_subtitle;
 
 			handle->media_info->ProgramInfo[cur_pro_idx].SubtitleInfo[sub_idx].type = sub_type;
-			handle->media_info->ProgramInfo[cur_pro_idx].SubtitleInfo[sub_idx].stream_id = stream_id;
 			handle->media_info->ProgramInfo[cur_pro_idx].n_subtitle++;
 
 			NXGLOGI("subtitle type(%d)",
@@ -1647,7 +1646,6 @@ decodebin_pad_added(GstElement *element, GstPad *pad, gpointer data)
 			return;
 	}
 
-	//int current_program_idx = handle->media_info->current_program_idx;
 	const char *mime_type = gst_structure_get_name(structure);
 	NXGLOGI("MIME-type:%s", mime_type);
 	if (g_str_has_prefix(mime_type, "video/"))
@@ -2162,7 +2160,7 @@ get_stream_detail_info(const char* filePath, gint program_number, struct GST_MED
 	// init mpegts library
 	gst_mpegts_initialize();
 
-	handle.media_info->current_program = program_number;
+	handle.media_info->current_program_no = program_number;
 
 	handle.loop = g_main_loop_new (NULL, FALSE);
 

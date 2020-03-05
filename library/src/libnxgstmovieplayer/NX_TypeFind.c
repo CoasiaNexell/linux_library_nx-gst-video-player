@@ -1462,7 +1462,6 @@ decodebin_pad_added(GstElement *element, GstPad *pad, gpointer data)
         return;
     }
 
-    //int current_program_idx = handle->media_info->current_program_idx;
     const char *mime_type = gst_structure_get_name(structure);
     NXGLOGI("MIME-type:%s", mime_type);
     if (g_str_has_prefix(mime_type, "video/"))

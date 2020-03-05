@@ -31,6 +31,8 @@
 
 //------------------------------------------------------------------------------
 // Function Prototype
+int32_t get_current_program_idx(MP_HANDLE handle);
+
 const char* get_gst_state_change_ret(GstStateChangeReturn gstStateChangeRet);
 enum NX_MEDIA_STATE GstState2NxState(GstState state);
 const char* get_display_mode_str(enum DISPLAY_MODE mode);
@@ -152,6 +154,24 @@ class _CAutoLock
     private:
         pthread_mutex_t *m_pLock;
 };
+
+int32_t get_current_program_idx(MP_HANDLE handle)
+{
+	gint cur_pro_idx = -1;
+
+	NXGLOGI("START");
+
+	for (int i=0; i<handle->gst_media_info.n_program; i++)
+	{
+		if (handle->gst_media_info.program_number[i] ==
+                handle->gst_media_info.current_program_no) {
+			cur_pro_idx = i;
+			NXGLOGI("Found matched program number! idx:%d", i);
+			break;
+		}
+	}
+    return cur_pro_idx;
+}
 
 static gpointer loop_func(gpointer data)
 {
@@ -394,7 +414,7 @@ static void on_pad_added_demux(GstElement *element,
     mime_type = gst_structure_get_name(structure);
     NXGLOGI("padName(%s) mime_type(%s)", padName, mime_type);
 
-    int index = handle->gst_media_info.current_program_idx;
+    int index = get_current_program_idx(handle);
     // Get sinkpad of queue for video/audio/subtitle
     if (g_str_has_prefix(mime_type, "video"))
     {
@@ -722,8 +742,8 @@ NX_GST_RET set_demux_element(MP_HANDLE handle)
         handle->demuxer = gst_element_factory_make("mpegpsdemux", "mpegpsdemux");
     } else if (container_type == CONTAINER_TYPE_MPEGTS) {         // MPEGTS
         handle->demuxer = gst_element_factory_make("tsdemux", "tsdemux");
-        NXGLOGI("## Set program number %d", handle->gst_media_info.program_number[2]);
-        g_object_set (G_OBJECT (handle->demuxer), "program-number", handle->gst_media_info.program_number[2], NULL);
+        NXGLOGI("## Set program number %d", handle->gst_media_info.current_program_no);
+        g_object_set (G_OBJECT (handle->demuxer), "program-number", handle->gst_media_info.current_program_no, NULL);
     }
 #ifdef SW_V_DECODER
     else if (container_type == CONTAINER_TYPE_FLV)          // FLV
@@ -755,7 +775,7 @@ NX_GST_RET set_audio_elements(MP_HANDLE handle)
 
     handle->audio_queue = gst_element_factory_make("queue2", "audio_queue");
 
-    int index = handle->gst_media_info.current_program_idx;
+    int index = get_current_program_idx(handle);
     // Audio parser & Audio decoder
     if ((handle->gst_media_info.ProgramInfo[index].AudioInfo[0].type == AUDIO_TYPE_MPEG_V1) ||
         (handle->gst_media_info.ProgramInfo[index].AudioInfo[0].type == AUDIO_TYPE_MPEG_V2))
@@ -812,7 +832,7 @@ NX_GST_RET set_video_elements(MP_HANDLE handle)
     // Queue for video
     handle->video_queue = gst_element_factory_make("queue2", "video_queue");
 
-    int index = handle->gst_media_info.current_program_idx;
+    int index = get_current_program_idx(handle);
     // Video Parser
     if (handle->gst_media_info.ProgramInfo[index].VideoInfo[0].type == VIDEO_TYPE_H264)
     {
@@ -891,7 +911,7 @@ void add_video_elements_to_bin(MP_HANDLE handle)
     gst_bin_add_many(GST_BIN(handle->pipeline), handle->video_queue,
                     handle->video_decoder, handle->tee, NULL);
 
-    int index = handle->gst_media_info.current_program_idx;
+    int index = get_current_program_idx(handle);
     // video_parser
     if ((handle->gst_media_info.ProgramInfo[index].VideoInfo[0].type == VIDEO_TYPE_H264) ||
         (handle->gst_media_info.ProgramInfo[index].VideoInfo[0].type == VIDEO_TYPE_MPEG_V1) ||
@@ -903,7 +923,7 @@ void add_video_elements_to_bin(MP_HANDLE handle)
 
 void add_audio_elements_to_bin(MP_HANDLE handle)
 {
-    int index = handle->gst_media_info.current_program_idx;
+    int index = get_current_program_idx(handle);
     if ((handle->gst_media_info.ProgramInfo[index].AudioInfo[0].type == AUDIO_TYPE_MPEG_V1) ||
         (handle->gst_media_info.ProgramInfo[index].AudioInfo[0].type == AUDIO_TYPE_MPEG_V2))
     {
@@ -940,7 +960,7 @@ NX_GST_RET add_elements_to_bin(MP_HANDLE handle)
         return NX_GST_RET_ERROR;
     }
 
-    int index = handle->gst_media_info.current_program_idx;
+    int index = get_current_program_idx(handle);
 
     gst_bin_add_many(GST_BIN(handle->pipeline), handle->source,
                     handle->demuxer, NULL);
@@ -960,7 +980,7 @@ NX_GST_RET add_elements_to_bin(MP_HANDLE handle)
 
 NX_GST_RET link_video_elements(MP_HANDLE handle)
 {
-    int index = handle->gst_media_info.current_program_idx;
+    int index = get_current_program_idx(handle);
     if ((handle->gst_media_info.ProgramInfo[index].VideoInfo[0].type == VIDEO_TYPE_H264) ||
         (handle->gst_media_info.ProgramInfo[index].VideoInfo[0].type == VIDEO_TYPE_MPEG_V1) ||
         (handle->gst_media_info.ProgramInfo[index].VideoInfo[0].type == VIDEO_TYPE_MPEG_V2))
@@ -998,7 +1018,7 @@ NX_GST_RET link_video_elements(MP_HANDLE handle)
 
 NX_GST_RET link_audio_elements(MP_HANDLE handle)
 {
-    int index = handle->gst_media_info.current_program_idx;
+    int index = get_current_program_idx(handle);
     if ((handle->gst_media_info.ProgramInfo[index].AudioInfo[0].type == AUDIO_TYPE_MPEG_V1) ||
         (handle->gst_media_info.ProgramInfo[index].AudioInfo[0].type == AUDIO_TYPE_MPEG_V2))
     {
@@ -1072,7 +1092,7 @@ NX_GST_RET link_elements(MP_HANDLE handle)
     NXGLOGI("%s to link %s<-->%s", (!ret) ? "Failed":"Succeed",
             gst_element_get_name(handle->source), gst_element_get_name(handle->demuxer));
 
-    int index = handle->gst_media_info.current_program_idx;
+    int index = get_current_program_idx(handle);
 
     link_video_elements(handle);
     link_audio_elements(handle);
@@ -1382,6 +1402,11 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
     }
     handle->filePath = g_strdup(pfilePath);
     handle->error = NX_GST_ERROR_NONE;
+    if (handle->gst_media_info.demux_type == DEMUX_TYPE_MPEGTSDEMUX) {
+        handle->gst_media_info.current_program_no = 4415;
+    } else {
+        handle->gst_media_info.current_program_no = 0;
+    }
 
     if(handle->pipeline_is_linked)
     {
@@ -1400,7 +1425,9 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
     handle->bus_watch_id = gst_bus_add_watch(handle->bus, (GstBusFunc)gst_bus_callback, handle);
     gst_object_unref(handle->bus);
 
-    gint index = handle->gst_media_info.current_program_idx;
+    NXGLOGI("gst_media_info.current_program_no = 4415!!");
+    gint index = get_current_program_idx(handle);
+    NXGLOGI("## matched index(%d)", index);
     if ((handle->gst_media_info.ProgramInfo[index].n_subtitle > 0) &&
         (handle->gst_media_info.ProgramInfo[index].SubtitleInfo[0].type == SUBTITLE_TYPE_RAW))
     {
@@ -1577,7 +1604,7 @@ NX_GSTMP_SetDisplayInfo(MP_HANDLE handle, enum DISPLAY_TYPE type,
         return NX_GST_RET_ERROR;
     }
 
-    int index = handle->gst_media_info.current_program_idx;
+    int index = get_current_program_idx(handle);
     if (handle->gst_media_info.ProgramInfo[index].VideoInfo[0].width > dspWidth)
     {
         NXGLOGE("Not supported content(width:%d)",
@@ -2043,7 +2070,7 @@ NX_GST_RET NX_GSTMP_SetVideoSpeed(MP_HANDLE handle, double rate)
         return NX_GST_RET_ERROR;
     }
 
-    int index = handle->gst_media_info.current_program_idx;
+    int index = get_current_program_idx(handle);
     if (false == handle->gst_media_info.ProgramInfo[index].seekable)
     {
         NXGLOGE("This video doesn't support 'seekable'");
@@ -2069,7 +2096,7 @@ NX_GST_RET NX_GSTMP_GetVideoSpeedSupport(MP_HANDLE handle)
         return NX_GST_RET_ERROR;
     }
 
-    int index = handle->gst_media_info.current_program_idx;
+    int index = get_current_program_idx(handle);
     return (handle->gst_media_info.ProgramInfo[index].seekable) ? NX_GST_RET_OK : NX_GST_RET_ERROR;
 }
 

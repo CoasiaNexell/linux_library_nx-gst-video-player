@@ -246,13 +246,11 @@ typedef enum {
 } SUBTITLE_TYPE;
 
 typedef struct {
-    char*           stream_id;
     SUBTITLE_TYPE   type;
     char*           language_code;
 } GST_SUBTITLE_INFO;
 
 typedef struct {
-    char*           stream_id;
     AUDIO_TYPE      type;
     int32_t         n_channels;
     int32_t         samplerate;
@@ -260,7 +258,6 @@ typedef struct {
 } GST_AUDIO_INFO;
 
 typedef struct {
-    char*           stream_id;
     VIDEO_TYPE      type;
     int32_t         width;
     int32_t         height;
@@ -277,36 +274,6 @@ enum {
 /*! \def MAX_STREAM_INFO
  * \brief Maximum number of stream information */
 #define	MAX_STREAM_INFO		20
-
-/*! \struct _GST_STREAM_INFO
- * \brief Describes the stream information */
-typedef struct _GST_STREAM_INFO {
-    /*! \brief Total number of videos */
-    int32_t             n_video;
-    /*! \brief Total number of audio */
-    int32_t             n_audio;
-    /*! \brief Total number of subtitles */
-    int32_t             n_subtitle;
-
-    /*! \brief Currently playing video */
-    int32_t             current_video;
-    /*! \brief Currently playing audio */
-    int32_t             current_audio;
-    /*! \brief Currently playing subtitles */
-    int32_t             current_subtitle;
-
-    /*! \brief Total duration */
-    int32_t             duration;
-    /*! \brief If the content is seekable */
-    int32_t             seekable;
-
-    /*! \brief Video stream information */
-    GST_VIDEO_INFO      VideoInfo[MAX_STREAM_INFO];
-    /*! \brief Audio stream information */
-    GST_AUDIO_INFO      AudioInfo[MAX_STREAM_INFO];
-    /*! \brief Subtitle stream information */
-    GST_SUBTITLE_INFO   SubtitleInfo[MAX_STREAM_INFO];
-} aa;//GST_STREAM_INFO;
 
 #define PROGRAM_MAX			16
 typedef struct PROGRAM_INFO
@@ -351,8 +318,7 @@ struct GST_MEDIA_INFO {
     /*! \brief The program number */
     unsigned int        program_number[PROGRAM_MAX];// 0x4351, 0x4415, ...
     /*! \brief Currently playing program */
-    int32_t             current_program;
-    int32_t             current_program_idx;
+    int32_t             current_program_no;
 
     /*! \brief The stream information of the currently playing program */
     PROGRAM_INFO        ProgramInfo[PROGRAM_MAX];

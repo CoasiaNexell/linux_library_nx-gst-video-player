@@ -91,7 +91,7 @@ static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
         NXGLOGI ("** %*sTags:End", 2 * (depth + 1), " ");
     }
 
-    int cur_pro_idx = pMediaInfo->current_program_idx;
+    int cur_pro_idx = 0;
     if (GST_IS_DISCOVERER_CONTAINER_INFO (sinfo))
     {
         pMediaInfo->container_type = get_container_type(mime_type);
@@ -107,14 +107,13 @@ static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
         guint framerate_num = gst_discoverer_video_info_get_framerate_num(video_info);
         guint framerate_denom = gst_discoverer_video_info_get_framerate_denom(video_info);
 
-        const char* stream_id = gst_discoverer_stream_info_get_stream_id(video_info);
-        if (width == 0 || height == 0 || stream_id == NULL)
+        if (width == 0 || height == 0)
         {
             NXGLOGE("Invalid video");
             return;
         }
 
-        int32_t v_idx = pMediaInfo->ProgramInfo[cur_pro_idx].n_video;
+        int32_t v_idx = pMediaInfo->ProgramInfo[0].n_video;
         pMediaInfo->ProgramInfo[cur_pro_idx].VideoInfo[v_idx].type = get_video_codec_type(mime_type);
         if ((structure != NULL) && (g_strcmp0(mime_type, "video/mpeg") == 0))
         {
@@ -126,7 +125,6 @@ static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
             }
         }
 
-        pMediaInfo->ProgramInfo[cur_pro_idx].VideoInfo[v_idx].stream_id = stream_id;
         pMediaInfo->ProgramInfo[cur_pro_idx].VideoInfo[v_idx].width = width;
         pMediaInfo->ProgramInfo[cur_pro_idx].VideoInfo[v_idx].height = height;
         pMediaInfo->ProgramInfo[cur_pro_idx].VideoInfo[v_idx].framerate_num = framerate_num;
@@ -134,14 +132,12 @@ static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
         pMediaInfo->ProgramInfo[cur_pro_idx].n_video++;
 
         NXGLOGI("n_video(%u), video_width(%d), video_height(%d), "
-                "framerate(%d/%d), video_type(%d), stream_id(%s)",
+                "framerate(%d/%d), video_type(%d)",
                 pMediaInfo->ProgramInfo[cur_pro_idx].n_video, width, height,
-                framerate_num, framerate_denom,
-                pMediaInfo->ProgramInfo[cur_pro_idx].VideoInfo[v_idx].type, stream_id);
+                framerate_num, framerate_denom);
     }
     else if (GST_IS_DISCOVERER_AUDIO_INFO (sinfo))
     {
-        const char* stream_id = gst_discoverer_stream_info_get_stream_id(sinfo);
         guint n_channels = gst_discoverer_audio_info_get_channels(sinfo);
         guint samplerate = gst_discoverer_audio_info_get_sample_rate(sinfo);
         guint bitrate = gst_discoverer_audio_info_get_bitrate(sinfo);
@@ -158,28 +154,23 @@ static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
             }
         }
 
-        pMediaInfo->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].stream_id = stream_id;
         pMediaInfo->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].n_channels = n_channels;
         pMediaInfo->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].samplerate = samplerate;
         pMediaInfo->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].bitrate = bitrate;
         pMediaInfo->ProgramInfo[cur_pro_idx].n_audio++;
 
         NXGLOGI("n_audio(%d) n_channels(%d), samplerate(%d),"
-                "bitrate(%d), stream_id(%s), audio_mime_type(%d)",
+                "bitrate(%d), audio_mime_type(%d)",
                 pMediaInfo->ProgramInfo[cur_pro_idx].n_audio,
-                n_channels, samplerate, bitrate, stream_id,
                 pMediaInfo->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].type);
     }
     else if (GST_IS_DISCOVERER_SUBTITLE_INFO (sinfo))
     {
         int32_t sub_idx = pMediaInfo->ProgramInfo[cur_pro_idx].n_subtitle;
-        pMediaInfo->ProgramInfo[cur_pro_idx].SubtitleInfo[sub_idx].type = get_subtitle_codec_type(mime_type);
-        pMediaInfo->ProgramInfo[cur_pro_idx].SubtitleInfo[sub_idx].stream_id = gst_discoverer_stream_info_get_stream_id(sinfo);
-        pMediaInfo->ProgramInfo[cur_pro_idx].n_subtitle++;
+        pMediaInfo->ProgramInfo[cur_pro_idx].SubtitleInfo[sub_idx].type = get_subtitle_codec_type(mime_type);        pMediaInfo->ProgramInfo[cur_pro_idx].n_subtitle++;
 
-        NXGLOGI("n_subtitle(%d), stream_id(%s), subtitle_type(%d), subtitle_lang(%s)",
+        NXGLOGI("n_subtitle(%d), subtitle_type(%d), subtitle_lang(%s)",
                 pMediaInfo->ProgramInfo[cur_pro_idx].n_subtitle,
-                pMediaInfo->ProgramInfo[cur_pro_idx].SubtitleInfo[sub_idx].stream_id,
                 pMediaInfo->ProgramInfo[cur_pro_idx].SubtitleInfo[sub_idx].type,
                 gst_discoverer_subtitle_info_get_language(sinfo));
     }
@@ -300,7 +291,7 @@ void parse_GstDiscovererInfo(GstDiscovererInfo *info, GError *err,
 
     gst_discoverer_stream_info_unref(sinfo);
 
-    int program_idx = pMediaInfo->current_program_idx;
+    int program_idx = 0;
     pMediaInfo->ProgramInfo[program_idx].seekable = isSeekable;
     pMediaInfo->ProgramInfo[program_idx].duration = duration;
 }
@@ -507,7 +498,7 @@ gboolean isSupportedContents(struct GST_MEDIA_INFO *pMediaInfo)
 {
     NXGLOGI();
 
-    int program_idx = pMediaInfo->current_program_idx;
+    int program_idx = 0;
 
     CONTAINER_TYPE container_type = pMediaInfo->container_type;
     NXGLOGI("container_type(%d)", container_type);

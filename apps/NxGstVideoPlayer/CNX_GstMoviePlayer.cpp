@@ -67,11 +67,10 @@ int CNX_GstMoviePlayer::InitMediaPlayer(void (*pCbEventCallback)(void *privateDe
 void CNX_GstMoviePlayer::PrintMediaInfo(GST_MEDIA_INFO media_info, const char* filePath)
 {
 	NXLOGI("<=========== [APP_MEDIA_INFO] %s =========== ", filePath);
-	NXLOGI("container_type(%d), demux_type(%d), \n"
-			"n_program(%d), current_program(%d), current_program_idx(%d)\n",
+	NXLOGI("container_type(%d), demux_type(%d),"
+			"n_program(%d), current_program_no(%d)",
 			media_info.container_type, media_info.demux_type,
-			media_info.n_program, media_info.current_program,
-			media_info.current_program_idx);
+			media_info.n_program, media_info.current_program_no);
 
 	if (media_info.demux_type != DEMUX_TYPE_MPEGTSDEMUX)
 	{
@@ -124,6 +123,7 @@ void CNX_GstMoviePlayer::PrintMediaInfo(GST_MEDIA_INFO media_info, const char* f
 
 int CNX_GstMoviePlayer::SetAspectRatio(DISPLAY_INFO dspInfo)
 {
+	int pIdx= 0, video_width = 0, video_height = 0;
 	DSP_RECT m_dstDspRect;
 	DSP_RECT m_dstSubDspRect;
 
@@ -131,19 +131,34 @@ int CNX_GstMoviePlayer::SetAspectRatio(DISPLAY_INFO dspInfo)
 			__FUNCTION__, dspInfo.dspWidth, dspInfo.dspHeight,
 			dspInfo.dspMode, dspInfo.subDspWidth, dspInfo.subDspHeight);
 
-	int index = m_MediaInfo.current_program_idx;
-	int video_width = m_MediaInfo.ProgramInfo[index].VideoInfo[0].width;
-	int video_height = m_MediaInfo.ProgramInfo[index].VideoInfo[0].height;
+	if (m_MediaInfo.demux_type == DEMUX_TYPE_MPEGTSDEMUX)
+	{
+		for (int i=0; i<m_MediaInfo.n_program; i++)
+		{
+			if (m_MediaInfo.program_number[i] == m_MediaInfo.current_program_no)
+			{
+				pIdx = i;
+				break;
+			}
+		}
+	}
 
-	NXLOGI("index(%d) Video width/height(%d/%d), Display width/height(%d/%d)",
-			index, video_width, video_height, dspInfo.dspWidth, dspInfo.dspHeight);
+	if (m_MediaInfo.ProgramInfo[pIdx].n_video > 0)
+	{
+		video_width = m_MediaInfo.ProgramInfo[pIdx].VideoInfo[0].width;
+		video_height = m_MediaInfo.ProgramInfo[pIdx].VideoInfo[0].height;
+	}
+
+	NXLOGI("pIdx(%d) Video width/height(%d/%d), Display width/height(%d/%d)",
+			pIdx, video_width, video_height, dspInfo.dspWidth, dspInfo.dspHeight);
 	// Set aspect ratio for the primary display
 	memset(&m_dstDspRect, 0, sizeof(DSP_RECT));
 
 	GetAspectRatio(video_width, video_height,
 				   dspInfo.dspWidth, dspInfo.dspHeight,
 				   &m_dstDspRect);
-	if (0 > SetDisplayInfo(DISPLAY_TYPE_PRIMARY, dspInfo.dspWidth, dspInfo.dspHeight, m_dstDspRect)) {
+	if (0 > SetDisplayInfo(DISPLAY_TYPE_PRIMARY,
+				dspInfo.dspWidth, dspInfo.dspHeight, m_dstDspRect)) {
 		NXLOGE("%s() Failed to set aspect ratio rect for primary", __FUNCTION__);
 		return -1;
 	}
@@ -157,7 +172,8 @@ int CNX_GstMoviePlayer::SetAspectRatio(DISPLAY_INFO dspInfo)
 		GetAspectRatio(video_width, video_height,
 						dspInfo.subDspWidth, dspInfo.subDspHeight,
 						&m_dstSubDspRect);
-		if(0 > SetDisplayInfo(DISPLAY_TYPE_SECONDARY, dspInfo.subDspWidth, dspInfo.subDspHeight, m_dstSubDspRect)) {
+		if(0 > SetDisplayInfo(DISPLAY_TYPE_SECONDARY,
+				dspInfo.subDspWidth, dspInfo.subDspHeight, m_dstSubDspRect)) {
 			NXLOGE("%s() Failed to set aspect ratio rect for secondary", __FUNCTION__);
 			return -1;
 		}
@@ -701,15 +717,24 @@ int	CNX_GstMoviePlayer::GetVideoSpeedSupport()
 
 bool CNX_GstMoviePlayer::HasSubTitleStream()
 {
+	int pIdx = 0;
 	if(NULL == m_hPlayer)
 	{
 		NXLOGE("%s: Error! Handle is not initialized!", __FUNCTION__);
 		return false;
 	}
-	int index = m_MediaInfo.current_program_idx;
+	if (m_MediaInfo.demux_type == DEMUX_TYPE_MPEGTSDEMUX) {
+		for (int i=0; i<m_MediaInfo.n_program; i++)
+		{
+			if (m_MediaInfo.program_number[i] == m_MediaInfo.current_program_no) {
+				pIdx = i;
+				break;
+			}
+		}
+	}
 	NXLOGI("%s() %s", __FUNCTION__,
-		((m_MediaInfo.ProgramInfo[index].n_subtitle > 0)?"true":"false"));
-	return (m_MediaInfo.ProgramInfo[index].n_subtitle > 0) ? true:false;
+		((m_MediaInfo.ProgramInfo[pIdx].n_subtitle > 0)?"true":"false"));
+	return (m_MediaInfo.ProgramInfo[pIdx].n_subtitle > 0) ? true:false;
 }
 
 int CNX_GstMoviePlayer::MakeThumbnail(const char *pUri, int64_t pos_msec, int32_t width, const char *outPath)
