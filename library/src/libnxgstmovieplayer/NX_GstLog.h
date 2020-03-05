@@ -14,7 +14,7 @@ extern "C" {
 #endif
 
 #define	VBS_MSG			0
-#define	DBG_FUNCTION		0
+#define	DBG_FUNCTION		1
 
 void nx_gst_info(const char *format, ...);
 void nx_gst_warn(const char *format, ...);

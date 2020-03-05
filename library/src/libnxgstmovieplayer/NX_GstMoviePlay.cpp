@@ -396,12 +396,12 @@ static void on_pad_added_demux(GstElement *element,
 
     int index = handle->gst_media_info.current_program_idx;
     // Get sinkpad of queue for video/audio/subtitle
-    if (g_str_has_prefix(mime_type, "video/"))
+    if (g_str_has_prefix(mime_type, "video"))
     {
         target_sink_pad = handle->video_queue;
         sinkpad = gst_element_get_static_pad(target_sink_pad, "sink");
     }
-    else if (g_str_has_prefix(mime_type, "audio/"))
+    else if (g_str_has_prefix(mime_type, "audio"))
     {
         target_sink_pad = handle->audio_queue;
         sinkpad = gst_element_get_static_pad(target_sink_pad, "sink");
@@ -431,7 +431,7 @@ static void on_pad_added_demux(GstElement *element,
         return;
     }
 
-    NXGLOGI("target_sink_pad:%s",
+    NXGLOGI("target_sink_pad(%s)",
             (NULL != target_sink_pad) ? GST_OBJECT_NAME(target_sink_pad):"");
 
     // Link pads [demuxer <--> video_queue/audio_queue/subtitle_queue]
@@ -722,8 +722,8 @@ NX_GST_RET set_demux_element(MP_HANDLE handle)
         handle->demuxer = gst_element_factory_make("mpegpsdemux", "mpegpsdemux");
     } else if (container_type == CONTAINER_TYPE_MPEGTS) {         // MPEGTS
         handle->demuxer = gst_element_factory_make("tsdemux", "tsdemux");
-        NXGLOGI("## Set program number %d", handle->gst_media_info.program_number[1]);
-        g_object_set (G_OBJECT (handle->demuxer), "program-number", handle->gst_media_info.program_number[1], NULL);
+        NXGLOGI("## Set program number %d", handle->gst_media_info.program_number[2]);
+        g_object_set (G_OBJECT (handle->demuxer), "program-number", handle->gst_media_info.program_number[2], NULL);
     }
 #ifdef SW_V_DECODER
     else if (container_type == CONTAINER_TYPE_FLV)          // FLV
@@ -1383,41 +1383,6 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
     handle->filePath = g_strdup(pfilePath);
     handle->error = NX_GST_ERROR_NONE;
 
-    // Start to parse media info
-    struct GST_MEDIA_INFO *pGstMInfo;
-    NX_GST_RET result = OpenMediaInfo(&pGstMInfo);
-    if (NX_GST_RET_OK != result) {
-        return NX_GST_RET_ERROR;
-    }
-
-    enum NX_GST_ERROR err = ParseMediaInfo(pGstMInfo, pfilePath);
-    if (NX_GST_ERROR_NONE != err)
-    {
-        handle->error = err;
-        NXGLOGE("%s", get_nx_gst_error(err));
-
-        CloseMediaInfo(pGstMInfo);
-        return NX_GST_RET_ERROR;
-    }
-
-    MediaInfoToStr(pGstMInfo, pfilePath);
-
-    memcpy(&handle->gst_media_info, pGstMInfo, sizeof(struct GST_MEDIA_INFO));
-    int index = handle->gst_media_info.current_program_idx;
-    NXGLOGD("container(%d), video type(%d),"
-            "video_width(%d), video_height(%d),"
-            "audio codec(%d), seekable(%s),"
-            "duration: (%" GST_TIME_FORMAT ")\r",
-            pGstMInfo->container_type,
-            pGstMInfo->ProgramInfo[index].VideoInfo->type,
-            pGstMInfo->ProgramInfo[index].VideoInfo->width,
-            pGstMInfo->ProgramInfo[index].VideoInfo->height,
-            pGstMInfo->ProgramInfo[index].AudioInfo->type,
-            pGstMInfo->ProgramInfo[index].seekable ? "yes":"no",
-            GST_TIME_ARGS (pGstMInfo->ProgramInfo[index].duration));
-    CloseMediaInfo(pGstMInfo);
-    // Done to parse media info
-
     if(handle->pipeline_is_linked)
     {
         NXGLOGE("pipeline is already linked");
@@ -1435,6 +1400,7 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
     handle->bus_watch_id = gst_bus_add_watch(handle->bus, (GstBusFunc)gst_bus_callback, handle);
     gst_object_unref(handle->bus);
 
+    gint index = handle->gst_media_info.current_program_idx;
     if ((handle->gst_media_info.ProgramInfo[index].n_subtitle > 0) &&
         (handle->gst_media_info.ProgramInfo[index].SubtitleInfo[0].type == SUBTITLE_TYPE_RAW))
     {
@@ -1557,11 +1523,12 @@ void NX_GSTMP_Close(MP_HANDLE handle)
     FUNC_OUT();
 }
 
-NX_GST_RET NX_GSTMP_GetMediaInfo(MP_HANDLE handle, GST_MEDIA_INFO *pGstMInfo)
+NX_GST_RET
+NX_GSTMP_GetMediaInfo(MP_HANDLE handle, const char* filePath, GST_MEDIA_INFO *pGstMInfo)
 {
     _CAutoLock lock(&handle->apiLock);
 
-    FUNC_IN();
+    NXGLOGI("START");
 
     if (NULL == pGstMInfo)
     {
@@ -1569,10 +1536,27 @@ NX_GST_RET NX_GSTMP_GetMediaInfo(MP_HANDLE handle, GST_MEDIA_INFO *pGstMInfo)
         return NX_GST_RET_ERROR;
     }
 
-    memcpy(pGstMInfo, &handle->gst_media_info, sizeof(GST_MEDIA_INFO));
- 
-    //int index = handle->gst_media_info.current_program_idx;
-    //MediaInfoToStr(pGstMInfo, "");
+    struct GST_MEDIA_INFO *media_info;
+    NX_GST_RET result = OpenMediaInfo(&media_info);
+    if (NX_GST_RET_OK != result) {
+        return NX_GST_RET_ERROR;
+    }
+
+    enum NX_GST_ERROR err = ParseMediaInfo(media_info, filePath);
+    if (NX_GST_ERROR_NONE != err)
+    {
+        handle->error = err;
+        NXGLOGE("%s", get_nx_gst_error(err));
+
+        CloseMediaInfo(media_info);
+        return NX_GST_RET_ERROR;
+    }
+
+    MediaInfoToStr(media_info, filePath);
+    memcpy(&handle->gst_media_info, media_info, sizeof(struct GST_MEDIA_INFO));
+    memcpy(pGstMInfo, media_info, sizeof(struct GST_MEDIA_INFO));
+
+    CloseMediaInfo(media_info);
 
     FUNC_OUT();
 

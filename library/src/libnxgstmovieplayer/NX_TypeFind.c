@@ -39,27 +39,36 @@ typedef struct TypeFindSt {
 
 static gboolean idle_exit_loop (gpointer data);
 
-/* 
- * If it's ts file, it parse the program information via pat and pmt.
- * Otherwise, it parse the codec type of each stream and total stream number in on_demux_pad_added_num
- * Program[pIdx].VideoInfo[vIdx].type, Program[pIdx].AudioInfo[aIdx].type, Program[pIdx].SubtitleInfo[sIdx].type
- * n_video, n_audio, n_subtitle
+/******************************************************************************
+ * Get demux type
+ * filesrc <--> filesrc_typefind <--> video_fakesink
+*******************************************************************************/
+gint typefind_demux(struct GST_MEDIA_INFO *media_handle, const char* filePath);
+static void cb_typefind_demux(GstElement *typefind, guint probability,
+								GstCaps *caps, gpointer data);
+
+/******************************************************************************
+ * In case of TS file, get total program number, program number list for ts file
+ * Otherwise, get total number of each stream type, the codec type of each stream in on_demux_pad_added_num
  * filesrc<-->xxxdemux<-->audio_queue<-->fakesink
  *                    <-->video_queue<-->fakesink
-*/
-int find_avcodec_num(struct GST_MEDIA_INFO *media_handle, const char *filePath);
-// demux<-->video_queue / demux<-->audio_queue
+*******************************************************************************/
+int get_stream_num_type(struct GST_MEDIA_INFO *media_handle, const char *filePath);
 static void on_demux_pad_added_num(GstElement *element, GstPad *pad, gpointer data);
 
-/*
+/******************************************************************************
  * filesrc<-->mpegpsdemux<-->video_queue<-->decodebin<-->video_typefind<-->video_fakesink
  * 						 <-->audio_queue<-->audio_fakesink
-*/
+*******************************************************************************/
 int find_avcodec_num_ps(struct GST_MEDIA_INFO *media_handle, const char *filePath);
-// demux <--> video_queue / demux <--> audio_queue
 static void on_demux_pad_added_num_ps(GstElement *element, GstPad *pad, gpointer data);
+// Exit loop
 static void cb_typefind_video_ps(GstElement *typefind, guint probability, GstCaps *caps, gpointer data);
 
+/******************************************************************************
+ * Get each stream info
+ * 
+*******************************************************************************/
 int typefind_codec_info(struct GST_MEDIA_INFO *media_handle,
                const char *filePath, gint codec_type, gint program_num, gint track_num);
 // demux<-->video_queue / demux<-->audio_queue
@@ -398,7 +407,7 @@ static void on_video_decodebin_pad_added(GstElement *element, GstPad *pad, gpoin
 
 	NXGLOGI("START");
 
-	caps = gst_pad_get_caps(pad);
+	caps = gst_pad_get_current_caps(pad);
 	g_assert(caps != NULL);
 	name = gst_pad_get_name(pad);
 
@@ -446,7 +455,7 @@ static void on_audio_decodebin_pad_added(GstElement *element, GstPad *pad, gpoin
 
 	NXGLOGI("START");
 
-	caps = gst_pad_get_caps(pad);
+	caps = gst_pad_get_current_caps(pad);
 	g_assert(caps != NULL);
 	name = gst_pad_get_name(pad);
 
@@ -526,38 +535,34 @@ int typefind_codec_info(struct GST_MEDIA_INFO *media_handle, const char *uri,
 
 	// create demux
 	if (demux_type == DEMUX_TYPE_MPEGDEMUX) {
-		if(CODEC_TYPE_AUDIO == codec_type) {
-			if(handle.media_info->ProgramInfo[program_idx].AudioInfo[handle.audio_stream_idx].type == AUDIO_TYPE_AC3) {
+		if(CODEC_TYPE_AUDIO == codec_type)
+		{
+			if(handle.media_info->ProgramInfo[program_idx].AudioInfo[track_num].type == AUDIO_TYPE_AC3) {
 				handle.demux = gst_element_factory_make ("dvddemux", "demux");
-			}
-			else {
+			} else {
 				handle.demux = gst_element_factory_make ("mpegpsdemux", "demux");
 			}
-		}
-		else {
-			handle.demux = gst_element_factory_make ("mpegpsdemux", "demux");
-		}
-		handle.video_parse = gst_element_factory_make ("mpegvideoparse", "parse_video");
-        if(CODEC_TYPE_AUDIO == codec_type) { 
-			if(handle.media_info->ProgramInfo[program_idx].AudioInfo[handle.audio_stream_idx].type == AUDIO_TYPE_MPEG)
+			if(handle.media_info->ProgramInfo[program_idx].AudioInfo[track_num].type == AUDIO_TYPE_MPEG) {
 				handle.audio_parse = gst_element_factory_make ("mpegaudioparse", "parse_audio");
-			else if(handle.media_info->ProgramInfo[program_idx].AudioInfo[handle.audio_stream_idx].type == AUDIO_TYPE_AC3)
+			} else if(handle.media_info->ProgramInfo[program_idx].AudioInfo[track_num].type == AUDIO_TYPE_AC3) {
 				handle.audio_parse = gst_element_factory_make ("ac3parse", "parse_audio");
+			}
 		}
-		handle.audio_parse = gst_element_factory_make ("mpegaudioparse", "parse_audio");
+		else if (CODEC_TYPE_VIDEO == codec_type)
+		{
+			handle.demux = gst_element_factory_make ("mpegpsdemux", "demux");
+			handle.video_parse = gst_element_factory_make ("mpegvideoparse", "parse_video");
+		}
 	} else if (demux_type == DEMUX_TYPE_QTDEMUX) {
 		handle.demux = gst_element_factory_make ("qtdemux", "demux");
     } else if (demux_type == DEMUX_TYPE_MATROSKADEMUX) {
 		handle.demux = gst_element_factory_make ("matroskademux", "demux");
 	} else if (demux_type == DEMUX_TYPE_AVIDEMUX) {
 		handle.demux = gst_element_factory_make ("avidemux", "demux");
-	} else if (demux_type == DEMUX_TYPE_MPEGDEMUX) {
-		handle.demux = gst_element_factory_make ("mpegpsdemux", "demux");
-		handle.video_parse = gst_element_factory_make ("mpegvideoparse", "parse_video");
-		handle.audio_parse = gst_element_factory_make ("mpegaudioparse", "parse_audio");
 	} else if (demux_type == DEMUX_TYPE_MPEGTSDEMUX) {
 		handle.demux = gst_element_factory_make ("tsdemux", "demux");
-        g_object_set (G_OBJECT(handle.demux), "program-number", handle.media_info->program_number[track_num], NULL); 
+        g_object_set (G_OBJECT(handle.demux), "program-number",
+						handle.media_info->program_number[program_idx], NULL); 
 	} else {
 		NXGLOGE("Not supported demux_type(%d)", demux_type);
 	}
@@ -740,7 +745,6 @@ static void on_pad_added (GstElement *element,
 
 	gst_object_unref (sinkpad);
 
-	g_idle_add (idle_exit_loop, handle->loop);
 	NXGLOGI("END");
 }
 
@@ -767,23 +771,6 @@ dump_pat (GstMpegtsSection * section, TypeFindSt *handle)
 	}
 
 	g_ptr_array_unref (pat);
-}
-
-static const gchar *
-stream_type_name(gint val)
-{
-	GEnumValue *en;
-
-	en = g_enum_get_value (G_ENUM_CLASS (g_type_class_peek
-							(GST_TYPE_MPEGTS_STREAM_TYPE)), val);
-	if (en == NULL)
-	// Else try with SCTE enum types
-	en = g_enum_get_value (G_ENUM_CLASS (g_type_class_peek
-							(GST_TYPE_MPEGTS_SCTE_STREAM_TYPE)), val);
-	if (en == NULL)
-		return "UNKNOWN/PRIVATE";
-
-	return en->value_nick;
 }
 
 #define dump_memory_content(desc, spacing) dump_memory_bytes((desc)->data + 2, (desc)->length, spacing)
@@ -1094,6 +1081,22 @@ dump_descriptors (GPtrArray * descriptors, guint spacing)
   }
 }
 
+static const gchar *
+stream_type_name (gint val)
+{
+	GEnumValue *en;
+
+	en = g_enum_get_value (G_ENUM_CLASS (g_type_class_peek
+					(GST_TYPE_MPEGTS_STREAM_TYPE)), val);
+	if (en == NULL)
+		/* Else try with SCTE enum types */
+		en = g_enum_get_value (G_ENUM_CLASS (g_type_class_peek
+						(GST_TYPE_MPEGTS_SCTE_STREAM_TYPE)), val);
+	if (en == NULL)
+		return "UNKNOWN/PRIVATE";
+	return en->value_nick;
+}
+
 static void
 dump_pmt(GstMpegtsSection * section, TypeFindSt *handle)
 {
@@ -1105,11 +1108,38 @@ dump_pmt(GstMpegtsSection * section, TypeFindSt *handle)
 	//dump_descriptors (pmt->descriptors, 7);
 	len = pmt->streams->len;
 	NXGLOGI("     %d Streams:", len);
-
+	
 	for (i = 0; i < len; i++) {
 		GstMpegtsPMTStream *stream = g_ptr_array_index (pmt->streams, i);
+		const gchar* stream_type = stream_type_name (stream->stream_type);
 		NXGLOGI("       pid:0x%04x , stream_type:0x%02x (%s)", stream->pid,
-				stream->stream_type, stream_type_name (stream->stream_type));
+				stream->stream_type, stream_type);
+
+		if (g_str_has_prefix(stream_type, "video")) {
+			gint v_idx = handle->media_info->ProgramInfo[i].n_video;
+			if (GST_MPEGTS_STREAM_TYPE_VIDEO_MPEG1 == stream->stream_type) {
+				handle->media_info->ProgramInfo[i].VideoInfo[v_idx].type = VIDEO_TYPE_MPEG_V1;
+			} else if (GST_MPEGTS_STREAM_TYPE_VIDEO_MPEG1 == stream->stream_type) {
+				handle->media_info->ProgramInfo[i].VideoInfo[v_idx].type = VIDEO_TYPE_MPEG_V2;
+			} else if (GST_MPEGTS_STREAM_TYPE_VIDEO_H264 == stream->stream_type) {
+				handle->media_info->ProgramInfo[i].VideoInfo[v_idx].type = VIDEO_TYPE_H264;
+			}
+			handle->media_info->ProgramInfo[i].n_video++;
+		} else if (g_str_has_prefix(stream_type, "audio")) {
+			gint a_idx = handle->media_info->ProgramInfo[i].n_audio;
+			if (GST_MPEGTS_STREAM_TYPE_AUDIO_MPEG1 == stream->stream_type) {
+				handle->media_info->ProgramInfo[i].AudioInfo[a_idx].type = AUDIO_TYPE_MPEG_V1;
+			} else if(GST_MPEGTS_STREAM_TYPE_AUDIO_MPEG2 == stream->stream_type) {
+				handle->media_info->ProgramInfo[i].AudioInfo[a_idx].type = AUDIO_TYPE_MPEG_V2;
+			}
+			handle->media_info->ProgramInfo[i].n_audio++;
+		} else if (g_str_has_prefix(stream_type, "private-pes-packets")) {
+			gint s_idx = handle->media_info->ProgramInfo[i].n_subtitle;
+			if (GST_MPEGTS_STREAM_TYPE_PRIVATE_PES_PACKETS == stream->stream_type) {
+				handle->media_info->ProgramInfo[i].SubtitleInfo[s_idx].type = AUDIO_TYPE_MPEG_V1;
+			}
+			handle->media_info->ProgramInfo[i].n_subtitle++;
+		}
 		//dump_descriptors (stream->descriptors, 9);
 	}
 }
@@ -1155,7 +1185,6 @@ bus_callback(GstBus * bus, GstMessage * msg, TypeFindSt* handle)
 				if (GST_MPEGTS_SECTION_PAT == section_type) {
 					dump_pat(section, handle);
 					gst_mpegts_section_unref(section);
-					//g_idle_add (idle_exit_loop, loop);
 				}
 				if (GST_MPEGTS_SECTION_PMT == section_type) {
 					dump_pmt(section, handle);
@@ -1177,7 +1206,7 @@ bus_callback(GstBus * bus, GstMessage * msg, TypeFindSt* handle)
 }
 
 static void
-cb_typefound(GstElement *typefind, guint probability,
+cb_typefind_demux(GstElement *typefind, guint probability,
 			GstCaps *caps, gpointer data)
 {
     TypeFindSt *handle = (TypeFindSt *)data;
@@ -1191,6 +1220,9 @@ cb_typefound(GstElement *typefind, guint probability,
 
     NXGLOGI("container_type (%d) demux_type(%d) Media type %s found, probability %d%%",
             handle->media_info->container_type, handle->media_info->demux_type, type, probability);
+
+	structure = gst_caps_get_structure (caps, 0);
+	mime_type = gst_structure_get_name(structure);
 
     // TODO: Check if it needs to get audioonly & type here
 
@@ -1321,7 +1353,8 @@ on_demux_pad_added_num(GstElement *element, GstPad *pad, gpointer data)
 	NXGLOGI("END");
 }
 
-gint typefind_demux (struct GST_MEDIA_INFO *media_handle, const char* filePath)
+gint
+typefind_demux(struct GST_MEDIA_INFO *media_handle, const char* filePath)
 {
     // Initialize struct 'TypeFindSt'
     TypeFindSt handle;
@@ -1347,7 +1380,7 @@ gint typefind_demux (struct GST_MEDIA_INFO *media_handle, const char* filePath)
     handle.filesrc = gst_element_factory_make ("filesrc", "source");
     g_object_set (G_OBJECT (handle.filesrc), "location", filePath, NULL);
     handle.filesrc_typefind = gst_element_factory_make ("typefind", "filesrc_typefind");
-    g_signal_connect (handle.filesrc_typefind, "have-type", G_CALLBACK (cb_typefound), &handle);
+    g_signal_connect (handle.filesrc_typefind, "have-type", G_CALLBACK (cb_typefind_demux), &handle);
     handle.video_fakesink = gst_element_factory_make ("fakesink", "sink");
 
     // Add elements
@@ -1453,7 +1486,7 @@ decodebin_pad_added(GstElement *element, GstPad *pad, gpointer data)
     gst_caps_unref (caps);
 }
 
-int find_avcodec_num(struct GST_MEDIA_INFO *media_handle, const char *filePath)
+int get_stream_num_type(struct GST_MEDIA_INFO *media_handle, const char *filePath)
 {
     TypeFindSt handle;
 
@@ -1491,6 +1524,7 @@ int find_avcodec_num(struct GST_MEDIA_INFO *media_handle, const char *filePath)
 		handle.demux = gst_element_factory_make ("tsdemux", "demux");
 	} else {
 		NXGLOGE("Not supported demux_type(%d)", demux_type);
+		return -1;
 	}	
 
 	handle.video_queue = gst_element_factory_make ("queue2", "video_queue");
@@ -1515,10 +1549,11 @@ int find_avcodec_num(struct GST_MEDIA_INFO *media_handle, const char *filePath)
 
 		// Link elements (demux <==> video_queue)
 		g_signal_connect (handle.demux, "pad-added", G_CALLBACK (on_pad_added), &handle);
+		//g_signal_connect(handle.demux, "pad-added", G_CALLBACK(on_demux_pad_added_num), &handle);
 	}
 	else
 	{
-		// Link elements (demux <==> video_queue)
+		// Link elements (demux <==> video_queue, demux <==> audio_queue)
 		g_signal_connect(handle.demux, "pad-added", G_CALLBACK(on_demux_pad_added_num), &handle);
 
 		gst_bin_add_many((handle.pipeline),
@@ -1561,6 +1596,7 @@ static void on_demux_pad_added_num_ps(GstElement *element, GstPad *pad, gpointer
 	NXGLOGI("START");
 
     TypeFindSt *handle = (TypeFindSt *)data;
+	gint pIdx = handle->program_idx;
 
 	caps = gst_pad_get_current_caps(pad);
 	if (NULL == caps) {
@@ -1638,14 +1674,14 @@ static void on_demux_pad_added_num_ps(GstElement *element, GstPad *pad, gpointer
     else if (g_strrstr(mime_type, "subtitle"))
     {
         SUBTITLE_TYPE sub_type = get_video_codec_type(mime_type);
-        int32_t sub_idx = handle->media_info->ProgramInfo[0].n_subtitle;
+        int32_t s_idx = handle->media_info->ProgramInfo[0].n_subtitle;
 
-        handle->media_info->ProgramInfo[0].SubtitleInfo[sub_idx].type = sub_type;
+        handle->media_info->ProgramInfo[0].SubtitleInfo[s_idx].type = sub_type;
         handle->media_info->ProgramInfo[0].n_subtitle++;
 
         NXGLOGI("n_subtitle(%d), subtitle_type(%d)",
                 handle->media_info->ProgramInfo[0].n_subtitle,
-                handle->media_info->ProgramInfo[0].SubtitleInfo[sub_idx].type);
+                handle->media_info->ProgramInfo[0].SubtitleInfo[s_idx].type);
     }
 
 	if (targetqueue)

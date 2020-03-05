@@ -85,19 +85,20 @@ NX_GST_RET NX_GSTMP_Open(MP_HANDLE *handle,
 void NX_GSTMP_Close(MP_HANDLE handle);
 
 /*!
- * \fn NX_GST_RET NX_GSTMP_GetMediaInfo(MP_HANDLE handle, struct GST_MEDIA_INFO *pInfo);
+ * \fn NX_GST_RET NX_GSTMP_GetMediaInfo(MP_HANDLE handle, const char* filePath, struct GST_MEDIA_INFO *pInfo);
  *
  * \brief This is used to get media information.
  * The application can use the media information to limit the codec types to support. And
  * it can calculate the display rect information according to aspect ratio.
  *
  * \param [in]  handle    Movie player handle
+ * \param [in]  filePath  Media filepath
  * \param [in]  pInfo     Media information
  *
  * \retval NX_GST_RET_ERROR On failure.
  * \retval NX_GST_RET_OK On succee.
  */
-NX_GST_RET NX_GSTMP_GetMediaInfo(MP_HANDLE handle, struct GST_MEDIA_INFO *pInfo);
+NX_GST_RET NX_GSTMP_GetMediaInfo(MP_HANDLE handle, const char* filePath, GST_MEDIA_INFO *pGstMInfo);
 
 /*!
  * \fn NX_GST_RET NX_GSTMP_SetDisplayInfo(MP_HANDLE handle, enum DISPLAY_TYPE type,

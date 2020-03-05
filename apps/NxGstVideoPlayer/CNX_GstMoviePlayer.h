@@ -111,11 +111,11 @@ private:
 				   void *cbPrivate);
 	int SetUri(const char *pUri);
 	
-	int GetMediaInfo();
+	int GetMediaInfo(const char* filePath);
 	void GetAspectRatio(int srcWidth, int srcHeight,
 						int dspWidth, int dspHeight,
 						DSP_RECT *pDspDstRect);
-	
+	void PrintMediaInfo(GST_MEDIA_INFO media_info, const char* filePath);
 	int SetAspectRatio(DISPLAY_INFO dspInfo);
 
 	//vars

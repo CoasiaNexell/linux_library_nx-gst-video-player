@@ -57,45 +57,62 @@ NX_GST_RET	OpenMediaInfo(GST_MEDIA_INFO **media_handle)
 
 NX_GST_ERROR  ParseMediaInfo(GST_MEDIA_INFO *media_handle, const char *filePath)
 {
-	FUNC_IN();
+	NXGLOGI("START");
+
 	enum NX_GST_ERROR err = NX_GST_ERROR_NONE;
-#if 1
+
+	// Get demux type
 	typefind_demux(media_handle, filePath);
-	NXGLOGI("## media_handle.demuxer:%d", media_handle->demux_type);
 	if (-1 == media_handle->demux_type) {
 		err = NX_GST_ERROR_NOT_SUPPORTED_CONTENTS;
 		return err;
 	}
 
-	// if ts, parse pat, pmt. else, set videotracktotalnum, video/audioInfo[].type
-	find_avcodec_num(media_handle, filePath);
 	if (media_handle->demux_type == DEMUX_TYPE_MPEGTSDEMUX)
 	{
-		NXGLOGI("############### run???");
-	}
-	NXGLOGI("## n_video(%d), n_audio(%d), n_subtitle(%d)",
-			media_handle->ProgramInfo[0].n_video,
-			media_handle->ProgramInfo[0].n_audio,
-			media_handle->ProgramInfo[0].n_subtitle);
-
-	if (0 == media_handle->n_program) {
-		if ((media_handle->ProgramInfo[0].n_video > 0) || (media_handle->ProgramInfo[0].n_audio > 0)) {
-			media_handle->n_program = 1;
+		// Get total number of programs, program number list from pat
+		get_program_info(filePath, media_handle);
+		for (int i; i< media_handle->n_program; i++)
+		{
+			int cur_program_no = media_handle->program_number[i];
+			if (cur_program_no != 0) {
+				// Get total number of streams in each program from dump_collection
+				get_stream_simple_info(filePath, cur_program_no, media_handle);
+				if (media_handle->ProgramInfo[i].n_video > 0) {
+					// Get the detail stream information from pad-added signal in decodebin_pad_added_detail
+					get_stream_detail_info(filePath, cur_program_no, media_handle);
+				}
+			}
 		}
 	}
+	else
+	{
+		if (0 == media_handle->n_program) {
+			if (media_handle->ProgramInfo[0].n_video > 0) {
+				media_handle->n_program = 1;
+			}
+		}
+		StartDiscover(filePath, media_handle);
+	}
 
+	//MediaInfoToStr(media_handle, filePath);
+#if 0
+	if (media_handle->demux_type == DEMUX_TYPE_MPEGTSDEMUX)
+	{
 	for (int pIdx=0; pIdx<media_handle->n_program; pIdx++)
 	{
-		NXGLOGI("####### pIdx(%d)", pIdx);
+		NXGLOGI("pIdx(%d), n_video(%d), n_audio(%d), n_subtitle(%d)",
+			pIdx, media_handle->ProgramInfo[pIdx].n_video,
+			media_handle->ProgramInfo[pIdx].n_audio,
+			media_handle->ProgramInfo[pIdx].n_subtitle);
+
 		//get_stream_info(filePath, media_handle->program_number[i], media_handle);
 		for (int vIdx = 0; vIdx < media_handle->ProgramInfo[pIdx].n_video; vIdx++)
 		{
-			NXGLOGI("####### vIdx(%d)", vIdx);
 			typefind_codec_info(media_handle, filePath, CODEC_TYPE_VIDEO, pIdx, vIdx);
 		}
 		for (int aIdx = 0; aIdx < media_handle->ProgramInfo[pIdx].n_audio; aIdx++)
 		{
-			NXGLOGI("####### aIdx(%d)", aIdx);
 			typefind_codec_info(media_handle, filePath, CODEC_TYPE_AUDIO, pIdx, aIdx);
 		}
 		/*for (int sIdx = 0; sIdx < media_handle->ProgramInfo[pIdx].n_video; sIdx++)
@@ -103,10 +120,9 @@ NX_GST_ERROR  ParseMediaInfo(GST_MEDIA_INFO *media_handle, const char *filePath)
 			typefind_codec_info(media_handle, filePath, CODEC_TYPE_SUBTITLE, pIdx, sIdx);
 		}*/
 	}
-#else
-	err = StartDiscover(filePath, media_handle);
+	}
 #endif
-	FUNC_OUT();
+	NXGLOGI("END");
 
 	return err;
 }

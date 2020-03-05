@@ -56,11 +56,70 @@ int CNX_GstMoviePlayer::InitMediaPlayer(void (*pCbEventCallback)(void *privateDe
 
 	if(0 > OpenHandle(pCbEventCallback, pCbPrivate))		return -1;
 	if(0 > SetDisplayMode(dspInfo.dspMode))					return -1;
+	if(0 > GetMediaInfo(pUri))								return -1;
+	PrintMediaInfo(m_MediaInfo, pUri);
 	if(0 > SetUri(pUri))									return -1;
-	if(0 > GetMediaInfo())									return -1;
 	if(0 > SetAspectRatio(dspInfo))							return -1;
 
 	return 0;
+}
+
+void CNX_GstMoviePlayer::PrintMediaInfo(GST_MEDIA_INFO media_info, const char* filePath)
+{
+	NXLOGI("<=========== [APP_MEDIA_INFO] %s =========== ", filePath);
+	NXLOGI("container_type(%d), demux_type(%d), \n"
+			"n_program(%d), current_program(%d), current_program_idx(%d)\n",
+			media_info.container_type, media_info.demux_type,
+			media_info.n_program, media_info.current_program,
+			media_info.current_program_idx);
+
+	if (media_info.demux_type != DEMUX_TYPE_MPEGTSDEMUX)
+	{
+		media_info.n_program = 1;
+	}
+
+	for (int i=0; i<media_info.n_program; i++)
+	{
+		NXLOGI("ProgramInfo[%d] - program_number[%d]:%d, "
+				"n_video(%d), n_audio(%d), n_subtitlte(%d), seekable(%d)",
+				i, i, media_info.program_number[i],
+				media_info.ProgramInfo[i].n_video,
+				media_info.ProgramInfo[i].n_audio,
+				media_info.ProgramInfo[i].n_subtitle,
+				media_info.ProgramInfo[i].seekable);
+
+		for (int v_idx=0; v_idx<media_info.ProgramInfo[i].n_video; v_idx++)
+		{
+			NXLOGI("%*s [VideoInfo[%d]] \n"
+					"type(%d), width(%d), height(%d), framerate_num/denom(%d/%d)\n",
+					5, " ", v_idx,
+					media_info.ProgramInfo[i].VideoInfo[v_idx].type,
+					media_info.ProgramInfo[i].VideoInfo[v_idx].width,
+					media_info.ProgramInfo[i].VideoInfo[v_idx].height,
+					media_info.ProgramInfo[i].VideoInfo[v_idx].framerate_num,
+					media_info.ProgramInfo[i].VideoInfo[v_idx].framerate_denom);
+		}
+		for (int a_idx=0; a_idx<media_info.ProgramInfo[i].n_audio; a_idx++)
+		{
+			NXLOGI("%*s [AudioInfo[%d]] \n"
+					"type(%d), n_channels(%d), samplerate(%d), bitrate(%d)\n",
+					5, " ", a_idx,
+					media_info.ProgramInfo[i].AudioInfo[a_idx].type,
+					media_info.ProgramInfo[i].AudioInfo[a_idx].n_channels,
+					media_info.ProgramInfo[i].AudioInfo[a_idx].samplerate,
+					media_info.ProgramInfo[i].AudioInfo[a_idx].bitrate);
+		}
+		for (int s_idx=0; s_idx<media_info.ProgramInfo[i].n_subtitle; s_idx++)
+		{
+			NXLOGI("%*s [SubtitleInfo[%d]] \n"
+					"type(%d), language_code(%s)\n",
+					5, " ", s_idx,
+					media_info.ProgramInfo[i].SubtitleInfo[s_idx].type,
+					media_info.ProgramInfo[i].SubtitleInfo[s_idx].language_code);
+		}
+	}
+
+	NXLOGI("=========== [GST_MEDIA_INFO] ===========> ");
 }
 
 int CNX_GstMoviePlayer::SetAspectRatio(DISPLAY_INFO dspInfo)
@@ -75,6 +134,9 @@ int CNX_GstMoviePlayer::SetAspectRatio(DISPLAY_INFO dspInfo)
 	int index = m_MediaInfo.current_program_idx;
 	int video_width = m_MediaInfo.ProgramInfo[index].VideoInfo[0].width;
 	int video_height = m_MediaInfo.ProgramInfo[index].VideoInfo[0].height;
+
+	NXLOGI("index(%d) Video width/height(%d/%d), Display width/height(%d/%d)",
+			index, video_width, video_height, dspInfo.dspWidth, dspInfo.dspHeight);
 	// Set aspect ratio for the primary display
 	memset(&m_dstDspRect, 0, sizeof(DSP_RECT));
 
@@ -322,14 +384,14 @@ int CNX_GstMoviePlayer::SetUri(const char *pUri)
 	return 0;
 }
 
-int CNX_GstMoviePlayer::GetMediaInfo()
+int CNX_GstMoviePlayer::GetMediaInfo(const char* filePath)
 {
 	if(NULL == m_hPlayer)
 	{
 		NXLOGE("%s: Error! Handle is not initialized!", __FUNCTION__);
 		return -1;
 	}
-	NX_GST_RET iResult = NX_GSTMP_GetMediaInfo(m_hPlayer, &m_MediaInfo);
+	NX_GST_RET iResult = NX_GSTMP_GetMediaInfo(m_hPlayer, filePath, &m_MediaInfo);
 	if(NX_GST_RET_OK != iResult)
 	{
 		NXLOGE("%s(): Error! NX_MPGetMediaInfo() Failed! (ret = %d)\n", __FUNCTION__, iResult);

@@ -17,8 +17,7 @@ COBJS  	:= \
 	NX_GstLog.o	\
 	NX_GstThumbnail.o \
 	NX_TypeFind.o \
-	NX_TSProgram.o \
-	NX_TSStream.o
+	NX_TSProgram.o
 
 CPPOBJS	:=
 CPPOBJS += \
@@ -39,7 +38,7 @@ CONFIG		+= debug
 #CONFIG		+= release
 ###########################
 
-LDFLAGS		=`pkg-config --libs glib-2.0 gstreamer-1.0 gstreamer-pbutils-1.0 gdk-pixbuf-2.0`
+LDFLAGS		= `pkg-config --libs glib-2.0 gstreamer-1.0 gstreamer-pbutils-1.0 gdk-pixbuf-2.0`
 
 CPPFLAGS	+= -fPIC -Wall -Wextra `pkg-config --cflags glib-2.0 gstreamer-1.0 gstreamer-pbutils-1.0 gdk-pixbuf-1.0`
 
