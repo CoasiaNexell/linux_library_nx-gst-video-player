@@ -1544,7 +1544,7 @@ on_bus_message_simple (GstBus * bus, GstMessage * message, MpegTsSt *handle)
 			gst_message_parse_stream_collection(message, &collection);
 			if (collection)
 			{
-				NXGLOGI("Got a collection from %s:",
+				NXGLOGI("Got a collection from %s",
 								src ? GST_OBJECT_NAME (src) : "Unknown");
 				dump_collection(collection, handle);
 				g_idle_add (idle_exit_loop, handle->loop);
@@ -1842,11 +1842,9 @@ decodebin_pad_added_detail(GstElement *element, GstPad *pad, gpointer data)
 			}
 		}
 		if (gst_structure_get_int(structure, "channels", &channels)) {
-			NXGLOGI("n_channels(%d)", channels);
 			handle->media_info->ProgramInfo[cur_pro_idx].AudioInfo[0].n_channels = channels;
 		}
 		if (gst_structure_get_int(structure, "rate", &samplerate)) {
-			NXGLOGI("samplerate(%d)", samplerate);
 			handle->media_info->ProgramInfo[cur_pro_idx].AudioInfo[0].samplerate = samplerate;
 		}
 
@@ -1860,7 +1858,7 @@ decodebin_pad_added_detail(GstElement *element, GstPad *pad, gpointer data)
 		} else if (g_strcmp0(gst_element_get_name(element), "audio_decodebin2") == 0){
 			target_sink = handle->audio_typefind2;
 		}
-		
+
 		target_sink_pad = gst_element_get_static_pad(target_sink, "sink");
 		GstPadLinkReturn ret = gst_pad_link(pad, target_sink_pad);
 		NXGLOGI("%s to link %s:%s to %s:%s",
@@ -1869,6 +1867,7 @@ decodebin_pad_added_detail(GstElement *element, GstPad *pad, gpointer data)
 				GST_DEBUG_PAD_NAME(target_sink_pad));
 		gst_object_unref (target_sink_pad);
 	}
+
 	gst_caps_unref (caps);
 
 	NXGLOGI("END");

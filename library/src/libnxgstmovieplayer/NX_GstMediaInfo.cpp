@@ -25,7 +25,7 @@
 
 #include <gst/gst.h>
 #include "NX_GstMediaInfo.h"
-#include "GstDiscover.h"
+#include "NX_GstDiscover.h"
 #include "NX_TypeFind.h"
 #include "NX_GstLog.h"
 #define LOG_TAG "[NxGstMediaInfo]"
@@ -92,36 +92,10 @@ NX_GST_ERROR  ParseMediaInfo(GST_MEDIA_INFO *media_handle, const char *filePath)
 				media_handle->n_program = 1;
 			}
 		}
-		StartDiscover(filePath, media_handle);
+		//start_parsing(filePath);
+		err = StartDiscover(filePath, media_handle);
 	}
 
-	//MediaInfoToStr(media_handle, filePath);
-#if 0
-	if (media_handle->demux_type == DEMUX_TYPE_MPEGTSDEMUX)
-	{
-	for (int pIdx=0; pIdx<media_handle->n_program; pIdx++)
-	{
-		NXGLOGI("pIdx(%d), n_video(%d), n_audio(%d), n_subtitle(%d)",
-			pIdx, media_handle->ProgramInfo[pIdx].n_video,
-			media_handle->ProgramInfo[pIdx].n_audio,
-			media_handle->ProgramInfo[pIdx].n_subtitle);
-
-		//get_stream_info(filePath, media_handle->program_number[i], media_handle);
-		for (int vIdx = 0; vIdx < media_handle->ProgramInfo[pIdx].n_video; vIdx++)
-		{
-			typefind_codec_info(media_handle, filePath, CODEC_TYPE_VIDEO, pIdx, vIdx);
-		}
-		for (int aIdx = 0; aIdx < media_handle->ProgramInfo[pIdx].n_audio; aIdx++)
-		{
-			typefind_codec_info(media_handle, filePath, CODEC_TYPE_AUDIO, pIdx, aIdx);
-		}
-		/*for (int sIdx = 0; sIdx < media_handle->ProgramInfo[pIdx].n_video; sIdx++)
-		{
-			typefind_codec_info(media_handle, filePath, CODEC_TYPE_SUBTITLE, pIdx, sIdx);
-		}*/
-	}
-	}
-#endif
 	NXGLOGI("END");
 
 	return err;
@@ -129,13 +103,29 @@ NX_GST_ERROR  ParseMediaInfo(GST_MEDIA_INFO *media_handle, const char *filePath)
 
 NX_GST_RET  CloseMediaInfo(GST_MEDIA_INFO *media_handle)
 {
-	FUNC_IN();
+	NXGLOGI("START");
+
+	for (int pIdx = 0; pIdx < media_handle->n_program; pIdx++)
+	{
+		for (int vIdx = 0; vIdx < media_handle->ProgramInfo[pIdx].n_video; vIdx++) {
+			g_free(media_handle->ProgramInfo[pIdx].VideoInfo[vIdx].stream_id);
+			media_handle->ProgramInfo[pIdx].VideoInfo[vIdx].stream_id = NULL;
+		}
+		for (int aIdx = 0; aIdx < media_handle->ProgramInfo[pIdx].n_audio; aIdx++) {
+			g_free(media_handle->ProgramInfo[pIdx].AudioInfo[aIdx].stream_id);
+			media_handle->ProgramInfo[pIdx].AudioInfo[aIdx].stream_id = NULL;
+		}
+		for (int sIdx = 0; sIdx < media_handle->ProgramInfo[pIdx].n_subtitle; sIdx++) {
+			g_free(media_handle->ProgramInfo[pIdx].SubtitleInfo[sIdx].language_code);
+			media_handle->ProgramInfo[pIdx].SubtitleInfo[sIdx].stream_id = NULL;
+		}
+	}
 
 	g_free(media_handle);
 
 	media_handle = NULL;
 
-	FUNC_OUT();
+	NXGLOGI("END");
 }
 
 void MediaInfoToStr(GST_MEDIA_INFO *media_info, const char*filePath)
@@ -146,9 +136,9 @@ void MediaInfoToStr(GST_MEDIA_INFO *media_info, const char*filePath)
 		return;
 	}
 
-	NXGLOGI("<=========== [GST_MEDIA_INFO] %s =========== ", filePath);
-	NXGLOGI("container_type(%d), demux_type(%d), \n"
-			"n_program(%d), current_program(%d)\n",
+	NXGLOGI("<=========== [GST_MEDIA_INFO] =========== ");
+	NXGLOGI("filePath(%s)", filePath);
+	NXGLOGI("container_type(%d), demux_type(%d), n_program(%d), current_program(%d)",
 			media_info->container_type, media_info->demux_type,
 			media_info->n_program, media_info->current_program_no);
 
@@ -169,32 +159,37 @@ void MediaInfoToStr(GST_MEDIA_INFO *media_info, const char*filePath)
 
 		for (int v_idx=0; v_idx<media_info->ProgramInfo[i].n_video; v_idx++)
 		{
-			NXGLOGI("%*s [VideoInfo[%d]] \n"
-					"type(%d), width(%d), height(%d), framerate_num/denom(%d/%d)\n",
+			NXGLOGI("%*s [VideoInfo[%d]] "
+					"type(%d), width(%d), height(%d), framerate_num/denom(%d/%d),"
+					"stream_id(%s)",
 					5, " ", v_idx,
 					media_info->ProgramInfo[i].VideoInfo[v_idx].type,
 					media_info->ProgramInfo[i].VideoInfo[v_idx].width,
 					media_info->ProgramInfo[i].VideoInfo[v_idx].height,
 					media_info->ProgramInfo[i].VideoInfo[v_idx].framerate_num,
-					media_info->ProgramInfo[i].VideoInfo[v_idx].framerate_denom);
+					media_info->ProgramInfo[i].VideoInfo[v_idx].framerate_denom,
+					media_info->ProgramInfo[i].VideoInfo[v_idx].stream_id);
 		}
 		for (int a_idx=0; a_idx<media_info->ProgramInfo[i].n_audio; a_idx++)
 		{
-			NXGLOGI("%*s [AudioInfo[%d]] \n"
+			NXGLOGI("%*s [AudioInfo[%d]] "
 					"type(%d), n_channels(%d), samplerate(%d), bitrate(%d)\n",
+					"stream_id(%s)",
 					5, " ", a_idx,
 					media_info->ProgramInfo[i].AudioInfo[a_idx].type,
 					media_info->ProgramInfo[i].AudioInfo[a_idx].n_channels,
 					media_info->ProgramInfo[i].AudioInfo[a_idx].samplerate,
-					media_info->ProgramInfo[i].AudioInfo[a_idx].bitrate);
+					media_info->ProgramInfo[i].AudioInfo[a_idx].bitrate,
+					media_info->ProgramInfo[i].AudioInfo[a_idx].stream_id);
 		}
 		for (int s_idx=0; s_idx<media_info->ProgramInfo[i].n_subtitle; s_idx++)
 		{
-			NXGLOGI("%*s [SubtitleInfo[%d]] \n"
-					"type(%d), language_code(%s)\n",
+			NXGLOGI("%*s [SubtitleInfo[%d]] "
+					"type(%d), language_code(%s), stream_id(%s)",
 					5, " ", s_idx,
 					media_info->ProgramInfo[i].SubtitleInfo[s_idx].type,
-					media_info->ProgramInfo[i].SubtitleInfo[s_idx].language_code);
+					media_info->ProgramInfo[i].SubtitleInfo[s_idx].language_code,
+					media_info->ProgramInfo[i].SubtitleInfo[s_idx].stream_id);
 		}
 	}
 

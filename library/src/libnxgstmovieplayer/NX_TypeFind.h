@@ -15,6 +15,7 @@ gint get_program_info(const char* filePath, struct GST_MEDIA_INFO *media_info);
 gint get_stream_info(const char* filePath, int program_number, struct GST_MEDIA_INFO *media_info);
 gint get_stream_simple_info(const char* filePath, gint program_number, struct GST_MEDIA_INFO *media_info);
 gint get_stream_detail_info(const char* filePath, gint program_number, struct GST_MEDIA_INFO *media_info);
+int start_parsing(const char* filePath);
 
 #ifdef __cplusplus
 }

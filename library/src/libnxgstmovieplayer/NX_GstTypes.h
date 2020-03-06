@@ -171,11 +171,11 @@ typedef enum {
     CONTAINER_TYPE_MPEGTS,
     CONTAINER_TYPE_QUICKTIME,
     CONTAINER_TYPE_MSVIDEO,
-    CONTAINER_TYPE_ASF,
     CONTAINER_TYPE_MATROSKA,
     CONTAINER_TYPE_MPEG,
     CONTAINER_TYPE_3GP,
     CONTAINER_TYPE_FLV,
+    CONTAINER_TYPE_ASF,
     CONTAINER_TYPE_OGG,
     CONTAINER_TYPE_REALMEDIA,
     CONTAINER_TYPE_DV,
@@ -247,11 +247,14 @@ typedef enum {
 
 typedef struct {
     SUBTITLE_TYPE   type;
+    char*           stream_id;
     char*           language_code;
 } GST_SUBTITLE_INFO;
 
 typedef struct {
     AUDIO_TYPE      type;
+    char*           stream_id;
+    char*           audio_pad_name;
     int32_t         n_channels;
     int32_t         samplerate;
     int32_t         bitrate;
@@ -259,21 +262,25 @@ typedef struct {
 
 typedef struct {
     VIDEO_TYPE      type;
+    char*           stream_id;
+    char*           video_pad_name;
     int32_t         width;
     int32_t         height;
     int32_t         framerate_num;
     int32_t         framerate_denom;
 } GST_VIDEO_INFO;
 
-enum {
+typedef enum {
 	CODEC_TYPE_VIDEO,
 	CODEC_TYPE_AUDIO,
     CODEC_TYPE_SUBTITLE,
-};
+} CODEC_TYPE;
 
 /*! \def MAX_STREAM_INFO
  * \brief Maximum number of stream information */
-#define	MAX_STREAM_INFO		20
+#define	MAX_VIDEO_STREAM_NUM		2
+#define	MAX_AUDIO_STREAM_NUM		10
+#define	MAX_SUBTITLE_STREAM_NUM		15
 
 #define PROGRAM_MAX			16
 typedef struct PROGRAM_INFO
@@ -285,6 +292,11 @@ typedef struct PROGRAM_INFO
     /*! \brief Total number of subtitles */
     int32_t             n_subtitle;
 
+    /*! \brief Total duration */
+    int64_t             duration;
+    /*! \brief If the content is seekable */
+    int32_t             seekable;
+
     /*! \brief Currently playing video */
     int32_t             current_video;
     /*! \brief Currently playing audio */
@@ -292,17 +304,12 @@ typedef struct PROGRAM_INFO
     /*! \brief Currently playing subtitles */
     int32_t             current_subtitle;
 
-    /*! \brief Total duration */
-    int64_t             duration;
-    /*! \brief If the content is seekable */
-    int32_t             seekable;
-
     /*! \brief Video stream information */
-    GST_VIDEO_INFO      VideoInfo[MAX_STREAM_INFO];
+    GST_VIDEO_INFO      VideoInfo[MAX_VIDEO_STREAM_NUM];
     /*! \brief Audio stream information */
-    GST_AUDIO_INFO      AudioInfo[MAX_STREAM_INFO];
+    GST_AUDIO_INFO      AudioInfo[MAX_AUDIO_STREAM_NUM];
     /*! \brief Subtitle stream information */
-    GST_SUBTITLE_INFO   SubtitleInfo[MAX_STREAM_INFO];
+    GST_SUBTITLE_INFO   SubtitleInfo[MAX_SUBTITLE_STREAM_NUM];
 } PROGRAM_INFO;
 
 /*! \struct GST_MEDIA_INFO

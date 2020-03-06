@@ -21,7 +21,7 @@
 #include <string.h>
 
 #include "NX_GstIface.h"
-#include "GstDiscover.h"
+#include "NX_GstDiscover.h"
 #include "NX_GstThumbnail.h"
 #include "NX_GstMediaInfo.h"
 #include "NX_GstLog.h"
@@ -30,6 +30,8 @@
 #define NX_GST_VTHREAD   "NxGstVThread"
 
 //------------------------------------------------------------------------------
+#define DEFAULT_STREAM_IDX       0
+
 // Function Prototype
 int32_t get_current_program_idx(MP_HANDLE handle);
 
@@ -122,6 +124,11 @@ struct MOVIE_TYPE {
 
     //	Media file path
     gchar *filePath;
+
+    gint select_program_idx;
+    gint select_video_idx;
+    gint select_audio_idx;
+    gint select_subtitle_idx;
 
     struct GST_MEDIA_INFO gst_media_info;
 
@@ -218,7 +225,7 @@ static void stop_my_thread(MP_HANDLE handle)
 static void on_decodebin_pad_added(GstElement *element,
                             GstPad *pad, gpointer data)
 {
-    FUNC_IN();
+    NXGLOGI("START");
     
     GstPad *sinkpad = NULL;
     GstCaps *caps = NULL;
@@ -252,14 +259,9 @@ static void on_decodebin_pad_added(GstElement *element,
             return;
         }
 
-        if (GST_PAD_LINK_FAILED(gst_pad_link(pad, sinkpad)))
-        {
-            NXGLOGE("Failed to link %s:%s to %s:%s",
-                    GST_DEBUG_PAD_NAME(pad),
-                    GST_DEBUG_PAD_NAME(sinkpad));
-        }
-
-        NXGLOGI("Succeed to link %s:%s to %s:%s",
+        GstPadLinkReturn ret = gst_pad_link(pad, sinkpad);
+        NXGLOGE("%s to link %s:%s to %s:%s",
+                (ret != GST_PAD_LINK_OK) ? "Failed":"Succeed",
                 GST_DEBUG_PAD_NAME(pad),
                 GST_DEBUG_PAD_NAME(sinkpad));
 
@@ -268,7 +270,7 @@ static void on_decodebin_pad_added(GstElement *element,
 
     gst_caps_unref (caps);
 
-    FUNC_OUT();
+    NXGLOGI("END");
 }
 
 struct SUBTITLE_INFO* setSubtitleInfo(GstClockTime startTime, GstClockTime endTime,
@@ -322,7 +324,7 @@ void on_handoff(GstElement* object, GstBuffer* buffer,
     gst_buffer_unref (buffer);
 }
 
-NX_GST_RET set_subtitle_element(MP_HANDLE handle)
+NX_GST_RET set_subtitle_elements(MP_HANDLE handle)
 {
     FUNC_IN();
 
@@ -390,10 +392,12 @@ static void on_pad_added_demux(GstElement *element,
     GstCaps *caps = NULL;
     GstStructure *structure;
     const gchar *mime_type;
-    GstElement *target_sink_pad = NULL;
+    GstElement *target_sink_element = NULL;
     MP_HANDLE handle = NULL;
     gboolean isLinkFailed = FALSE;
     gchar* padName = NULL;
+
+    NXGLOGI("START");
 
     handle = (MP_HANDLE)data;
     padName = gst_pad_get_name(pad);
@@ -412,27 +416,27 @@ static void on_pad_added_demux(GstElement *element,
     }
 
     mime_type = gst_structure_get_name(structure);
-    NXGLOGI("padName(%s) mime_type(%s)", padName, mime_type);
+    NXGLOGI(" padName(%s) mime_type(%s)", padName, mime_type);
 
     int index = get_current_program_idx(handle);
     // Get sinkpad of queue for video/audio/subtitle
     if (g_str_has_prefix(mime_type, "video"))
     {
-        target_sink_pad = handle->video_queue;
-        sinkpad = gst_element_get_static_pad(target_sink_pad, "sink");
+        target_sink_element = handle->video_queue;
+        sinkpad = gst_element_get_static_pad(target_sink_element, "sink");
     }
     else if (g_str_has_prefix(mime_type, "audio"))
     {
-        target_sink_pad = handle->audio_queue;
-        sinkpad = gst_element_get_static_pad(target_sink_pad, "sink");
+        target_sink_element = handle->audio_queue;
+        sinkpad = gst_element_get_static_pad(target_sink_element, "sink");
     }
     else if ((handle->gst_media_info.ProgramInfo[index].n_subtitle >= 1) &&
             g_str_has_prefix(padName, "subtitle_0"))
     {
         if (handle->gst_media_info.ProgramInfo[index].SubtitleInfo[0].type == SUBTITLE_TYPE_RAW)
         {
-            target_sink_pad = handle->subtitle_queue;
-            sinkpad = gst_element_get_static_pad(target_sink_pad, "sink");
+            target_sink_element = handle->subtitle_queue;
+            sinkpad = gst_element_get_static_pad(target_sink_element, "sink");
         }
         else
         {
@@ -451,8 +455,11 @@ static void on_pad_added_demux(GstElement *element,
         return;
     }
 
-    NXGLOGI("target_sink_pad(%s)",
-            (NULL != target_sink_pad) ? GST_OBJECT_NAME(target_sink_pad):"");
+    GstObject *combiner = gst_pad_get_parent (sinkpad);
+
+    NXGLOGI("target_sink_element(%s) sinkpad name(%s), combiner(%s)",
+            (NULL != target_sink_element) ? GST_OBJECT_NAME(target_sink_element):"",
+            gst_pad_get_name(sinkpad), GST_OBJECT_NAME(combiner));
 
     // Link pads [demuxer <--> video_queue/audio_queue/subtitle_queue]
     if (g_str_has_prefix(mime_type, "video/") ||
@@ -524,6 +531,8 @@ static void on_pad_added_demux(GstElement *element,
             NXGLOGE("Failed to link display");
         }
     }
+
+    NXGLOGI("END");
 
     FUNC_OUT();
 }
@@ -775,20 +784,19 @@ NX_GST_RET set_audio_elements(MP_HANDLE handle)
 
     handle->audio_queue = gst_element_factory_make("queue2", "audio_queue");
 
-    int index = get_current_program_idx(handle);
+    int pIdx = get_current_program_idx(handle);
+    int aIdx = handle->select_audio_idx;
     // Audio parser & Audio decoder
-    if ((handle->gst_media_info.ProgramInfo[index].AudioInfo[0].type == AUDIO_TYPE_MPEG_V1) ||
-        (handle->gst_media_info.ProgramInfo[index].AudioInfo[0].type == AUDIO_TYPE_MPEG_V2))
+    if ((handle->gst_media_info.ProgramInfo[pIdx].AudioInfo[aIdx].type == AUDIO_TYPE_MPEG_V1) ||
+        (handle->gst_media_info.ProgramInfo[pIdx].AudioInfo[aIdx].type == AUDIO_TYPE_MPEG_V2))
     {
         handle->audio_parser = gst_element_factory_make("mpegaudioparse", "mpegaudioparse");
-        if (!handle->audio_parser)
-        {
+        if (!handle->audio_parser) {
             NXGLOGE("Failed to create mpegaudioparse element");
             return NX_GST_RET_ERROR;
         }
         handle->audio_decoder = gst_element_factory_make("mpg123audiodec", "mpg123audiodec");
-        if (!handle->audio_decoder)
-        {
+        if (!handle->audio_decoder) {
             NXGLOGE("Failed to create mpg123audiodec element");
             return NX_GST_RET_ERROR;
         }
@@ -796,8 +804,7 @@ NX_GST_RET set_audio_elements(MP_HANDLE handle)
     else
     {
         handle->audio_decoder = gst_element_factory_make("decodebin", "decodebin");
-        if (!handle->audio_decoder)
-        {
+        if (!handle->audio_decoder) {
             NXGLOGE("Failed to create decodebin element");
             return NX_GST_RET_ERROR;
         }
@@ -823,32 +830,31 @@ NX_GST_RET set_video_elements(MP_HANDLE handle)
 {
     FUNC_IN();
 
-    if (!handle)
-    {
+    if (!handle) {
         NXGLOGE("handle is NULL");
         return NX_GST_RET_ERROR;
     }
 
+    int pIdx = get_current_program_idx(handle);
+    int vIdx = handle->select_video_idx;
+
     // Queue for video
     handle->video_queue = gst_element_factory_make("queue2", "video_queue");
 
-    int index = get_current_program_idx(handle);
     // Video Parser
-    if (handle->gst_media_info.ProgramInfo[index].VideoInfo[0].type == VIDEO_TYPE_H264)
+    if (handle->gst_media_info.ProgramInfo[pIdx].VideoInfo[vIdx].type == VIDEO_TYPE_H264)
     {
         handle->video_parser = gst_element_factory_make("h264parse", "parser");
-        if (!handle->video_parser)
-        {
+        if (!handle->video_parser) {
             NXGLOGE("Failed to create h264parse element");
             return NX_GST_RET_ERROR;
         }
     }
-    else if ((handle->gst_media_info.ProgramInfo[index].VideoInfo[0].type == VIDEO_TYPE_MPEG_V1) ||
-            (handle->gst_media_info.ProgramInfo[index].VideoInfo[0].type == VIDEO_TYPE_MPEG_V2))
+    else if ((handle->gst_media_info.ProgramInfo[pIdx].VideoInfo[vIdx].type == VIDEO_TYPE_MPEG_V1) ||
+            (handle->gst_media_info.ProgramInfo[pIdx].VideoInfo[vIdx].type == VIDEO_TYPE_MPEG_V2))
     {
         handle->video_parser = gst_element_factory_make("mpegvideoparse", "parser");
-        if (!handle->video_parser)
-        {
+        if (!handle->video_parser) {
             NXGLOGE("Failed to create mpegvideoparse element");
             return NX_GST_RET_ERROR;
         }
@@ -872,8 +878,7 @@ NX_GST_RET set_video_elements(MP_HANDLE handle)
 
     // Tee for video
     handle->tee = gst_element_factory_make("tee", "tee");
-    if(!handle->video_queue || !handle->video_decoder)
-    {
+    if(!handle->video_queue || !handle->video_decoder) {
         NXGLOGE("Failed to create video elements");
         return NX_GST_RET_ERROR;
     }
@@ -1389,24 +1394,65 @@ NX_GST_RET NX_GSTMP_SetDisplayMode(MP_HANDLE handle, enum DISPLAY_MODE in_mode)
     return NX_GST_RET_OK;
 }
 
-NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
+NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *filePath)
 {
     _CAutoLock lock(&handle->apiLock);
 
-    FUNC_IN();
+    NXGLOGI("START");
 
     if(NULL == handle)
     {
         NXGLOGE("handle is NULL");
         return NX_GST_RET_ERROR;
     }
-    handle->filePath = g_strdup(pfilePath);
+    handle->filePath = g_strdup(filePath);
     handle->error = NX_GST_ERROR_NONE;
-    if (handle->gst_media_info.demux_type == DEMUX_TYPE_MPEGTSDEMUX) {
-        handle->gst_media_info.current_program_no = 4415;
+
+    struct GST_MEDIA_INFO *media_info;
+    NX_GST_RET result = OpenMediaInfo(&media_info);
+    if (NX_GST_RET_OK != result) {
+        return NX_GST_RET_ERROR;
+    }
+
+    enum NX_GST_ERROR err = ParseMediaInfo(media_info, filePath);
+    if (NX_GST_ERROR_NONE != err)
+    {
+        handle->error = err;
+        NXGLOGE("%s", get_nx_gst_error(err));
+
+        CloseMediaInfo(media_info);
+        return NX_GST_RET_ERROR;
+    }
+
+    MediaInfoToStr(media_info, filePath);
+    memcpy(&handle->gst_media_info, media_info, sizeof(struct GST_MEDIA_INFO));
+
+    CloseMediaInfo(media_info);
+
+    /*if (handle->gst_media_info.demux_type == DEMUX_TYPE_MPEGTSDEMUX) {
+        handle->gst_media_info.current_program_no = 4228;
     } else {
         handle->gst_media_info.current_program_no = 0;
+    }*/
+
+    if (handle->gst_media_info.container_type > CONTAINER_TYPE_FLV)
+    {
+        NXGLOGE("Not supported contents");
+        return NX_GST_RET_ERROR;
     }
+
+    NXGLOGI("END");
+
+    return NX_GST_RET_OK;
+}
+
+NX_GST_RET NX_GSTMP_Prepare(MP_HANDLE handle)
+{
+    _CAutoLock lock(&handle->apiLock);
+
+    NXGLOGI("START");
+
+    GstStateChangeReturn ret;
 
     if(handle->pipeline_is_linked)
     {
@@ -1425,49 +1471,81 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pfilePath)
     handle->bus_watch_id = gst_bus_add_watch(handle->bus, (GstBusFunc)gst_bus_callback, handle);
     gst_object_unref(handle->bus);
 
-    NXGLOGI("gst_media_info.current_program_no = 4415!!");
-    gint index = get_current_program_idx(handle);
-    NXGLOGI("## matched index(%d)", index);
-    if ((handle->gst_media_info.ProgramInfo[index].n_subtitle > 0) &&
-        (handle->gst_media_info.ProgramInfo[index].SubtitleInfo[0].type == SUBTITLE_TYPE_RAW))
-    {
-        set_subtitle_element(handle);
-    }
+    gint pIdx = get_current_program_idx(handle);
+    gint vIdx = handle->select_video_idx;
+    gint aIdx = handle->select_audio_idx;
+    gint sIdx = handle->select_subtitle_idx;
+    NXGLOGI("matched program index(%d), vIdx(%d), aIdx(%d), sIdx(%d)", pIdx, vIdx, aIdx, sIdx);
 
     if (NX_GST_RET_ERROR == set_source_element(handle) ||
-        NX_GST_RET_ERROR == set_demux_element(handle) ||
-        NX_GST_RET_ERROR == set_audio_elements(handle) ||
-        NX_GST_RET_ERROR == set_video_elements(handle))
+        NX_GST_RET_ERROR == set_demux_element(handle))
     {
-        NXGLOGE("Failed to set all elements");
+        return NX_GST_RET_ERROR;
+    }
+    gst_bin_add_many(GST_BIN(handle->pipeline), handle->source, handle->demuxer, NULL);
+    if (NX_GST_RET_ERROR == gst_element_link_many(handle->source, handle->demuxer, NULL)) {
+        NXGLOGE("Failed to link source <--> demuxer");
         return NX_GST_RET_ERROR;
     }
 
-    if (NX_GST_RET_ERROR == add_elements_to_bin(handle) ||
-        NX_GST_RET_ERROR == link_elements(handle))
+    // demuxer <--> audio_queue/video_queue/subtitle_queue
+    if (handle->demuxer) {
+        g_signal_connect(handle->demuxer,	"pad-added", G_CALLBACK (on_pad_added_demux), handle);
+    }
+
+    if (handle->gst_media_info.ProgramInfo[pIdx].n_video > 0)
     {
-        NXGLOGE("Failed to add/link elements");
-        return NX_GST_RET_ERROR;
+        if (NX_GST_RET_ERROR == set_video_elements(handle)) {
+            return NX_GST_RET_ERROR;
+        }
+        add_video_elements_to_bin(handle);
+        if (NX_GST_RET_ERROR == link_video_elements(handle)) {
+            return NX_GST_RET_ERROR;
+        }
+    }
+
+    if (handle->gst_media_info.ProgramInfo[pIdx].n_audio > 0)
+    {
+        if (NX_GST_RET_ERROR == set_audio_elements(handle)) {
+            return NX_GST_RET_ERROR;
+        }
+        add_audio_elements_to_bin(handle);
+        if (NX_GST_RET_ERROR == link_audio_elements(handle)) {
+            return NX_GST_RET_ERROR;
+        }
+        // decodbin <--> audio_converter
+        if (handle->audio_decoder) {
+            g_signal_connect(handle->audio_decoder, "pad-added", G_CALLBACK (on_decodebin_pad_added), handle);
+        }
+    }
+
+    if (handle->gst_media_info.ProgramInfo[pIdx].n_subtitle > 0)
+    {
+        if (handle->gst_media_info.ProgramInfo[pIdx].n_subtitle >= 1 &&
+            handle->gst_media_info.ProgramInfo[pIdx].SubtitleInfo[0].type == SUBTITLE_TYPE_RAW)
+        {
+            if (NX_GST_RET_ERROR == set_subtitle_elements(handle)) {
+                return NX_GST_RET_ERROR;
+            }
+            add_subtitle_elements_to_bin(handle);
+            if (NX_GST_RET_ERROR == link_subtitle_elements(handle)) {
+                return NX_GST_RET_ERROR;
+            }
+        }
     }
 
     handle->rate = 1.0;
 
-    // demuxer <--> audio_queue/video_queue
-    g_signal_connect(handle->demuxer,	"pad-added", G_CALLBACK (on_pad_added_demux), handle);
-    // decodbin <--> audio_converter
-    g_signal_connect(handle->audio_decoder, "pad-added", G_CALLBACK (on_decodebin_pad_added), handle);
-
     handle->pipeline_is_linked = TRUE;
 
-    GstStateChangeReturn ret = gst_element_set_state(handle->pipeline, GST_STATE_READY);
+    ret = gst_element_set_state(handle->pipeline, GST_STATE_READY);
     if (ret == GST_STATE_CHANGE_FAILURE) {
         NXGLOGE("Failed to set the pipeline to the READY state");
         return NX_GST_RET_ERROR;
     }
     
     start_loop_thread(handle);
-
-    FUNC_OUT();
+    NXGLOGI("END");
 
     return NX_GST_RET_OK;
 }
@@ -1557,36 +1635,15 @@ NX_GSTMP_GetMediaInfo(MP_HANDLE handle, const char* filePath, GST_MEDIA_INFO *pG
 
     NXGLOGI("START");
 
-    if (NULL == pGstMInfo)
+    if (NULL == pGstMInfo || NULL == handle)
     {
-        NXGLOGE("pGstMInfo is NULL");
+        NXGLOGE("pGstMInfo/handle is NULL");
         return NX_GST_RET_ERROR;
     }
 
-    struct GST_MEDIA_INFO *media_info;
-    NX_GST_RET result = OpenMediaInfo(&media_info);
-    if (NX_GST_RET_OK != result) {
-        return NX_GST_RET_ERROR;
-    }
+    memcpy(pGstMInfo, &handle->gst_media_info, sizeof(struct GST_MEDIA_INFO));
 
-    enum NX_GST_ERROR err = ParseMediaInfo(media_info, filePath);
-    if (NX_GST_ERROR_NONE != err)
-    {
-        handle->error = err;
-        NXGLOGE("%s", get_nx_gst_error(err));
-
-        CloseMediaInfo(media_info);
-        return NX_GST_RET_ERROR;
-    }
-
-    MediaInfoToStr(media_info, filePath);
-    memcpy(&handle->gst_media_info, media_info, sizeof(struct GST_MEDIA_INFO));
-    memcpy(pGstMInfo, media_info, sizeof(struct GST_MEDIA_INFO));
-
-    CloseMediaInfo(media_info);
-
-    FUNC_OUT();
-
+    NXGLOGI("END");
     return NX_GST_RET_OK;
 }
 
@@ -2056,6 +2113,64 @@ double NX_GSTMP_GetVideoSpeed(MP_HANDLE handle)
 
     NXGLOGI("current playback speed (%f)", speed);
     return speed;
+}
+
+NX_GST_RET NX_GSTMP_SelectStream(MP_HANDLE handle, CODEC_TYPE type, int32_t idx)
+{
+    NXGLOGI("START");
+
+    if (!handle)
+    {
+        NXGLOGE("handle is NULL");
+        return NX_GST_RET_ERROR;
+    }
+
+    int pIdx = 0;       // TODO:
+
+    //handle->select_program_idx = 0;
+
+    NXGLOGI("type(%s), idx(%d)",
+            (CODEC_TYPE_VIDEO == type)?"Video":((CODEC_TYPE_AUDIO == type)?"AUDIO":"SUBTITLE"),
+            idx);
+
+    switch (type)
+    {
+        case CODEC_TYPE_VIDEO:
+            if ((handle->gst_media_info.ProgramInfo[pIdx].n_video <= idx) || (idx < 0)) {
+                handle->select_video_idx = DEFAULT_STREAM_IDX;
+                NXGLOGE("Failed to select audio idx. idx is out of bounds. Set default idx(0)");
+            } else {
+                handle->select_video_idx = idx;
+            }
+            break;
+        case CODEC_TYPE_AUDIO:
+            if ((handle->gst_media_info.ProgramInfo[pIdx].n_audio <= idx) || (idx < 0)) {
+                handle->select_audio_idx = DEFAULT_STREAM_IDX;
+                NXGLOGE("Failed to select audio idx. idx is out of bounds. Set default idx(0)");
+            } else {
+                handle->select_audio_idx = idx;
+            }
+            break;
+        case CODEC_TYPE_SUBTITLE:
+            if ((handle->gst_media_info.ProgramInfo[pIdx].n_subtitle <= idx) || (idx < 0)) {
+                handle->select_subtitle_idx = DEFAULT_STREAM_IDX;
+                NXGLOGE("Failed to select audio idx. idx is out of bounds. Set default idx(0)");
+            } else {
+                handle->select_subtitle_idx = idx;
+            }
+            break;
+        default:
+            NXGLOGE("Unsupported codec type");
+            return NX_GST_RET_ERROR;
+    }
+
+    if (handle->pipeline_is_linked)
+    {
+        NXGLOGI("Reconfigure pipeline!!");
+    }
+
+    NXGLOGI("END");
+    return NX_GST_RET_OK;
 }
 
 /* It's available in PAUSED or PLAYING state */

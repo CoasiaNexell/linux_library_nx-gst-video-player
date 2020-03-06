@@ -41,22 +41,6 @@ extern "C" {
 NX_GST_RET NX_GSTMP_SetDisplayMode(MP_HANDLE handle, enum DISPLAY_MODE in_mode);
 
 /*!
- * \fn NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pUri);
- *
- * \brief This function is to discover the URI and to get the basic media information
- * like container format, video codec, audio codec, video size, etc.
- * If the discovering process is done without any error, after configuring GStreamer pipeline,
- * it sets the state to ‘READY’.
- *
- * \param [in]  handle    Movie player handle
- * \param [in]  pUri      URI
- *
- * \retval NX_GST_RET_ERROR On failure.
- * \retval NX_GST_RET_OK On succee.
- */
-NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pUri);
-
-/*!
  * \fn NX_GST_RET NX_GSTMP_Open(MP_HANDLE *handle,
  * void (*cb)(void *owner, unsigned int msg, unsigned int param1, void* param),
  * void *cbOwner);
@@ -73,6 +57,33 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pUri);
 NX_GST_RET NX_GSTMP_Open(MP_HANDLE *handle,
         void (*cb)(void *owner, unsigned int msg, unsigned int param1, void* param),
         void *cbOwner);
+
+/*!
+ * \fn NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pUri);
+ *
+ * \brief This function is to discover the URI and to get the basic media information
+ * like container format, video codec, audio codec, video size, etc.
+ * It returns if it's playable content.
+ *
+ * \param [in]  handle    Movie player handle
+ * \param [in]  pUri      URI
+ *
+ * \retval NX_GST_RET_ERROR On failure.
+ * \retval NX_GST_RET_OK On succee.
+ */
+NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *pUri);
+
+
+/*!
+ * \fn void NX_GSTMP_Prepare(MP_HANDLE handle);
+ *
+ * \brief This function is to configure GStreamer pipeline
+ * After configuring GStreamer pipeline, it sets the state to ‘READY’.
+ *
+ * \param [in]  handle    Movie player handle
+ *
+ */
+NX_GST_RET NX_GSTMP_Prepare(MP_HANDLE handle);
 
 /*!
  * \fn void NX_GSTMP_Close(MP_HANDLE handle);
@@ -263,6 +274,20 @@ double NX_GSTMP_GetVideoSpeed(MP_HANDLE handle);
 NX_GST_RET NX_GSTMP_GetVideoSpeedSupport(MP_HANDLE handle);
 
 /*!
+ * \fn NX_GST_RET NX_GSTMP_SelectStream(MP_HANDLE handle);
+ *
+ * \brief This is used to select the specific audio stream.
+ *
+ * \param [in]  handle    Movie player handle
+ * \param [in]  idx       The stream type to select
+ * \param [in]  idx       The stream index to select
+ *
+ * \retval NX_GST_RET_ERROR On failure.
+ * \retval NX_GST_RET_OK On succee.
+ */
+NX_GST_RET NX_GSTMP_SelectStream(MP_HANDLE handle, CODEC_TYPE type, int32_t idx);
+
+/*!
  * \fn const char* NX_GSTMP_MakeThumbnail(const gchar *uri, int64_t pos_msec,
  * int32_t width, const char *outPath);
  *
@@ -276,8 +301,8 @@ NX_GST_RET NX_GSTMP_GetVideoSpeedSupport(MP_HANDLE handle);
  * \retval NX_GST_RET_ERROR On failure.
  * \retval NX_GST_RET_OK On succee.
  */
-NX_GST_RET NX_GSTMP_MakeThumbnail(const gchar *uri, gint64 pos_msec,
-                        gint width, const char *outPath);
+NX_GST_RET NX_GSTMP_MakeThumbnail(const gchar *uri, int64_t pos_msec,
+                        int32_t width, const char *outPath);
 
 #ifdef __cplusplus
 }

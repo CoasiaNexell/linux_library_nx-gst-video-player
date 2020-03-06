@@ -13,11 +13,12 @@ LIBRARY += -lgstmpegts-1.0
 ######################################################################
 # Target
 COBJS  	:= \
-	GstDiscover.o \
+	NX_GstDiscover.o \
 	NX_GstLog.o	\
 	NX_GstThumbnail.o \
 	NX_TypeFind.o \
-	NX_TSProgram.o
+	NX_TSProgram.o \
+	NX_StreamParser.o
 
 CPPOBJS	:=
 CPPOBJS += \
