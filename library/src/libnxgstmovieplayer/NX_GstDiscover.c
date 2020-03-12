@@ -135,9 +135,11 @@ static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
         pMediaInfo->ProgramInfo[cur_pro_idx].n_video++;
 
         NXGLOGI("n_video(%u), video_width(%d), video_height(%d), "
-                "framerate(%d/%d), video_type(%d) stream_id(%s)",
+                "framerate(%d/%d), video_type(%d), stream_id(%s)",
                 pMediaInfo->ProgramInfo[cur_pro_idx].n_video, width, height,
-                framerate_num, framerate_denom, stream_id);
+                framerate_num, framerate_denom,
+                pMediaInfo->ProgramInfo[cur_pro_idx].VideoInfo[v_idx].type,
+                (stream_id ? stream_id:""));
     }
     else if (GST_IS_DISCOVERER_AUDIO_INFO (sinfo))
     {
@@ -167,7 +169,8 @@ static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
         NXGLOGI("n_audio(%d) n_channels(%d), samplerate(%d),"
                 "bitrate(%d), audio_type(%d) stream_id(%s)",
                 pMediaInfo->ProgramInfo[cur_pro_idx].n_audio, n_channels, samplerate,
-                bitrate, pMediaInfo->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].type, stream_id);
+                bitrate, pMediaInfo->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].type,
+                (stream_id ? stream_id:""));
     }
     else if (GST_IS_DISCOVERER_SUBTITLE_INFO (sinfo))
     {
@@ -180,10 +183,10 @@ static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
         pMediaInfo->ProgramInfo[cur_pro_idx].SubtitleInfo[sub_idx].stream_id = g_strdup(stream_id);
         pMediaInfo->ProgramInfo[cur_pro_idx].n_subtitle++;
 
-        NXGLOGI("n_subtitle(%d), subtitle_type(%d), subtitle_lang(%s)",
+        NXGLOGI("n_subtitle(%d), subtitle_type(%d), subtitle_lang(%s), stream_id(%s)",
                 pMediaInfo->ProgramInfo[cur_pro_idx].n_subtitle,
                 pMediaInfo->ProgramInfo[cur_pro_idx].SubtitleInfo[sub_idx].type,
-                lang);
+                lang, (stream_id ? stream_id:""));
     }
     else
     {
@@ -433,12 +436,14 @@ int get_container_type(const gchar* mimeType)
 
         if (str && strncmp(mimeType, str, len) == 0)
         {
-            NXGLOGI("%s ==> [%d] - %s", mimeType, CONTAINER_DESC[idx].type, CONTAINER_DESC[idx].mimetype);
+            NXGLOGE("Found a matched container type(%d) for %s",
+                    CONTAINER_DESC[idx].type, mimeType);
             return CONTAINER_DESC[idx].type;
         }
         idx++;
     }
 
+    NXGLOGE("Failed to find a matched container for %s", mimeType);
     return -1;
 }
 
@@ -450,16 +455,17 @@ int get_video_codec_type(const gchar* mimeType)
 
     while (VIDEO_DESC[idx].mimetype) {
         str = VIDEO_DESC[idx].mimetype;
-        NXGLOGI("str = %s mimetype = %s", str, mimeType);
 
         if (str && strncmp(mimeType, str, len) == 0)
         {
-            NXGLOGI("%s ==> [%d]", mimeType, VIDEO_DESC[idx].type);
+            NXGLOGE("Found a matched video codec type(%d) for %s",
+                    VIDEO_DESC[idx].type, mimeType);
             return VIDEO_DESC[idx].type;
         }
         idx++;
     }
 
+    NXGLOGE("Failed to find a matched video codec for %s", mimeType);
     return -1;
 }
 
@@ -471,16 +477,17 @@ int get_audio_codec_type(const gchar* mimeType)
 
     while (AUDIO_DESC[idx].mimetype) {
         str = AUDIO_DESC[idx].mimetype;
-        NXGLOGV("str = %s mimetype = %s", str, mimeType);
 
         if (str && strncmp(mimeType, str, len) == 0)
         {
-            NXGLOGI("%s ==> [%d]", mimeType, AUDIO_DESC[idx].type);
+            NXGLOGE("Found a matched audio codec type(%d) for %s",
+                    AUDIO_DESC[idx].type, mimeType);
             return AUDIO_DESC[idx].type;
         }
         idx++;
     }
 
+    NXGLOGE("Failed to find a matched audio codec for %s", mimeType);
     return -1;
 }
 
@@ -496,12 +503,14 @@ int get_subtitle_codec_type(const gchar* mimeType)
 
         if (str && strncmp(mimeType, str, len) == 0)
         {
-            NXGLOGI("%s ==> [%d]", mimeType, SUBTITLE_DESC[idx].type);
+            NXGLOGE("Found a matched subtitle codec type(%d) for %s",
+                    SUBTITLE_DESC[idx].type, mimeType);
             return SUBTITLE_DESC[idx].type;
         }
         idx++;
     }
 
+    NXGLOGE("Failed to find a matched subtitle codec for %s", mimeType);
     return -1;
 }
 

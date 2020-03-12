@@ -283,6 +283,31 @@ typedef enum {
 #define	MAX_SUBTITLE_STREAM_NUM		15
 
 #define PROGRAM_MAX			16
+#define MAX_STREAM_NUM      20
+
+typedef struct STREAM_INFO
+{
+    CODEC_TYPE  stream_type;
+    int32_t     stream_index;
+    int32_t     duration;
+
+    int32_t     seekable;
+
+    /* Video */
+    int32_t     width;
+    int32_t     height;
+    int32_t     framerate_num;
+    int32_t     framerate_denom;
+
+    /* Audio */
+    int32_t     n_channels;
+    int32_t     samplerate;
+    int32_t     bitrate;
+
+    /* Subtitle */
+    char*       language_code;
+} STREAM_INFO;
+
 typedef struct PROGRAM_INFO
 {
     /*! \brief Total number of videos */
@@ -310,6 +335,7 @@ typedef struct PROGRAM_INFO
     GST_AUDIO_INFO      AudioInfo[MAX_AUDIO_STREAM_NUM];
     /*! \brief Subtitle stream information */
     GST_SUBTITLE_INFO   SubtitleInfo[MAX_SUBTITLE_STREAM_NUM];
+    STREAM_INFO     StreamInfo[MAX_STREAM_NUM];
 } PROGRAM_INFO;
 
 /*! \struct GST_MEDIA_INFO

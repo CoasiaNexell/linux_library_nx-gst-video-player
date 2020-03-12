@@ -33,7 +33,7 @@
 #define DEFAULT_STREAM_IDX       0
 
 // Function Prototype
-int32_t get_current_program_idx(MP_HANDLE handle);
+int32_t get_program_idx(MP_HANDLE handle, int program_number);
 
 const char* get_gst_state_change_ret(GstStateChangeReturn gstStateChangeRet);
 enum NX_MEDIA_STATE GstState2NxState(GstState state);
@@ -130,6 +130,11 @@ struct MOVIE_TYPE {
     gint select_audio_idx;
     gint select_subtitle_idx;
 
+    gint current_program_idx;
+    gint current_video_idx;
+    gint current_audio_idx;
+    gint current_subtitle_Idx;
+
     struct GST_MEDIA_INFO gst_media_info;
 
     // For Video Mode (LCD/HDMI)
@@ -162,16 +167,13 @@ class _CAutoLock
         pthread_mutex_t *m_pLock;
 };
 
-int32_t get_current_program_idx(MP_HANDLE handle)
+int32_t get_program_idx(MP_HANDLE handle, int program_number)
 {
 	gint cur_pro_idx = -1;
 
-	NXGLOGI("START");
-
 	for (int i=0; i<handle->gst_media_info.n_program; i++)
 	{
-		if (handle->gst_media_info.program_number[i] ==
-                handle->gst_media_info.current_program_no) {
+		if (handle->gst_media_info.program_number[i] == program_number) {
 			cur_pro_idx = i;
 			NXGLOGI("Found matched program number! idx:%d", i);
 			break;
@@ -259,11 +261,14 @@ static void on_decodebin_pad_added(GstElement *element,
             return;
         }
 
-        GstPadLinkReturn ret = gst_pad_link(pad, sinkpad);
-        NXGLOGE("%s to link %s:%s to %s:%s",
-                (ret != GST_PAD_LINK_OK) ? "Failed":"Succeed",
-                GST_DEBUG_PAD_NAME(pad),
-                GST_DEBUG_PAD_NAME(sinkpad));
+        if (!gst_pad_is_linked (sinkpad))
+        {
+            GstPadLinkReturn ret = gst_pad_link(pad, sinkpad);
+            NXGLOGE("%s to link %s:%s to %s:%s",
+                    (ret != GST_PAD_LINK_OK) ? "Failed":"Succeed",
+                    GST_DEBUG_PAD_NAME(pad),
+                    GST_DEBUG_PAD_NAME(sinkpad));
+        }
 
         gst_object_unref(sinkpad);
     }
@@ -418,7 +423,7 @@ static void on_pad_added_demux(GstElement *element,
     mime_type = gst_structure_get_name(structure);
     NXGLOGI(" padName(%s) mime_type(%s)", padName, mime_type);
 
-    int index = get_current_program_idx(handle);
+    int index = handle->select_program_idx;
     // Get sinkpad of queue for video/audio/subtitle
     if (g_str_has_prefix(mime_type, "video"))
     {
@@ -427,8 +432,21 @@ static void on_pad_added_demux(GstElement *element,
     }
     else if (g_str_has_prefix(mime_type, "audio"))
     {
-        target_sink_element = handle->audio_queue;
-        sinkpad = gst_element_get_static_pad(target_sink_element, "sink");
+        NXGLOGI("select_audio_idx(%d), handle->current_audio_idx(%d)", handle->select_audio_idx, handle->current_audio_idx);
+        if (handle->select_audio_idx == handle->current_audio_idx)
+        {
+            target_sink_element = handle->audio_queue;
+            sinkpad = gst_element_get_static_pad(target_sink_element, "sink");
+        }
+        else
+        {
+            NXGLOGI("Do not link sinkpad");
+            handle->current_audio_idx++;
+            g_free(padName);
+            gst_caps_unref (caps);
+            return;
+        }
+        handle->current_audio_idx++;
     }
     else if ((handle->gst_media_info.ProgramInfo[index].n_subtitle >= 1) &&
             g_str_has_prefix(padName, "subtitle_0"))
@@ -442,7 +460,7 @@ static void on_pad_added_demux(GstElement *element,
         {
             NXGLOGE("Unsupported subtitle codec type %d",
                     handle->gst_media_info.ProgramInfo[index].SubtitleInfo[0].type);
-            if (padName)	g_free(padName);
+            g_free(padName);
             gst_caps_unref (caps);
             return;
         }
@@ -450,16 +468,16 @@ static void on_pad_added_demux(GstElement *element,
     else
     {
         NXGLOGE("There is no available link for %s", padName);
-        if (padName)	g_free(padName);
+        g_free(padName);
         gst_caps_unref (caps);
         return;
     }
 
     GstObject *combiner = gst_pad_get_parent (sinkpad);
 
-    NXGLOGI("target_sink_element(%s) sinkpad name(%s), combiner(%s)",
+    NXGLOGI("target_sink_element(%s) sinkpad name(%s)",
             (NULL != target_sink_element) ? GST_OBJECT_NAME(target_sink_element):"",
-            gst_pad_get_name(sinkpad), GST_OBJECT_NAME(combiner));
+            gst_pad_get_name(sinkpad));
 
     // Link pads [demuxer <--> video_queue/audio_queue/subtitle_queue]
     if (g_str_has_prefix(mime_type, "video/") ||
@@ -470,23 +488,29 @@ static void on_pad_added_demux(GstElement *element,
         if (NULL == sinkpad)
         {
             NXGLOGE("Failed to get static pad");
+            g_free (padName);
             gst_caps_unref (caps);
             return;
         }
 
-        if (GST_PAD_LINK_FAILED(gst_pad_link(pad, sinkpad)))
-        {
-            NXGLOGE("Failed to link %s:%s to %s:%s",
-                    GST_DEBUG_PAD_NAME(pad),
-                    GST_DEBUG_PAD_NAME(sinkpad));
-            isLinkFailed = TRUE;
+        if (gst_pad_is_linked (sinkpad)) {
+            NXGLOGI("Ignore to link pad linked");
+        } else {
+            if (GST_PAD_LINK_FAILED(gst_pad_link(pad, sinkpad)))
+            {
+                NXGLOGE("Failed to link %s:%s to %s:%s",
+                        GST_DEBUG_PAD_NAME(pad),
+                        GST_DEBUG_PAD_NAME(sinkpad));
+                isLinkFailed = TRUE;
+            }
+            else
+            {
+                NXGLOGI("Succeed to create dynamic pad link %s:%s to %s:%s",
+                        GST_DEBUG_PAD_NAME(pad),
+                        GST_DEBUG_PAD_NAME(sinkpad));
+            }
         }
-        else
-        {
-            NXGLOGI("Succeed to create dynamic pad link %s:%s to %s:%s",
-                    GST_DEBUG_PAD_NAME(pad),
-                    GST_DEBUG_PAD_NAME(sinkpad));
-        }
+
         gst_object_unref (sinkpad);
     }
 
@@ -500,7 +524,7 @@ static void on_pad_added_demux(GstElement *element,
     }
 #endif
 
-    if (padName)	g_free(padName);
+    g_free(padName);
     gst_caps_unref (caps);
 
     /* Need to check subtitle_1, 2, etc */
@@ -751,8 +775,9 @@ NX_GST_RET set_demux_element(MP_HANDLE handle)
         handle->demuxer = gst_element_factory_make("mpegpsdemux", "mpegpsdemux");
     } else if (container_type == CONTAINER_TYPE_MPEGTS) {         // MPEGTS
         handle->demuxer = gst_element_factory_make("tsdemux", "tsdemux");
-        NXGLOGI("## Set program number %d", handle->gst_media_info.current_program_no);
-        g_object_set (G_OBJECT (handle->demuxer), "program-number", handle->gst_media_info.current_program_no, NULL);
+        int pIdx = handle->gst_media_info.program_number[handle->select_program_idx];
+        NXGLOGI("## Set program number %d", pIdx);
+        g_object_set (G_OBJECT (handle->demuxer), "program-number", pIdx, NULL);
     }
 #ifdef SW_V_DECODER
     else if (container_type == CONTAINER_TYPE_FLV)          // FLV
@@ -784,7 +809,7 @@ NX_GST_RET set_audio_elements(MP_HANDLE handle)
 
     handle->audio_queue = gst_element_factory_make("queue2", "audio_queue");
 
-    int pIdx = get_current_program_idx(handle);
+    int pIdx = handle->select_program_idx;
     int aIdx = handle->select_audio_idx;
     // Audio parser & Audio decoder
     if ((handle->gst_media_info.ProgramInfo[pIdx].AudioInfo[aIdx].type == AUDIO_TYPE_MPEG_V1) ||
@@ -835,7 +860,7 @@ NX_GST_RET set_video_elements(MP_HANDLE handle)
         return NX_GST_RET_ERROR;
     }
 
-    int pIdx = get_current_program_idx(handle);
+    int pIdx = handle->select_program_idx;
     int vIdx = handle->select_video_idx;
 
     // Queue for video
@@ -916,7 +941,7 @@ void add_video_elements_to_bin(MP_HANDLE handle)
     gst_bin_add_many(GST_BIN(handle->pipeline), handle->video_queue,
                     handle->video_decoder, handle->tee, NULL);
 
-    int index = get_current_program_idx(handle);
+    int index = handle->select_program_idx;
     // video_parser
     if ((handle->gst_media_info.ProgramInfo[index].VideoInfo[0].type == VIDEO_TYPE_H264) ||
         (handle->gst_media_info.ProgramInfo[index].VideoInfo[0].type == VIDEO_TYPE_MPEG_V1) ||
@@ -928,7 +953,7 @@ void add_video_elements_to_bin(MP_HANDLE handle)
 
 void add_audio_elements_to_bin(MP_HANDLE handle)
 {
-    int index = get_current_program_idx(handle);
+    int index = handle->select_program_idx;
     if ((handle->gst_media_info.ProgramInfo[index].AudioInfo[0].type == AUDIO_TYPE_MPEG_V1) ||
         (handle->gst_media_info.ProgramInfo[index].AudioInfo[0].type == AUDIO_TYPE_MPEG_V2))
     {
@@ -965,7 +990,7 @@ NX_GST_RET add_elements_to_bin(MP_HANDLE handle)
         return NX_GST_RET_ERROR;
     }
 
-    int index = get_current_program_idx(handle);
+    int index = handle->select_program_idx;
 
     gst_bin_add_many(GST_BIN(handle->pipeline), handle->source,
                     handle->demuxer, NULL);
@@ -985,7 +1010,7 @@ NX_GST_RET add_elements_to_bin(MP_HANDLE handle)
 
 NX_GST_RET link_video_elements(MP_HANDLE handle)
 {
-    int index = get_current_program_idx(handle);
+    int index = handle->select_program_idx;
     if ((handle->gst_media_info.ProgramInfo[index].VideoInfo[0].type == VIDEO_TYPE_H264) ||
         (handle->gst_media_info.ProgramInfo[index].VideoInfo[0].type == VIDEO_TYPE_MPEG_V1) ||
         (handle->gst_media_info.ProgramInfo[index].VideoInfo[0].type == VIDEO_TYPE_MPEG_V2))
@@ -1023,7 +1048,7 @@ NX_GST_RET link_video_elements(MP_HANDLE handle)
 
 NX_GST_RET link_audio_elements(MP_HANDLE handle)
 {
-    int index = get_current_program_idx(handle);
+    int index = handle->select_program_idx;
     if ((handle->gst_media_info.ProgramInfo[index].AudioInfo[0].type == AUDIO_TYPE_MPEG_V1) ||
         (handle->gst_media_info.ProgramInfo[index].AudioInfo[0].type == AUDIO_TYPE_MPEG_V2))
     {
@@ -1097,7 +1122,7 @@ NX_GST_RET link_elements(MP_HANDLE handle)
     NXGLOGI("%s to link %s<-->%s", (!ret) ? "Failed":"Succeed",
             gst_element_get_name(handle->source), gst_element_get_name(handle->demuxer));
 
-    int index = get_current_program_idx(handle);
+    int index = handle->select_program_idx;
 
     link_video_elements(handle);
     link_audio_elements(handle);
@@ -1398,7 +1423,7 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *filePath)
 {
     _CAutoLock lock(&handle->apiLock);
 
-    NXGLOGI("START");
+    NXGLOGI("%s", filePath);
 
     if(NULL == handle)
     {
@@ -1429,16 +1454,18 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *filePath)
 
     CloseMediaInfo(media_info);
 
-    /*if (handle->gst_media_info.demux_type == DEMUX_TYPE_MPEGTSDEMUX) {
-        handle->gst_media_info.current_program_no = 4228;
-    } else {
-        handle->gst_media_info.current_program_no = 0;
-    }*/
-
     if (handle->gst_media_info.container_type > CONTAINER_TYPE_FLV)
     {
-        NXGLOGE("Not supported contents");
+        NXGLOGE("Not supported container type");
         return NX_GST_RET_ERROR;
+    }
+    if (handle->gst_media_info.container_type != CONTAINER_TYPE_MPEGTS)
+    {
+        if (handle->gst_media_info.ProgramInfo[0].n_video == 0)
+        {
+            NXGLOGE("Not supported contents(audio only)");
+            return NX_GST_RET_ERROR;
+        }
     }
 
     NXGLOGI("END");
@@ -1471,7 +1498,7 @@ NX_GST_RET NX_GSTMP_Prepare(MP_HANDLE handle)
     handle->bus_watch_id = gst_bus_add_watch(handle->bus, (GstBusFunc)gst_bus_callback, handle);
     gst_object_unref(handle->bus);
 
-    gint pIdx = get_current_program_idx(handle);
+    gint pIdx = handle->select_program_idx;
     gint vIdx = handle->select_video_idx;
     gint aIdx = handle->select_audio_idx;
     gint sIdx = handle->select_subtitle_idx;
@@ -1658,14 +1685,6 @@ NX_GSTMP_SetDisplayInfo(MP_HANDLE handle, enum DISPLAY_TYPE type,
     if (NULL == handle)
     {
         NXGLOGE("handle is NULL");
-        return NX_GST_RET_ERROR;
-    }
-
-    int index = get_current_program_idx(handle);
-    if (handle->gst_media_info.ProgramInfo[index].VideoInfo[0].width > dspWidth)
-    {
-        NXGLOGE("Not supported content(width:%d)",
-                handle->gst_media_info.ProgramInfo[index].VideoInfo[0].width);
         return NX_GST_RET_ERROR;
     }
 
@@ -2017,13 +2036,11 @@ enum NX_MEDIA_STATE NX_GSTMP_GetState(MP_HANDLE handle)
 {
     _CAutoLock lock(&handle->apiLock);
 
-    if (!handle)
-    {
+    if (!handle) {
         NXGLOGE("handle is null");
         return MP_STATE_STOPPED;
     }
-    if (!handle->pipeline_is_linked)
-    {
+    if (!handle->pipeline_is_linked) {
         NXGLOGE("pipeline is unlinked");
         return MP_STATE_STOPPED;
     }
@@ -2038,12 +2055,10 @@ enum NX_MEDIA_STATE NX_GSTMP_GetState(MP_HANDLE handle)
     	   get_gst_state_change_ret(ret),
            gst_element_state_get_name(state),
            gst_element_state_get_name(pending));
-    if (GST_STATE_CHANGE_SUCCESS == ret || GST_STATE_CHANGE_NO_PREROLL == ret)
-    {
+    if (GST_STATE_CHANGE_SUCCESS == ret || GST_STATE_CHANGE_NO_PREROLL == ret) {
         nx_state = GstState2NxState(state);
     }
-    else if (GST_STATE_CHANGE_ASYNC == ret)
-    {
+    else if (GST_STATE_CHANGE_ASYNC == ret) {
         nx_state = GstState2NxState(pending);
     }
     else
@@ -2078,12 +2093,9 @@ NX_GST_RET NX_GSTMP_VideoMute(MP_HANDLE handle, int32_t bOnoff)
 
     _CAutoLock lock(&handle->apiLock);
 
-    if (bOnoff)
-    {
+    if (bOnoff) {
         g_object_set(G_OBJECT(handle->nxvideosink), "dst-y", dsp_height, NULL);
-    }
-    else
-    {
+    } else {
         g_object_set(G_OBJECT(handle->nxvideosink), "dst-y", dsp_top, NULL);
     }
     return	NX_GST_RET_OK;
@@ -2102,17 +2114,43 @@ double NX_GSTMP_GetVideoSpeed(MP_HANDLE handle)
     }
 
     NXGLOGI("rate: %d", (int)handle->rate);
-    if ((int)handle->rate == 0)
-    {
+    if ((int)handle->rate == 0) {
         speed = 1.0;
-    }
-    else
-    {
+    } else {
         speed = handle->rate;
     }
 
     NXGLOGI("current playback speed (%f)", speed);
     return speed;
+}
+
+NX_GST_RET NX_GSTMP_SelectProgram(MP_HANDLE handle, int32_t program_number)
+{
+    NXGLOGI("START");
+
+    if (!handle) {
+        NXGLOGE("handle is NULL");
+        return NX_GST_RET_ERROR;
+    }
+
+    NXGLOGI("program_number(%d)", program_number);
+
+    if (handle->gst_media_info.container_type != CONTAINER_TYPE_MPEGTS)
+    {
+        NXGLOGI("Ignore the request program selection");
+        return NX_GST_RET_OK;
+    }
+
+    int pIdx = get_program_idx(handle, program_number);
+    if (-1 == pIdx) {
+        NXGLOGE("No matched program number");
+        return NX_GST_RET_ERROR;
+    }
+
+    handle->select_program_idx = pIdx;
+
+    NXGLOGI("END");
+    return NX_GST_RET_OK;
 }
 
 NX_GST_RET NX_GSTMP_SelectStream(MP_HANDLE handle, CODEC_TYPE type, int32_t idx)
@@ -2125,13 +2163,11 @@ NX_GST_RET NX_GSTMP_SelectStream(MP_HANDLE handle, CODEC_TYPE type, int32_t idx)
         return NX_GST_RET_ERROR;
     }
 
-    int pIdx = 0;       // TODO:
-
-    //handle->select_program_idx = 0;
-
     NXGLOGI("type(%s), idx(%d)",
             (CODEC_TYPE_VIDEO == type)?"Video":((CODEC_TYPE_AUDIO == type)?"AUDIO":"SUBTITLE"),
             idx);
+
+    int pIdx = handle->select_program_idx;
 
     switch (type)
     {
@@ -2164,6 +2200,10 @@ NX_GST_RET NX_GSTMP_SelectStream(MP_HANDLE handle, CODEC_TYPE type, int32_t idx)
             return NX_GST_RET_ERROR;
     }
 
+    NXGLOGI("Final select_%s_idx(%d)",
+            (CODEC_TYPE_VIDEO == type)?"Video":((CODEC_TYPE_AUDIO == type)?"AUDIO":"SUBTITLE"),
+            idx);
+
     if (handle->pipeline_is_linked)
     {
         NXGLOGI("Reconfigure pipeline!!");
@@ -2185,7 +2225,7 @@ NX_GST_RET NX_GSTMP_SetVideoSpeed(MP_HANDLE handle, double rate)
         return NX_GST_RET_ERROR;
     }
 
-    int index = get_current_program_idx(handle);
+    int index = handle->select_program_idx;
     if (false == handle->gst_media_info.ProgramInfo[index].seekable)
     {
         NXGLOGE("This video doesn't support 'seekable'");
@@ -2211,7 +2251,7 @@ NX_GST_RET NX_GSTMP_GetVideoSpeedSupport(MP_HANDLE handle)
         return NX_GST_RET_ERROR;
     }
 
-    int index = get_current_program_idx(handle);
+    int index = handle->select_program_idx;
     return (handle->gst_media_info.ProgramInfo[index].seekable) ? NX_GST_RET_OK : NX_GST_RET_ERROR;
 }
 

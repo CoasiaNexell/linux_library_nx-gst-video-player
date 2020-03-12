@@ -56,10 +56,15 @@ int CNX_GstMoviePlayer::InitMediaPlayer(void (*pCbEventCallback)(void *privateDe
 
 	if(0 > OpenHandle(pCbEventCallback, pCbPrivate))		return -1;
 	if(0 > SetDisplayMode(dspInfo.dspMode))					return -1;
+	if(0 > SetUri(pUri))									return -1;
 	if(0 > GetMediaInfo(pUri))								return -1;
 	PrintMediaInfo(m_MediaInfo, pUri);
-	if(0 > SetUri(pUri))									return -1;
+	//if(0 > SelectProgram(4351))								return -1;
+	//if(0 > SelectStream(CODEC_TYPE_AUDIO, 1))			return -1;
+	if(0 > Prepare())										return -1;
 	if(0 > SetAspectRatio(dspInfo))							return -1;
+
+	NXLOGI("END");
 
 	return 0;
 }
@@ -90,7 +95,7 @@ void CNX_GstMoviePlayer::PrintMediaInfo(GST_MEDIA_INFO media_info, const char* f
 		for (int v_idx=0; v_idx<media_info.ProgramInfo[i].n_video; v_idx++)
 		{
 			NXLOGI("%*s [VideoInfo[%d]] \n"
-					"type(%d), width(%d), height(%d), framerate_num/denom(%d/%d)\n",
+					"type(%d), width(%d), height(%d), framerate_num/denom(%d/%d)",
 					5, " ", v_idx,
 					media_info.ProgramInfo[i].VideoInfo[v_idx].type,
 					media_info.ProgramInfo[i].VideoInfo[v_idx].width,
@@ -101,7 +106,7 @@ void CNX_GstMoviePlayer::PrintMediaInfo(GST_MEDIA_INFO media_info, const char* f
 		for (int a_idx=0; a_idx<media_info.ProgramInfo[i].n_audio; a_idx++)
 		{
 			NXLOGI("%*s [AudioInfo[%d]] \n"
-					"type(%d), n_channels(%d), samplerate(%d), bitrate(%d)\n",
+					"type(%d), n_channels(%d), samplerate(%d), bitrate(%d)",
 					5, " ", a_idx,
 					media_info.ProgramInfo[i].AudioInfo[a_idx].type,
 					media_info.ProgramInfo[i].AudioInfo[a_idx].n_channels,
@@ -118,7 +123,7 @@ void CNX_GstMoviePlayer::PrintMediaInfo(GST_MEDIA_INFO media_info, const char* f
 		}
 	}
 
-	NXLOGI("=========== [GST_MEDIA_INFO] ===========> ");
+	NXLOGI("=========== [APP_MEDIA_INFO] ===========> ");
 }
 
 int CNX_GstMoviePlayer::SetAspectRatio(DISPLAY_INFO dspInfo)
@@ -380,6 +385,64 @@ int CNX_GstMoviePlayer::SetDisplayMode(DISPLAY_MODE mode)
 	}
 	return 0;
 }
+
+int CNX_GstMoviePlayer::SelectProgram(int program_number)
+{
+	NXLOGI("%s", __FUNCTION__);
+
+	if(NULL == m_hPlayer)
+	{
+		NXLOGE("%s: Error! Handle is not initialized!", __FUNCTION__);
+		return -1;
+	}
+
+	NX_GST_RET iResult = NX_GSTMP_SelectProgram(m_hPlayer, program_number);
+	if(NX_GST_RET_OK != iResult)
+	{
+		NXLOGE("%s(): Error! NX_GSTMP_SelectProgram() Failed! (ret = %d)\n", __FUNCTION__, iResult);
+		return -1;
+	}
+	return 0;
+}
+
+int CNX_GstMoviePlayer::SelectStream(CODEC_TYPE type, int idx)
+{
+	NXLOGI("%s", __FUNCTION__);
+
+	if(NULL == m_hPlayer)
+	{
+		NXLOGE("%s: Error! Handle is not initialized!", __FUNCTION__);
+		return -1;
+	}
+
+	NX_GST_RET iResult = NX_GSTMP_SelectStream(m_hPlayer, type, idx);
+	if(NX_GST_RET_OK != iResult)
+	{
+		NXLOGE("%s(): Error! SelectStream() Failed! (ret = %d)\n", __FUNCTION__, iResult);
+		return -1;
+	}
+	return 0;
+}
+
+int CNX_GstMoviePlayer::Prepare()
+{
+	NXLOGI("%s", __FUNCTION__);
+
+	if(NULL == m_hPlayer)
+	{
+		NXLOGE("%s: Error! Handle is not initialized!", __FUNCTION__);
+		return -1;
+	}
+
+	NX_GST_RET iResult = NX_GSTMP_Prepare(m_hPlayer);
+	if(NX_GST_RET_OK != iResult)
+	{
+		NXLOGE("%s(): Error! NX_GSTMP_Prepare() Failed! (ret = %d)\n", __FUNCTION__, iResult);
+		return -1;
+	}
+	return 0;
+}
+
 
 int CNX_GstMoviePlayer::SetUri(const char *pUri)
 {

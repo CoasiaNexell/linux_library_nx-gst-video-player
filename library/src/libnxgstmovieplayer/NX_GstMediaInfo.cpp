@@ -43,6 +43,9 @@ NX_GST_RET	OpenMediaInfo(GST_MEDIA_INFO **media_handle)
 
 	memset(handle, 0, sizeof(GST_MEDIA_INFO));
 
+	handle->container_type = CONTAINER_TYPE_UNKNOWN;
+	handle->demux_type = DEMUX_TYPE_UNKNOWN;
+
 	if (!gst_is_initialized())
     {
 		gst_init(NULL, NULL);
@@ -160,7 +163,7 @@ void MediaInfoToStr(GST_MEDIA_INFO *media_info, const char*filePath)
 		for (int v_idx=0; v_idx<media_info->ProgramInfo[i].n_video; v_idx++)
 		{
 			NXGLOGI("%*s [VideoInfo[%d]] "
-					"type(%d), width(%d), height(%d), framerate_num/denom(%d/%d),"
+					"type(%d), width(%d), height(%d), framerate(%d/%d), "
 					"stream_id(%s)",
 					5, " ", v_idx,
 					media_info->ProgramInfo[i].VideoInfo[v_idx].type,
@@ -173,14 +176,15 @@ void MediaInfoToStr(GST_MEDIA_INFO *media_info, const char*filePath)
 		for (int a_idx=0; a_idx<media_info->ProgramInfo[i].n_audio; a_idx++)
 		{
 			NXGLOGI("%*s [AudioInfo[%d]] "
-					"type(%d), n_channels(%d), samplerate(%d), bitrate(%d)\n",
+					"type(%d), n_channels(%d), samplerate(%d), bitrate(%d), "
 					"stream_id(%s)",
 					5, " ", a_idx,
 					media_info->ProgramInfo[i].AudioInfo[a_idx].type,
 					media_info->ProgramInfo[i].AudioInfo[a_idx].n_channels,
 					media_info->ProgramInfo[i].AudioInfo[a_idx].samplerate,
 					media_info->ProgramInfo[i].AudioInfo[a_idx].bitrate,
-					media_info->ProgramInfo[i].AudioInfo[a_idx].stream_id);
+					(media_info->ProgramInfo[i].AudioInfo[a_idx].stream_id) ? 
+						media_info->ProgramInfo[i].AudioInfo[a_idx].stream_id:"");
 		}
 		for (int s_idx=0; s_idx<media_info->ProgramInfo[i].n_subtitle; s_idx++)
 		{

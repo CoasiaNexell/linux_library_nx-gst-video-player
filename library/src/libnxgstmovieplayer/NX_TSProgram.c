@@ -849,7 +849,7 @@ static void
 dump_pat (GstMpegtsSection * section, MpegTsSt *handle)
 {
 	GPtrArray *pat = gst_mpegts_section_get_pat (section);
-	guint i, len;
+	guint i = 0, pIdx = 0, len = 0;
 
 	// n_program
 	len = pat->len;
@@ -858,14 +858,22 @@ dump_pat (GstMpegtsSection * section, MpegTsSt *handle)
 
 	for (i = 0; i < len; i++) {
 		GstMpegtsPatProgram *patp = g_ptr_array_index (pat, i);
-		handle->media_info->program_number[i] = patp->program_number;
-		NXGLOGI("## n_program(%d), handle->media_info->program_number[%d] = %d",
-				handle->media_info->n_program, i, handle->media_info->program_number[i]);
-		// program_number
-		NXGLOGI
-				("     program_number:%6d (0x%04x), network_or_program_map_PID:0x%04x",
+		NXGLOGI("     program_number:%6d (0x%04x), network_or_program_map_PID:0x%04x",
 				patp->program_number, patp->program_number,
 				patp->network_or_program_map_PID);
+
+		// Do not count n_program if it has reserved program info
+		if (0 == patp->program_number) {
+			if (handle->media_info->n_program > 1) {
+				handle->media_info->n_program--;
+			}
+			continue;
+		}
+		// program_number
+		handle->media_info->program_number[pIdx] = patp->program_number;
+		NXGLOGI(" n_program(%d), handle->media_info->program_number[%d] = %d",
+				handle->media_info->n_program, pIdx, handle->media_info->program_number[pIdx]);
+		pIdx++;
 	}
 
 	g_ptr_array_unref (pat);
@@ -1392,6 +1400,11 @@ dump_collection (GstStreamCollection * collection, MpegTsSt *handle)
 			break;
 		}
 	}
+	if (-1 == cur_pro_idx)
+	{
+		NXGLOGE("No matched program number");
+		return;
+	}
 
 	for (i = 0; i < gst_stream_collection_get_size (collection); i++) {
 		GstStream *stream = gst_stream_collection_get_stream (collection, i);
@@ -1436,6 +1449,7 @@ dump_collection (GstStreamCollection * collection, MpegTsSt *handle)
 					handle->media_info->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].type = AUDIO_TYPE_MPEG_V2;
 				}
 			}
+			handle->media_info->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].stream_id = g_strdup (stream_id);
 			handle->media_info->ProgramInfo[cur_pro_idx].n_audio++;
 			NXGLOGI("audio type(%d)",
 					handle->media_info->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].type);
@@ -1446,6 +1460,7 @@ dump_collection (GstStreamCollection * collection, MpegTsSt *handle)
 			VIDEO_TYPE video_type = get_video_codec_type(mime_type);
 			int32_t v_idx = handle->media_info->ProgramInfo[cur_pro_idx].n_video;
 
+			NXGLOGI("v_idx(%d), n_video(%d)", v_idx, handle->media_info->ProgramInfo[cur_pro_idx].n_video);
 			handle->media_info->ProgramInfo[cur_pro_idx].VideoInfo[v_idx].type = video_type;
 			if ((structure != NULL) && (video_type == VIDEO_TYPE_MPEG_V4))
 			{
@@ -1456,6 +1471,7 @@ dump_collection (GstStreamCollection * collection, MpegTsSt *handle)
 					handle->media_info->ProgramInfo[cur_pro_idx].VideoInfo[v_idx].type = VIDEO_TYPE_MPEG_V2;
 				}
 			}
+			handle->media_info->ProgramInfo[cur_pro_idx].VideoInfo[v_idx].stream_id = g_strdup (stream_id);
 			handle->media_info->ProgramInfo[cur_pro_idx].n_video++;
 
 			NXGLOGI("video type(%d)",
@@ -1463,10 +1479,11 @@ dump_collection (GstStreamCollection * collection, MpegTsSt *handle)
 		}
 		else if (stype & GST_STREAM_TYPE_TEXT)
 		{
-			SUBTITLE_TYPE sub_type = get_video_codec_type(mime_type);
+			SUBTITLE_TYPE sub_type = get_subtitle_codec_type(mime_type);
 			int32_t sub_idx = handle->media_info->ProgramInfo[cur_pro_idx].n_subtitle;
 
 			handle->media_info->ProgramInfo[cur_pro_idx].SubtitleInfo[sub_idx].type = sub_type;
+			handle->media_info->ProgramInfo[cur_pro_idx].VideoInfo[sub_idx].stream_id = g_strdup (stream_id);
 			handle->media_info->ProgramInfo[cur_pro_idx].n_subtitle++;
 
 			NXGLOGI("subtitle type(%d)",
@@ -1651,7 +1668,7 @@ decodebin_pad_added(GstElement *element, GstPad *pad, gpointer data)
 	if (g_str_has_prefix(mime_type, "video/"))
 	{
 			gint video_mpegversion, width, height, num, den;
-			NXGLOGI("width(%d), height(%d), framerate(%d/%d)", width, height, num, den);
+			//NXGLOGI("width(%d), height(%d), framerate(%d/%d)", width, height, num, den);
 
 			target_sink = handle->typefind;
 			NXGLOGV("element %s will be linked to %s\n",
@@ -1796,7 +1813,6 @@ decodebin_pad_added_detail(GstElement *element, GstPad *pad, gpointer data)
 
 	const char *mime_type = gst_structure_get_name(structure);
 	NXGLOGI("MIME-type:%s", mime_type);
-	NXGLOGI("gst_element_get_name(element)=%s", gst_element_get_name(element));
 	if (g_str_has_prefix(mime_type, "video"))
 	{
 		// Set target sink
@@ -2158,8 +2174,6 @@ get_stream_detail_info(const char* filePath, gint program_number, struct GST_MED
 
 	// init mpegts library
 	gst_mpegts_initialize();
-
-	handle.media_info->current_program_no = program_number;
 
 	handle.loop = g_main_loop_new (NULL, FALSE);
 
