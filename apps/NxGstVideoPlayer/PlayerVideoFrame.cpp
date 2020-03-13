@@ -177,12 +177,12 @@ PlayerVideoFrame::PlayerVideoFrame(QWidget *parent)
 											DEFAULT_SUB_DSP_HEIGHT);
 	}
 
-	m_dspInfo.dspWidth = width();
-	m_dspInfo.dspHeight = height();
+	m_dspInfo.primary_dsp_width = width();
+	m_dspInfo.primary_dsp_height = height();
 	m_dspInfo.dspMode = (m_bHDMIConnected && m_bHDMIModeSet) ? DISPLAY_MODE_LCD_HDMI : DISPLAY_MODE_LCD_ONLY;
 	NXLOGI("%s() dsp_mode(%s)", __FUNCTION__, (m_dspInfo.dspMode==DISPLAY_MODE_LCD_ONLY) ? "LCD Only":"LCD_HDMI");
-	m_dspInfo.subDspWidth = DEFAULT_SUB_DSP_WIDTH;
-	m_dspInfo.subDspHeight = DEFAULT_SUB_DSP_HEIGHT;
+	m_dspInfo.secondary_dsp_width = DEFAULT_SUB_DSP_WIDTH;
+	m_dspInfo.secondary_dsp_height = DEFAULT_SUB_DSP_HEIGHT;
 
 	UpdateFileList();
 	m_pIConfig = GetConfigHandle();

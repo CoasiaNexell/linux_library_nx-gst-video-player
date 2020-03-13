@@ -245,10 +245,12 @@ typedef enum {
     SUBTITLE_TYPE_DVB,
 } SUBTITLE_TYPE;
 
+#define MAX_LANG_NAME_NUM   3
 typedef struct {
     SUBTITLE_TYPE   type;
     char*           stream_id;
     char*           language_code;
+    char            lang_code[MAX_LANG_NAME_NUM+1];
 } GST_SUBTITLE_INFO;
 
 typedef struct {
@@ -305,7 +307,7 @@ typedef struct STREAM_INFO
     int32_t     bitrate;
 
     /* Subtitle */
-    char*       language_code;
+    char       language_code[MAX_LANG_NAME_NUM];
 } STREAM_INFO;
 
 typedef struct PROGRAM_INFO

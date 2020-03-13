@@ -59,8 +59,8 @@ int CNX_GstMoviePlayer::InitMediaPlayer(void (*pCbEventCallback)(void *privateDe
 	if(0 > SetUri(pUri))									return -1;
 	if(0 > GetMediaInfo(pUri))								return -1;
 	PrintMediaInfo(m_MediaInfo, pUri);
-	//if(0 > SelectProgram(4351))								return -1;
-	//if(0 > SelectStream(CODEC_TYPE_AUDIO, 1))			return -1;
+	if(0 > SelectProgram(4351))								return -1;
+	if(0 > SelectStream(CODEC_TYPE_AUDIO, 1))				return -1;
 	if(0 > Prepare())										return -1;
 	if(0 > SetAspectRatio(dspInfo))							return -1;
 
@@ -94,8 +94,8 @@ void CNX_GstMoviePlayer::PrintMediaInfo(GST_MEDIA_INFO media_info, const char* f
 
 		for (int v_idx=0; v_idx<media_info.ProgramInfo[i].n_video; v_idx++)
 		{
-			NXLOGI("%*s [VideoInfo[%d]] \n"
-					"type(%d), width(%d), height(%d), framerate_num/denom(%d/%d)",
+			NXLOGI("%*s [VideoInfo[%d]] "
+					"type(%d), width(%d), height(%d), framerate(%d/%d)",
 					5, " ", v_idx,
 					media_info.ProgramInfo[i].VideoInfo[v_idx].type,
 					media_info.ProgramInfo[i].VideoInfo[v_idx].width,
@@ -105,7 +105,7 @@ void CNX_GstMoviePlayer::PrintMediaInfo(GST_MEDIA_INFO media_info, const char* f
 		}
 		for (int a_idx=0; a_idx<media_info.ProgramInfo[i].n_audio; a_idx++)
 		{
-			NXLOGI("%*s [AudioInfo[%d]] \n"
+			NXLOGI("%*s [AudioInfo[%d]] "
 					"type(%d), n_channels(%d), samplerate(%d), bitrate(%d)",
 					5, " ", a_idx,
 					media_info.ProgramInfo[i].AudioInfo[a_idx].type,
@@ -115,7 +115,7 @@ void CNX_GstMoviePlayer::PrintMediaInfo(GST_MEDIA_INFO media_info, const char* f
 		}
 		for (int s_idx=0; s_idx<media_info.ProgramInfo[i].n_subtitle; s_idx++)
 		{
-			NXLOGI("%*s [SubtitleInfo[%d]] \n"
+			NXLOGI("%*s [SubtitleInfo[%d]] "
 					"type(%d), language_code(%s)\n",
 					5, " ", s_idx,
 					media_info.ProgramInfo[i].SubtitleInfo[s_idx].type,
@@ -133,8 +133,8 @@ int CNX_GstMoviePlayer::SetAspectRatio(DISPLAY_INFO dspInfo)
 	DSP_RECT m_dstSubDspRect;
 
 	NXLOGI("%s() dspInfo(%d, %d, %d, %d, %d)",
-			__FUNCTION__, dspInfo.dspWidth, dspInfo.dspHeight,
-			dspInfo.dspMode, dspInfo.subDspWidth, dspInfo.subDspHeight);
+			__FUNCTION__, dspInfo.primary_dsp_width, dspInfo.primary_dsp_height,
+			dspInfo.dspMode, dspInfo.secondary_dsp_width, dspInfo.secondary_dsp_height);
 
 	if (m_MediaInfo.demux_type == DEMUX_TYPE_MPEGTSDEMUX)
 	{
@@ -155,15 +155,15 @@ int CNX_GstMoviePlayer::SetAspectRatio(DISPLAY_INFO dspInfo)
 	}
 
 	NXLOGI("pIdx(%d) Video width/height(%d/%d), Display width/height(%d/%d)",
-			pIdx, video_width, video_height, dspInfo.dspWidth, dspInfo.dspHeight);
+			pIdx, video_width, video_height, dspInfo.primary_dsp_width, dspInfo.primary_dsp_height);
 	// Set aspect ratio for the primary display
 	memset(&m_dstDspRect, 0, sizeof(DSP_RECT));
 
 	GetAspectRatio(video_width, video_height,
-				   dspInfo.dspWidth, dspInfo.dspHeight,
+				   dspInfo.primary_dsp_width, dspInfo.primary_dsp_height,
 				   &m_dstDspRect);
 	if (0 > SetDisplayInfo(DISPLAY_TYPE_PRIMARY,
-				dspInfo.dspWidth, dspInfo.dspHeight, m_dstDspRect)) {
+				dspInfo.primary_dsp_width, dspInfo.primary_dsp_height, m_dstDspRect)) {
 		NXLOGE("%s() Failed to set aspect ratio rect for primary", __FUNCTION__);
 		return -1;
 	}
@@ -175,10 +175,10 @@ int CNX_GstMoviePlayer::SetAspectRatio(DISPLAY_INFO dspInfo)
 	{
 		memset(&m_dstSubDspRect, 0, sizeof(DSP_RECT));
 		GetAspectRatio(video_width, video_height,
-						dspInfo.subDspWidth, dspInfo.subDspHeight,
+						dspInfo.secondary_dsp_width, dspInfo.secondary_dsp_height,
 						&m_dstSubDspRect);
 		if(0 > SetDisplayInfo(DISPLAY_TYPE_SECONDARY,
-				dspInfo.subDspWidth, dspInfo.subDspHeight, m_dstSubDspRect)) {
+				dspInfo.secondary_dsp_width, dspInfo.secondary_dsp_height, m_dstSubDspRect)) {
 			NXLOGE("%s() Failed to set aspect ratio rect for secondary", __FUNCTION__);
 			return -1;
 		}

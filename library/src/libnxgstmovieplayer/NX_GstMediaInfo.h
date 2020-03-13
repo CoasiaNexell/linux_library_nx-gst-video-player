@@ -13,6 +13,7 @@ extern "C" {
 
 NX_GST_RET      OpenMediaInfo(GST_MEDIA_INFO **media_handle);
 NX_GST_ERROR    ParseMediaInfo(GST_MEDIA_INFO *media_handle, const char *filePath);
+NX_GST_RET      CopyMediaInfo(GST_MEDIA_INFO *dest, GST_MEDIA_INFO *src);
 NX_GST_RET      CloseMediaInfo(GST_MEDIA_INFO *media_handle);
 void            MediaInfoToStr(GST_MEDIA_INFO *media_info, const char *filePath);
 

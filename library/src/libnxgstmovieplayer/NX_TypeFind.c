@@ -1147,7 +1147,7 @@ dump_pmt(GstMpegtsSection * section, TypeFindSt *handle)
 static gboolean
 bus_callback(GstBus * bus, GstMessage * msg, TypeFindSt* handle)
 {
-    NXGLOGI("Got %s msg\n", GST_MESSAGE_TYPE_NAME (msg));
+    NXGLOGV("Got %s msg\n", GST_MESSAGE_TYPE_NAME (msg));
 
     GMainLoop *loop = handle->loop;
     switch (GST_MESSAGE_TYPE (msg)) {

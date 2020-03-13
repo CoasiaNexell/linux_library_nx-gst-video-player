@@ -54,11 +54,11 @@
 #include <gst/gstpad.h>
 
 typedef struct DISPLAY_INFO {
-	int 			dspWidth;
-	int 			dspHeight;
+	int 			primary_dsp_width;
+	int 			primary_dsp_height;
 	DISPLAY_MODE	dspMode;
-	int				subDspWidth;
-	int				subDspHeight;
+	int				secondary_dsp_width;
+	int				secondary_dsp_height;
 } DISPLAY_INFO;
 
 class CNX_GstMoviePlayer

@@ -75,7 +75,7 @@ NX_GST_ERROR  ParseMediaInfo(GST_MEDIA_INFO *media_handle, const char *filePath)
 	{
 		// Get total number of programs, program number list from pat
 		get_program_info(filePath, media_handle);
-		for (int i; i< media_handle->n_program; i++)
+		for (int i=0; i< media_handle->n_program; i++)
 		{
 			int cur_program_no = media_handle->program_number[i];
 			if (cur_program_no != 0) {
@@ -95,7 +95,7 @@ NX_GST_ERROR  ParseMediaInfo(GST_MEDIA_INFO *media_handle, const char *filePath)
 				media_handle->n_program = 1;
 			}
 		}
-		//start_parsing(filePath);
+		//start_parsing(filePath, media_handle);
 		err = StartDiscover(filePath, media_handle);
 	}
 
@@ -104,23 +104,53 @@ NX_GST_ERROR  ParseMediaInfo(GST_MEDIA_INFO *media_handle, const char *filePath)
 	return err;
 }
 
+NX_GST_RET  CopyMediaInfo(GST_MEDIA_INFO *dest, GST_MEDIA_INFO *src)
+{
+	memcpy(dest, src, sizeof(struct GST_MEDIA_INFO));
+	for (int pIdx = 0; pIdx < src->n_program; pIdx++)
+	{
+		for (int vIdx = 0; vIdx < src->ProgramInfo[pIdx].n_video; vIdx++)
+		{
+			gchar *stream_id = src->ProgramInfo[pIdx].VideoInfo[vIdx].stream_id;
+			dest->ProgramInfo[pIdx].VideoInfo[vIdx].stream_id = g_strdup(stream_id);
+		}
+		for (int aIdx = 0; aIdx < src->ProgramInfo[pIdx].n_audio; aIdx++)
+		{
+			gchar *stream_id = src->ProgramInfo[pIdx].AudioInfo[aIdx].stream_id;
+			dest->ProgramInfo[pIdx].AudioInfo[aIdx].stream_id = g_strdup(stream_id);
+		}
+		for (int sIdx = 0; sIdx < src->ProgramInfo[pIdx].n_subtitle; sIdx++)
+		{
+			gchar *stream_id = src->ProgramInfo[pIdx].SubtitleInfo[sIdx].stream_id;
+			gchar *language_code = src->ProgramInfo[pIdx].SubtitleInfo[sIdx].language_code;
+			dest->ProgramInfo[pIdx].SubtitleInfo[sIdx].stream_id = g_strdup(stream_id);
+			dest->ProgramInfo[pIdx].SubtitleInfo[sIdx].language_code = g_strdup(language_code);
+		}
+	}
+}
+
 NX_GST_RET  CloseMediaInfo(GST_MEDIA_INFO *media_handle)
 {
 	NXGLOGI("START");
 
 	for (int pIdx = 0; pIdx < media_handle->n_program; pIdx++)
 	{
-		for (int vIdx = 0; vIdx < media_handle->ProgramInfo[pIdx].n_video; vIdx++) {
+		for (int vIdx = 0; vIdx < media_handle->ProgramInfo[pIdx].n_video; vIdx++)
+		{
 			g_free(media_handle->ProgramInfo[pIdx].VideoInfo[vIdx].stream_id);
 			media_handle->ProgramInfo[pIdx].VideoInfo[vIdx].stream_id = NULL;
 		}
-		for (int aIdx = 0; aIdx < media_handle->ProgramInfo[pIdx].n_audio; aIdx++) {
+		for (int aIdx = 0; aIdx < media_handle->ProgramInfo[pIdx].n_audio; aIdx++)
+		{
 			g_free(media_handle->ProgramInfo[pIdx].AudioInfo[aIdx].stream_id);
 			media_handle->ProgramInfo[pIdx].AudioInfo[aIdx].stream_id = NULL;
 		}
-		for (int sIdx = 0; sIdx < media_handle->ProgramInfo[pIdx].n_subtitle; sIdx++) {
-			g_free(media_handle->ProgramInfo[pIdx].SubtitleInfo[sIdx].language_code);
+		for (int sIdx = 0; sIdx < media_handle->ProgramInfo[pIdx].n_subtitle; sIdx++)
+		{
+			g_free(media_handle->ProgramInfo[pIdx].SubtitleInfo[sIdx].stream_id);
 			media_handle->ProgramInfo[pIdx].SubtitleInfo[sIdx].stream_id = NULL;
+			g_free(media_handle->ProgramInfo[pIdx].SubtitleInfo[sIdx].language_code);
+			media_handle->ProgramInfo[pIdx].SubtitleInfo[sIdx].language_code = NULL;
 		}
 	}
 

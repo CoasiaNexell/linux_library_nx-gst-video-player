@@ -1195,6 +1195,7 @@ NX_GST_RET link_display(MP_HANDLE handle, enum DISPLAY_TYPE type)
     g_object_set(G_OBJECT(sink->nxvideosink), "dst-y", rect.top, NULL);
     g_object_set(G_OBJECT(sink->nxvideosink), "dst-w", (rect.right - rect.left), NULL);
     g_object_set(G_OBJECT(sink->nxvideosink), "dst-h", (rect.bottom - rect.top), NULL);
+    // TODO: If hdmi is connected, set crtc-index.
     g_object_set(sink->nxvideosink, "crtc-index", type, NULL);
 
     if (!sink->queue || !sink->nxvideosink)
@@ -1433,6 +1434,7 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *filePath)
     handle->filePath = g_strdup(filePath);
     handle->error = NX_GST_ERROR_NONE;
 
+    // Start to parse media info
     struct GST_MEDIA_INFO *media_info;
     NX_GST_RET result = OpenMediaInfo(&media_info);
     if (NX_GST_RET_OK != result) {
@@ -1450,9 +1452,13 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *filePath)
     }
 
     MediaInfoToStr(media_info, filePath);
-    memcpy(&handle->gst_media_info, media_info, sizeof(struct GST_MEDIA_INFO));
 
+    // Copy the parsed media info to handle->gst_media_info
+    CopyMediaInfo(&handle->gst_media_info, media_info);
+
+    MediaInfoToStr(&handle->gst_media_info, filePath);
     CloseMediaInfo(media_info);
+    // Done to parse media info
 
     if (handle->gst_media_info.container_type > CONTAINER_TYPE_FLV)
     {
@@ -1668,7 +1674,9 @@ NX_GSTMP_GetMediaInfo(MP_HANDLE handle, const char* filePath, GST_MEDIA_INFO *pG
         return NX_GST_RET_ERROR;
     }
 
-    memcpy(pGstMInfo, &handle->gst_media_info, sizeof(struct GST_MEDIA_INFO));
+    //MediaInfoToStr(&handle->gst_media_info, filePath);
+    //memcpy(pGstMInfo, &handle->gst_media_info, sizeof(struct GST_MEDIA_INFO));
+    CopyMediaInfo(pGstMInfo, &handle->gst_media_info);
 
     NXGLOGI("END");
     return NX_GST_RET_OK;

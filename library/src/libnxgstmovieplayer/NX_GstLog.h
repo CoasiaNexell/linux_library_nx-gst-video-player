@@ -44,12 +44,12 @@ void nx_gst_debug(const char *format, ...);
 #endif	//	DBG_FUNCTION
 
 #define NXGLOGD(fmt, arg...) do { \
-        nx_gst_debug(LOG_TAG"/D %s()" fmt, __FUNCTION__, ## arg);   \
+        nx_gst_debug(LOG_TAG"/D %s() " fmt, __FUNCTION__, ## arg);   \
 } while (0)
 
 #if VBS_MSG
 #define NXGLOGV(fmt, arg...) do { \
-        nx_gst_debug(LOG_TAG"/V %s()" fmt, __FUNCTION__, ## arg);   \
+        nx_gst_debug(LOG_TAG"/V %s() " fmt, __FUNCTION__, ## arg);   \
 } while (0)
 #else
 #define NXGLOGV(fmt, arg...)    do{}while(0)
