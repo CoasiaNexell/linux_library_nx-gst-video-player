@@ -773,377 +773,6 @@ dump_pat (GstMpegtsSection * section, TypeFindSt *handle)
 	g_ptr_array_unref (pat);
 }
 
-#define dump_memory_content(desc, spacing) dump_memory_bytes((desc)->data + 2, (desc)->length, spacing)
-
-static const gchar *
-descriptor_name (gint val)
-{
-  GEnumValue *en;
-
-  en = g_enum_get_value (G_ENUM_CLASS (g_type_class_peek
-          (GST_TYPE_MPEGTS_DESCRIPTOR_TYPE)), val);
-  if (en == NULL)
-    /* Else try with DVB enum types */
-    en = g_enum_get_value (G_ENUM_CLASS (g_type_class_peek
-            (GST_TYPE_MPEGTS_DVB_DESCRIPTOR_TYPE)), val);
-  if (en == NULL)
-    /* Else try with ATSC enum types */
-    en = g_enum_get_value (G_ENUM_CLASS (g_type_class_peek
-            (GST_TYPE_MPEGTS_ATSC_DESCRIPTOR_TYPE)), val);
-  if (en == NULL)
-    /* Else try with ISB enum types */
-    en = g_enum_get_value (G_ENUM_CLASS (g_type_class_peek
-            (GST_TYPE_MPEGTS_ISDB_DESCRIPTOR_TYPE)), val);
-  if (en == NULL)
-    /* Else try with misc enum types */
-    en = g_enum_get_value (G_ENUM_CLASS (g_type_class_peek
-            (GST_TYPE_MPEGTS_MISC_DESCRIPTOR_TYPE)), val);
-  if (en == NULL)
-    return "UNKNOWN/PRIVATE";
-  return en->value_nick;
-}
-
-static void
-dump_descriptors (GPtrArray * descriptors, guint spacing)
-{
-  guint i;
-
-  for (i = 0; i < descriptors->len; i++) {
-    GstMpegtsDescriptor *desc = g_ptr_array_index (descriptors, i);
-    NXGLOGI("%*s [descriptor 0x%02x (%s) length:%d]", spacing, "",
-        desc->tag, descriptor_name (desc->tag), desc->length);
-    if (DUMP_DESCRIPTORS)
-      dump_memory_content (desc, spacing + 2);
-    switch (desc->tag) {
-      case GST_MTS_DESC_REGISTRATION:
-      {
-        const guint8 *data = desc->data + 2;
-#define SAFE_CHAR(a) (g_ascii_isprint(a) ? a : '.')
-        NXGLOGI("%*s   Registration : %c%c%c%c [%02x%02x%02x%02x]", spacing,
-            "", SAFE_CHAR (data[0]), SAFE_CHAR (data[1]), SAFE_CHAR (data[2]),
-            SAFE_CHAR (data[3]), data[0], data[1], data[2], data[3]);
-
-        break;
-      }
-      case GST_MTS_DESC_CA:
-      {
-        guint16 ca_pid, ca_system_id;
-        const guint8 *private_data;
-        gsize private_data_size;
-        if (gst_mpegts_descriptor_parse_ca (desc, &ca_system_id, &ca_pid,
-                &private_data, &private_data_size)) {
-          NXGLOGI("%*s   CA system id : 0x%04x", spacing, "", ca_system_id);
-          NXGLOGI("%*s   CA PID       : 0x%04x", spacing, "", ca_pid);
-          if (private_data_size) {
-            NXGLOGI("%*s   Private Data :", spacing, "");
-            dump_memory_bytes ((guint8 *) private_data, private_data_size,
-                spacing + 2);
-          }
-        }
-        break;
-      }
-      case GST_MTS_DESC_DVB_NETWORK_NAME:
-      {
-        gchar *network_name;
-        if (gst_mpegts_descriptor_parse_dvb_network_name (desc, &network_name)) {
-          NXGLOGI("%*s   Network Name : %s", spacing, "", network_name);
-          g_free (network_name);
-        }
-        break;
-      }
-      case GST_MTS_DESC_DVB_SERVICE_LIST:
-      {
-        dump_dvb_service_list (desc, spacing + 2);
-        break;
-      }
-      case GST_MTS_DESC_DVB_CABLE_DELIVERY_SYSTEM:
-        dump_cable_delivery_descriptor (desc, spacing + 2);
-        break;
-      case GST_MTS_DESC_DVB_TERRESTRIAL_DELIVERY_SYSTEM:
-        dump_terrestrial_delivery (desc, spacing + 2);
-        break;
-      case GST_MTS_DESC_DVB_BOUQUET_NAME:
-      {
-        gchar *bouquet_name;
-        if (gst_mpegts_descriptor_parse_dvb_bouquet_name (desc, &bouquet_name)) {
-          NXGLOGI("%*s   Bouquet Name Descriptor, bouquet_name:%s", spacing,
-              "", bouquet_name);
-          g_free (bouquet_name);
-        }
-        break;
-      }
-      case GST_MTS_DESC_DTG_LOGICAL_CHANNEL:
-        dump_logical_channel_descriptor (desc, spacing + 2);
-        break;
-      case GST_MTS_DESC_DVB_SERVICE:
-      {
-        gchar *service_name, *provider_name;
-        GstMpegtsDVBServiceType service_type;
-        if (gst_mpegts_descriptor_parse_dvb_service (desc, &service_type,
-                &service_name, &provider_name)) {
-          NXGLOGI("%*s   Service Descriptor, type:0x%02x (%s)", spacing, "",
-              service_type, enum_name (GST_TYPE_MPEGTS_DVB_SERVICE_TYPE,
-                  service_type));
-          NXGLOGI("%*s      service_name  : %s", spacing, "", service_name);
-          NXGLOGI("%*s      provider_name : %s", spacing, "",
-              provider_name);
-          g_free (service_name);
-          g_free (provider_name);
-
-        }
-        break;
-      }
-      case GST_MTS_DESC_DVB_MULTILINGUAL_BOUQUET_NAME:
-      {
-        dump_multiligual_bouquet_name (desc, spacing + 2);
-        break;
-      }
-      case GST_MTS_DESC_DVB_MULTILINGUAL_NETWORK_NAME:
-      {
-        dump_multiligual_network_name (desc, spacing + 2);
-        break;
-      }
-      case GST_MTS_DESC_DVB_MULTILINGUAL_SERVICE_NAME:
-      {
-        dump_multiligual_service_name (desc, spacing + 2);
-        break;
-      }
-      case GST_MTS_DESC_DVB_MULTILINGUAL_COMPONENT:
-      {
-        dump_multiligual_component (desc, spacing + 2);
-        break;
-      }
-      case GST_MTS_DESC_DVB_PRIVATE_DATA_SPECIFIER:
-      {
-        guint32 specifier;
-        guint8 len = 0, *data = NULL;
-
-        if (gst_mpegts_descriptor_parse_dvb_private_data_specifier (desc,
-                &specifier, &data, &len)) {
-          NXGLOGI("%*s   private_data_specifier : 0x%08x", spacing, "",
-              specifier);
-          if (len > 0) {
-            dump_memory_bytes (data, len, spacing + 2);
-            g_free (data);
-          }
-        }
-        break;
-      }
-      case GST_MTS_DESC_DVB_FREQUENCY_LIST:
-      {
-        gboolean offset;
-        GArray *list;
-        if (gst_mpegts_descriptor_parse_dvb_frequency_list (desc, &offset,
-                &list)) {
-          guint j;
-          for (j = 0; j < list->len; j++) {
-            guint32 freq = g_array_index (list, guint32, j);
-            NXGLOGI("%*s   Frequency : %u %s", spacing, "", freq,
-                offset ? "kHz" : "Hz");
-          }
-          g_array_unref (list);
-        }
-        break;
-      }
-      case GST_MTS_DESC_DVB_LINKAGE:
-        dump_linkage (desc, spacing + 2);
-        break;
-      case GST_MTS_DESC_DVB_COMPONENT:
-        dump_component (desc, spacing + 2);
-        break;
-      case GST_MTS_DESC_DVB_STREAM_IDENTIFIER:
-      {
-        guint8 tag;
-        if (gst_mpegts_descriptor_parse_dvb_stream_identifier (desc, &tag)) {
-          NXGLOGI("%*s   Component Tag : 0x%02x", spacing, "", tag);
-        }
-        break;
-      }
-      case GST_MTS_DESC_DVB_CA_IDENTIFIER:
-      {
-        GArray *list;
-        guint j;
-        guint16 ca_id;
-        if (gst_mpegts_descriptor_parse_dvb_ca_identifier (desc, &list)) {
-          for (j = 0; j < list->len; j++) {
-            ca_id = g_array_index (list, guint16, j);
-            NXGLOGI("%*s   CA Identifier : 0x%04x", spacing, "", ca_id);
-          }
-          g_array_unref (list);
-        }
-        break;
-      }
-      case GST_MTS_DESC_DVB_CONTENT:
-        dump_content (desc, spacing + 2);
-        break;
-      case GST_MTS_DESC_DVB_PARENTAL_RATING:
-      {
-        GPtrArray *ratings;
-        guint j;
-
-        if (gst_mpegts_descriptor_parse_dvb_parental_rating (desc, &ratings)) {
-          for (j = 0; j < ratings->len; j++) {
-            GstMpegtsDVBParentalRatingItem *item =
-                g_ptr_array_index (ratings, j);
-            NXGLOGI("%*s   country_code : %s", spacing, "",
-                item->country_code);
-            NXGLOGI("%*s   rating age   : %d", spacing, "", item->rating);
-          }
-          g_ptr_array_unref (ratings);
-        }
-        break;
-      }
-      case GST_MTS_DESC_DVB_DATA_BROADCAST:
-      {
-        GstMpegtsDataBroadcastDescriptor *res;
-
-        if (gst_mpegts_descriptor_parse_dvb_data_broadcast (desc, &res)) {
-          NXGLOGI("%*s   data_broadcast_id : 0x%04x", spacing, "",
-              res->data_broadcast_id);
-          NXGLOGI("%*s   component_tag     : 0x%02x", spacing, "",
-              res->component_tag);
-          if (res->length > 0) {
-            NXGLOGI("%*s   selector_bytes:", spacing, "");
-            dump_memory_bytes (res->selector_bytes, res->length, spacing + 2);
-          }
-          NXGLOGI("%*s   text              : %s", spacing, "",
-              res->text ? res->text : "NULL");
-          gst_mpegts_dvb_data_broadcast_descriptor_free (res);
-        }
-        break;
-      }
-      case GST_MTS_DESC_ISO_639_LANGUAGE:
-        dump_iso_639_language (desc, spacing + 2);
-        break;
-      case GST_MTS_DESC_DVB_SHORT_EVENT:
-      {
-        gchar *language_code, *event_name, *text;
-        if (gst_mpegts_descriptor_parse_dvb_short_event (desc, &language_code,
-                &event_name, &text)) {
-          NXGLOGI("%*s   Short Event, language_code:%s", spacing, "",
-              language_code);
-          NXGLOGI("%*s     event_name : %s", spacing, "", event_name);
-          NXGLOGI("%*s     text       : %s", spacing, "", text);
-          g_free (language_code);
-          g_free (event_name);
-          g_free (text);
-        }
-      }
-        break;
-      case GST_MTS_DESC_DVB_EXTENDED_EVENT:
-      {
-        dump_dvb_extended_event (desc, spacing + 2);
-        break;
-      }
-      case GST_MTS_DESC_DVB_SUBTITLING:
-      {
-        gchar *lang;
-        guint8 type;
-        guint16 composition;
-        guint16 ancillary;
-        guint j;
-
-        for (j = 0;
-            gst_mpegts_descriptor_parse_dvb_subtitling_idx (desc, j, &lang,
-                &type, &composition, &ancillary); j++) {
-          NXGLOGI("%*s   Subtitling, language_code:%s", spacing, "", lang);
-          NXGLOGI("%*s      type                : %u", spacing, "", type);
-          NXGLOGI("%*s      composition page id : %u", spacing, "",
-              composition);
-          NXGLOGI("%*s      ancillary page id   : %u", spacing, "",
-              ancillary);
-          g_free (lang);
-        }
-      }
-        break;
-      case GST_MTS_DESC_DVB_TELETEXT:
-      {
-        GstMpegtsDVBTeletextType type;
-        gchar *lang;
-        guint8 magazine, page_number;
-        guint j;
-
-        for (j = 0;
-            gst_mpegts_descriptor_parse_dvb_teletext_idx (desc, j, &lang, &type,
-                &magazine, &page_number); j++) {
-          NXGLOGI("%*s   Teletext, type:0x%02x (%s)", spacing, "", type,
-              enum_name (GST_TYPE_MPEGTS_DVB_TELETEXT_TYPE, type));
-          NXGLOGI("%*s      language    : %s", spacing, "", lang);
-          NXGLOGI("%*s      magazine    : %u", spacing, "", magazine);
-          NXGLOGI("%*s      page number : %u", spacing, "", page_number);
-          g_free (lang);
-        }
-      }
-        break;
-      default:
-        break;
-    }
-  }
-}
-
-static const gchar *
-stream_type_name (gint val)
-{
-	GEnumValue *en;
-
-	en = g_enum_get_value (G_ENUM_CLASS (g_type_class_peek
-					(GST_TYPE_MPEGTS_STREAM_TYPE)), val);
-	if (en == NULL)
-		/* Else try with SCTE enum types */
-		en = g_enum_get_value (G_ENUM_CLASS (g_type_class_peek
-						(GST_TYPE_MPEGTS_SCTE_STREAM_TYPE)), val);
-	if (en == NULL)
-		return "UNKNOWN/PRIVATE";
-	return en->value_nick;
-}
-
-static void
-dump_pmt(GstMpegtsSection * section, TypeFindSt *handle)
-{
-	const GstMpegtsPMT *pmt = gst_mpegts_section_get_pmt (section);
-	guint i, len;
-
-	NXGLOGI("     program_number : 0x%04x", section->subtable_extension);
-	NXGLOGI("     pcr_pid        : 0x%04x", pmt->pcr_pid);
-	//dump_descriptors (pmt->descriptors, 7);
-	len = pmt->streams->len;
-	NXGLOGI("     %d Streams:", len);
-	
-	for (i = 0; i < len; i++) {
-		GstMpegtsPMTStream *stream = g_ptr_array_index (pmt->streams, i);
-		const gchar* stream_type = stream_type_name (stream->stream_type);
-		NXGLOGI("       pid:0x%04x , stream_type:0x%02x (%s)", stream->pid,
-				stream->stream_type, stream_type);
-
-		if (g_str_has_prefix(stream_type, "video")) {
-			gint v_idx = handle->media_info->ProgramInfo[i].n_video;
-			if (GST_MPEGTS_STREAM_TYPE_VIDEO_MPEG1 == stream->stream_type) {
-				handle->media_info->ProgramInfo[i].VideoInfo[v_idx].type = VIDEO_TYPE_MPEG_V1;
-			} else if (GST_MPEGTS_STREAM_TYPE_VIDEO_MPEG1 == stream->stream_type) {
-				handle->media_info->ProgramInfo[i].VideoInfo[v_idx].type = VIDEO_TYPE_MPEG_V2;
-			} else if (GST_MPEGTS_STREAM_TYPE_VIDEO_H264 == stream->stream_type) {
-				handle->media_info->ProgramInfo[i].VideoInfo[v_idx].type = VIDEO_TYPE_H264;
-			}
-			handle->media_info->ProgramInfo[i].n_video++;
-		} else if (g_str_has_prefix(stream_type, "audio")) {
-			gint a_idx = handle->media_info->ProgramInfo[i].n_audio;
-			if (GST_MPEGTS_STREAM_TYPE_AUDIO_MPEG1 == stream->stream_type) {
-				handle->media_info->ProgramInfo[i].AudioInfo[a_idx].type = AUDIO_TYPE_MPEG_V1;
-			} else if(GST_MPEGTS_STREAM_TYPE_AUDIO_MPEG2 == stream->stream_type) {
-				handle->media_info->ProgramInfo[i].AudioInfo[a_idx].type = AUDIO_TYPE_MPEG_V2;
-			}
-			handle->media_info->ProgramInfo[i].n_audio++;
-		} else if (g_str_has_prefix(stream_type, "private-pes-packets")) {
-			gint s_idx = handle->media_info->ProgramInfo[i].n_subtitle;
-			if (GST_MPEGTS_STREAM_TYPE_PRIVATE_PES_PACKETS == stream->stream_type) {
-				handle->media_info->ProgramInfo[i].SubtitleInfo[s_idx].type = AUDIO_TYPE_MPEG_V1;
-			}
-			handle->media_info->ProgramInfo[i].n_subtitle++;
-		}
-		//dump_descriptors (stream->descriptors, 9);
-	}
-}
-
 static gboolean
 bus_callback(GstBus * bus, GstMessage * msg, TypeFindSt* handle)
 {
@@ -1177,21 +806,22 @@ bus_callback(GstBus * bus, GstMessage * msg, TypeFindSt* handle)
                        , gst_element_state_get_name (new_state));
             break;
         }
-		case GST_MESSAGE_ELEMENT:
+		case GST_MESSAGE_STREAM_COLLECTION:
 		{
-			GstMpegtsSection *section;
-			if ((section = gst_message_parse_mpegts_section(msg))) {
-				GstMpegtsSectionType section_type = GST_MPEGTS_SECTION_TYPE(section);
-				if (GST_MPEGTS_SECTION_PAT == section_type) {
-					dump_pat(section, handle);
-					gst_mpegts_section_unref(section);
-				}
-				if (GST_MPEGTS_SECTION_PMT == section_type) {
-					dump_pmt(section, handle);
-					gst_mpegts_section_unref(section);
-					g_idle_add (idle_exit_loop, loop);
-				}
+			GstStreamCollection *collection = NULL;
+			GstObject *src = GST_MESSAGE_SRC(msg);
+
+			gst_message_parse_stream_collection(msg, &collection);
+			if (collection)
+			{
+				NXGLOGI("Got a collection from %s",
+						src ? GST_OBJECT_NAME (src) : "Unknown");
+				//dump_collection(collection, handle);
+				gst_object_unref (collection);
+				g_idle_add (idle_exit_loop, handle->loop);
+				NXGLOGI("exit simple bus loop");
 			}
+			break;
 		}
         default:
             /* unhandled message */
@@ -1636,7 +1266,7 @@ static void on_demux_pad_added_num_ps(GstElement *element, GstPad *pad, gpointer
         }
         handle->media_info->ProgramInfo[0].n_video++;
 
-        NXGLOGI("## type(%d), n_video(%d)",
+        NXGLOGI("video_type(%d), n_video(%d)",
                 handle->media_info->ProgramInfo[0].VideoInfo[v_idx].type,
                 handle->media_info->ProgramInfo[0].n_video);
 	}
@@ -1666,7 +1296,7 @@ static void on_demux_pad_added_num_ps(GstElement *element, GstPad *pad, gpointer
             handle->media_info->ProgramInfo[0].AudioInfo[a_idx].samplerate = samplerate;
         }
         handle->media_info->ProgramInfo[0].n_audio++;
-        NXGLOGI("n_channels(%d), samplerate(%d), type(%d)",
+        NXGLOGI("n_channels(%d), samplerate(%d), audio_type(%d)",
                 channels, samplerate,
                 handle->media_info->ProgramInfo[0].AudioInfo[a_idx].type);
 	}
@@ -1775,34 +1405,6 @@ int find_avcodec_num_ps(struct GST_MEDIA_INFO *media_handle, const char *filePat
 	NXGLOGI("(%d) %s to link video_typefind<-->video_fakesink", __LINE__, (ret == 0) ? "Failed":"Succeed");
 	ret  = gst_element_link(handle.audio_queue, handle.audio_fakesink);	
 	NXGLOGI("(%d) %s to link audio_queue<-->audio_fakesink", __LINE__, (ret == 0) ? "Failed":"Succeed");
-
-    g_type_class_ref (GST_TYPE_MPEGTS_SECTION_TYPE);
-    g_type_class_ref (GST_TYPE_MPEGTS_SECTION_TABLE_ID);
-    g_type_class_ref (GST_TYPE_MPEGTS_RUNNING_STATUS);
-    g_type_class_ref (GST_TYPE_MPEGTS_DESCRIPTOR_TYPE);
-    g_type_class_ref (GST_TYPE_MPEGTS_DVB_DESCRIPTOR_TYPE);
-    g_type_class_ref (GST_TYPE_MPEGTS_ATSC_DESCRIPTOR_TYPE);
-    g_type_class_ref (GST_TYPE_MPEGTS_ISDB_DESCRIPTOR_TYPE);
-    g_type_class_ref (GST_TYPE_MPEGTS_MISC_DESCRIPTOR_TYPE);
-    g_type_class_ref (GST_TYPE_MPEGTS_ISO639_AUDIO_TYPE);
-    g_type_class_ref (GST_TYPE_MPEGTS_DVB_SERVICE_TYPE);
-    g_type_class_ref (GST_TYPE_MPEGTS_DVB_TELETEXT_TYPE);
-    g_type_class_ref (GST_TYPE_MPEGTS_STREAM_TYPE);
-    g_type_class_ref (GST_TYPE_MPEGTS_SECTION_DVB_TABLE_ID);
-    g_type_class_ref (GST_TYPE_MPEGTS_SECTION_ATSC_TABLE_ID);
-    g_type_class_ref (GST_TYPE_MPEGTS_SECTION_SCTE_TABLE_ID);
-    g_type_class_ref (GST_TYPE_MPEGTS_MODULATION_TYPE);
-    g_type_class_ref (GST_TYPE_MPEGTS_DVB_CODE_RATE);
-    g_type_class_ref (GST_TYPE_MPEGTS_CABLE_OUTER_FEC_SCHEME);
-    g_type_class_ref (GST_TYPE_MPEGTS_TERRESTRIAL_TRANSMISSION_MODE);
-    g_type_class_ref (GST_TYPE_MPEGTS_TERRESTRIAL_GUARD_INTERVAL);
-    g_type_class_ref (GST_TYPE_MPEGTS_TERRESTRIAL_HIERARCHY);
-    g_type_class_ref (GST_TYPE_MPEGTS_DVB_LINKAGE_TYPE);
-    g_type_class_ref (GST_TYPE_MPEGTS_DVB_LINKAGE_HAND_OVER_TYPE);
-    g_type_class_ref (GST_TYPE_MPEGTS_COMPONENT_STREAM_CONTENT);
-    g_type_class_ref (GST_TYPE_MPEGTS_CONTENT_NIBBLE_HI);
-    g_type_class_ref (GST_TYPE_MPEGTS_SCTE_STREAM_TYPE);
-    g_type_class_ref (GST_TYPE_MPEGTS_SECTION_SCTE_TABLE_ID);
 
 	gst_element_set_state ((handle.pipeline), GST_STATE_PLAYING);
 

@@ -106,6 +106,7 @@ struct MOVIE_TYPE {
     GstElement  *fakesink;
     GstElement  *capsfilter;
 
+    GstStreamCollection *collection;
     GstState    state;
 
     GstElement  *volume;
@@ -432,7 +433,8 @@ static void on_pad_added_demux(GstElement *element,
     }
     else if (g_str_has_prefix(mime_type, "audio"))
     {
-        NXGLOGI("select_audio_idx(%d), handle->current_audio_idx(%d)", handle->select_audio_idx, handle->current_audio_idx);
+        NXGLOGI("select_audio_idx(%d), handle->current_audio_idx(%d)",
+                handle->select_audio_idx, handle->current_audio_idx);
         if (handle->select_audio_idx == handle->current_audio_idx)
         {
             target_sink_element = handle->audio_queue;
@@ -472,12 +474,6 @@ static void on_pad_added_demux(GstElement *element,
         gst_caps_unref (caps);
         return;
     }
-
-    GstObject *combiner = gst_pad_get_parent (sinkpad);
-
-    NXGLOGI("target_sink_element(%s) sinkpad name(%s)",
-            (NULL != target_sink_element) ? GST_OBJECT_NAME(target_sink_element):"",
-            gst_pad_get_name(sinkpad));
 
     // Link pads [demuxer <--> video_queue/audio_queue/subtitle_queue]
     if (g_str_has_prefix(mime_type, "video/") ||
@@ -699,7 +695,7 @@ static gboolean gst_bus_callback(GstBus *bus, GstMessage *msg, MP_HANDLE handle)
             NXGLOGI("TODO:%s", gst_message_type_get_name(GST_MESSAGE_TYPE(msg)));
             break;
         }
-        case GST_MESSAGE_STREAM_COLLECTION:
+        /*case GST_MESSAGE_STREAM_COLLECTION:
         {
             GstStreamCollection *collection = NULL;
             GstObject *src = GST_MESSAGE_SRC (msg);
@@ -713,7 +709,7 @@ static gboolean gst_bus_callback(GstBus *bus, GstMessage *msg, MP_HANDLE handle)
                 gst_object_unref (collection);
             }
             break;
-        }
+        }*/
         case GST_MESSAGE_STREAM_STATUS:
         {
             GstStreamStatusType type;
@@ -1523,7 +1519,8 @@ NX_GST_RET NX_GSTMP_Prepare(MP_HANDLE handle)
 
     // demuxer <--> audio_queue/video_queue/subtitle_queue
     if (handle->demuxer) {
-        g_signal_connect(handle->demuxer,	"pad-added", G_CALLBACK (on_pad_added_demux), handle);
+        g_signal_connect(handle->demuxer, "pad-added",
+                G_CALLBACK (on_pad_added_demux), handle);
     }
 
     if (handle->gst_media_info.ProgramInfo[pIdx].n_video > 0)
@@ -1548,7 +1545,8 @@ NX_GST_RET NX_GSTMP_Prepare(MP_HANDLE handle)
         }
         // decodbin <--> audio_converter
         if (handle->audio_decoder) {
-            g_signal_connect(handle->audio_decoder, "pad-added", G_CALLBACK (on_decodebin_pad_added), handle);
+            g_signal_connect(handle->audio_decoder, "pad-added",
+                    G_CALLBACK (on_decodebin_pad_added), handle);
         }
     }
 
@@ -1675,7 +1673,6 @@ NX_GSTMP_GetMediaInfo(MP_HANDLE handle, const char* filePath, GST_MEDIA_INFO *pG
     }
 
     //MediaInfoToStr(&handle->gst_media_info, filePath);
-    //memcpy(pGstMInfo, &handle->gst_media_info, sizeof(struct GST_MEDIA_INFO));
     CopyMediaInfo(pGstMInfo, &handle->gst_media_info);
 
     NXGLOGI("END");

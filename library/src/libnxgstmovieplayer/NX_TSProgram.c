@@ -36,73 +36,77 @@
 #define LOG_TAG "[NX_TSProgram]"
 
 #define MPEGTIME_TO_GSTTIME(t) ((t) * (guint64)100000 / 9)
+
 // gst-launch-1.0 -v filesrc location=.ts ! 
 // tsdemux name=demux demux. ! queue !  decodebin ! typefind ! fakesink
 typedef struct MpegTsSt {
-		GMainLoop   *loop;
-		GstBus      *bus;
-		GstElement  *pipeline;
-		GstElement  *demuxer;
-		GstElement  *filesrc;
-		GstElement  *video_queue;
-		GstElement  *subtitle_queue;
-		GstElement  *decodebin;
-		GstElement  *typefind;
-		GstElement  *fakesink;
+	GMainLoop   *loop;
+	GstBus      *bus;
+	GstElement  *pipeline;
+	GstElement  *demuxer;
+	GstElement  *filesrc;
+	GstElement  *video_queue;
+	GstElement  *subtitle_queue;
+	GstElement  *decodebin;
+	GstElement  *typefind;
+	GstElement  *fakesink;
 
-		GstElement  *audio_queue;
-		GstElement  *audio_decodebin;
-		GstElement  *audio_typefind;
-		GstElement  *audio_fakesink;
+	GstElement  *audio_queue;
+	GstElement  *audio_decodebin;
+	GstElement  *audio_typefind;
+	GstElement  *audio_fakesink;
 
-		GstElement  *audio_queue2;
-		GstElement  *audio_decodebin2;
-		GstElement  *audio_typefind2;
-		GstElement  *audio_fakesink2;
+	GstElement  *audio_queue2;
+	GstElement  *audio_decodebin2;
+	GstElement  *audio_typefind2;
+	GstElement  *audio_fakesink2;
 
-		GstElement	*target_sink;
-		gint		pad_added_video_num;
-		gint		pad_added_audio_num;
-		gint		pad_added_subtitle_num;
+	GstElement	*target_sink;
+	gint		pad_added_video_num;
+	gint		pad_added_audio_num;
+	gint		pad_added_subtitle_num;
 
-		gint		current_video_idx;
-		gint		current_audio_idx;
-		gint		current_subtitle_idx;
+	gint		current_video_idx;
+	gint		current_audio_idx;
+	gint		current_subtitle_idx;
 
-		gint		program_index;
-		gint		remain_stream_num;
-		struct GST_MEDIA_INFO *media_info;
+	gint		program_index;
+	gint		select_video_idx;
+	gint		select_audio_idx;
+	gint		select_subtitle_idx;
+
+	struct GST_MEDIA_INFO *media_info;
 } MpegTsSt;
 
 static gboolean
 idle_exit_loop (gpointer data)
 {
-		g_main_loop_quit ((GMainLoop *) data);
+	g_main_loop_quit ((GMainLoop *) data);
 
-		/* once */
-		return FALSE;
+	/* once */
+	return FALSE;
 }
 
 static void
 print_tag_foreach (const GstTagList * tags, const gchar * tag,
 		gpointer user_data)
 {
-		GValue val = { 0, };
-		gchar *str;
-		gint depth = GPOINTER_TO_INT (user_data);
+	GValue val = { 0, };
+	gchar *str;
+	gint depth = GPOINTER_TO_INT (user_data);
 
-		if (!gst_tag_list_copy_value (&val, tags, tag))
-				return;
+	if (!gst_tag_list_copy_value (&val, tags, tag))
+			return;
 
-		if (G_VALUE_HOLDS_STRING (&val))
-				str = g_value_dup_string (&val);
-		else
-				str = gst_value_serialize (&val);
+	if (G_VALUE_HOLDS_STRING (&val))
+			str = g_value_dup_string (&val);
+	else
+			str = gst_value_serialize (&val);
 
-		NXGLOGI ("%*s%s: %s\n", 2 * depth, " ", gst_tag_get_nick (tag), str);
-		g_free (str);
+	NXGLOGI ("%*s%s: %s\n", 2 * depth, " ", gst_tag_get_nick (tag), str);
+	g_free (str);
 
-		g_value_unset (&val);
+	g_value_unset (&val);
 }
 
 static void
@@ -159,19 +163,19 @@ descriptor_name (gint val)
 	en = g_enum_get_value (G_ENUM_CLASS (g_type_class_peek
 					(GST_TYPE_MPEGTS_DESCRIPTOR_TYPE)), val);
 	if (en == NULL)
-		/* Else try with DVB enum types */
+		// Else try with DVB enum types
 		en = g_enum_get_value (G_ENUM_CLASS (g_type_class_peek
 						(GST_TYPE_MPEGTS_DVB_DESCRIPTOR_TYPE)), val);
 	if (en == NULL)
-		/* Else try with ATSC enum types */
+		// Else try with ATSC enum types
 		en = g_enum_get_value (G_ENUM_CLASS (g_type_class_peek
 						(GST_TYPE_MPEGTS_ATSC_DESCRIPTOR_TYPE)), val);
 	if (en == NULL)
-		/* Else try with ISB enum types */
+		// Else try with ISB enum types
 		en = g_enum_get_value (G_ENUM_CLASS (g_type_class_peek
 						(GST_TYPE_MPEGTS_ISDB_DESCRIPTOR_TYPE)), val);
 	if (en == NULL)
-		/* Else try with misc enum types */
+		// Else try with misc enum types
 		en = g_enum_get_value (G_ENUM_CLASS (g_type_class_peek
 						(GST_TYPE_MPEGTS_MISC_DESCRIPTOR_TYPE)), val);
 	if (en == NULL)
@@ -871,7 +875,7 @@ dump_pat (GstMpegtsSection * section, MpegTsSt *handle)
 
 		// Do not count n_program if it has reserved program info
 		if (0 == patp->program_number) {
-			if (handle->media_info->n_program > 1) {
+			if (handle->media_info->n_program >= 1) {
 				handle->media_info->n_program--;
 			}
 			continue;
@@ -903,33 +907,6 @@ dump_pmt (GstMpegtsSection * section, MpegTsSt *handle)
 		const gchar* stream_type = stream_type_name (stream->stream_type);
 		NXGLOGI("       pid:0x%04x , stream_type:0x%02x (%s)", stream->pid,
 				stream->stream_type, stream_type);
-#if 0
-		if (g_str_has_prefix(stream_type, "video")) {
-			gint v_idx = handle->media_info->ProgramInfo[i].n_video;
-			if (GST_MPEGTS_STREAM_TYPE_VIDEO_MPEG1 == stream->stream_type) {
-				handle->media_info->ProgramInfo[i].VideoInfo[v_idx].type = VIDEO_TYPE_MPEG_V1;
-			} else if (GST_MPEGTS_STREAM_TYPE_VIDEO_MPEG2 == stream->stream_type) {
-				handle->media_info->ProgramInfo[i].VideoInfo[v_idx].type = VIDEO_TYPE_MPEG_V2;
-			} else if (GST_MPEGTS_STREAM_TYPE_VIDEO_H264 == stream->stream_type) {
-				handle->media_info->ProgramInfo[i].VideoInfo[v_idx].type = VIDEO_TYPE_H264;
-			}
-			handle->media_info->ProgramInfo[i].n_video++;
-		} else if (g_str_has_prefix(stream_type, "audio")) {
-			gint a_idx = handle->media_info->ProgramInfo[i].n_audio;
-			if (GST_MPEGTS_STREAM_TYPE_AUDIO_MPEG1 == stream->stream_type) {
-				handle->media_info->ProgramInfo[i].AudioInfo[a_idx].type = AUDIO_TYPE_MPEG_V1;
-			} else if(GST_MPEGTS_STREAM_TYPE_AUDIO_MPEG2 == stream->stream_type) {
-				handle->media_info->ProgramInfo[i].AudioInfo[a_idx].type = AUDIO_TYPE_MPEG_V2;
-			}
-			handle->media_info->ProgramInfo[i].n_audio++;
-		} else if (g_str_has_prefix(stream_type, "private-pes-packets")) {
-			gint s_idx = handle->media_info->ProgramInfo[i].n_subtitle;
-			if (GST_MPEGTS_STREAM_TYPE_PRIVATE_PES_PACKETS == stream->stream_type) {
-				handle->media_info->ProgramInfo[i].SubtitleInfo[s_idx].type = AUDIO_TYPE_MPEG_V1;
-			}
-			handle->media_info->ProgramInfo[i].n_subtitle++;
-		}
-#endif
 		dump_descriptors (stream->descriptors, 9);
 	}
 }
@@ -1275,67 +1252,9 @@ dump_scte_descriptors (GPtrArray * descriptors, guint spacing)
 	}
 }
 
-#if 0
-static void
-dump_scte_sit (GstMpegtsSection * section)
-{
-	const GstMpegtsSCTESIT *sit = gst_mpegts_section_get_scte_sit (section);
-	guint i, len;
-
-	g_assert (sit);
-
-	NXGLOGI("     encrypted_packet    : %d", sit->encrypted_packet);
-	if (sit->encrypted_packet) {
-		NXGLOGI("     encryption_algorithm: %d", sit->encryption_algorithm);
-		NXGLOGI("     cw_index            : %d", sit->cw_index);
-		NXGLOGI("     tier                : %d", sit->tier);
-	}
-	NXGLOGI("     pts_adjustment      : %" G_GUINT64_FORMAT " (%"
-			GST_TIME_FORMAT ")", sit->pts_adjustment,
-			GST_TIME_ARGS (MPEGTIME_TO_GSTTIME (sit->pts_adjustment)));
-	NXGLOGI("     command_type        : %d", sit->splice_command_type);
-
-	if ((len = sit->splices->len)) {
-		NXGLOGI("     %d splice(s):", len);
-		for (i = 0; i < len; i++) {
-			GstMpegtsSCTESpliceEvent *event = g_ptr_array_index (sit->splices, i);
-			NXGLOGI("     event_id:%d event_cancel_indicator:%d",
-					event->splice_event_id, event->splice_event_cancel_indicator);
-			if (!event->splice_event_cancel_indicator) {
-				NXGLOGI("       out_of_network_indicator:%d",
-						event->out_of_network_indicator);
-				if (event->program_splice_flag) {
-					if (event->program_splice_time_specified)
-						NXGLOGI("       program_splice_time:%" G_GUINT64_FORMAT " (%"
-								GST_TIME_FORMAT ")", event->program_splice_time,
-								GST_TIME_ARGS (MPEGTIME_TO_GSTTIME
-										(event->program_splice_time)));
-					else
-						NXGLOGI("       program_splice_time not specified");
-				}
-				if (event->duration_flag) {
-					NXGLOGI("       break_duration_auto_return:%d",
-							event->break_duration_auto_return);
-					NXGLOGI("       break_duration:%" G_GUINT64_FORMAT " (%"
-							GST_TIME_FORMAT ")", event->break_duration,
-							GST_TIME_ARGS (MPEGTIME_TO_GSTTIME (event->break_duration)));
-
-				}
-				NXGLOGI("       unique_program_id  : %d", event->unique_program_id);
-				NXGLOGI("       avail num/expected : %d/%d",
-						event->avail_num, event->avails_expected);
-			}
-		}
-	}
-
-	dump_scte_descriptors (sit->descriptors, 4);
-}
-#endif
-
 static void
 dump_section (GstMpegtsSection * section, MpegTsSt *handle)
 {
-		NXGLOGI();
 	switch (GST_MPEGTS_SECTION_TYPE (section)) {
 		case GST_MPEGTS_SECTION_PAT:
 			dump_pat (section, handle);
@@ -1380,11 +1299,6 @@ dump_section (GstMpegtsSection * section, MpegTsSt *handle)
 		case GST_MPEGTS_SECTION_ATSC_STT:
 			dump_stt (section);
 			break;
-#if 0
-		case GST_MPEGTS_SECTION_SCTE_SIT:
-			dump_scte_sit (section);
-			break;
-#endif
 		default:
 			NXGLOGI("     Unknown section type");
 			break;
@@ -1399,13 +1313,19 @@ dump_collection (GstStreamCollection * collection, MpegTsSt *handle)
 	GstCaps *caps;
 	GstStructure *structure;
 	gint cur_pro_idx = handle->program_index;
-	if (-1 == cur_pro_idx)
-	{
+	if (-1 == cur_pro_idx) {
 		NXGLOGE("No matched program number");
 		return;
 	}
 
-	for (i = 0; i < gst_stream_collection_get_size (collection); i++) {
+	guint size = gst_stream_collection_get_size (collection);
+	if (size < 1) {
+		NXGLOGI("There is no video/audio/subtitle stream");
+		return;
+	}
+
+	for (i = 0; i < size; i++)
+	{
 		GstStream *stream = gst_stream_collection_get_stream (collection, i);
 		GstStreamType stype = gst_stream_get_stream_type (stream);
 		NXGLOGI (" Stream %u type %s flags 0x%x", i,
@@ -1429,7 +1349,6 @@ dump_collection (GstStreamCollection * collection, MpegTsSt *handle)
 		if (tags) {
 			NXGLOGI ("  tags:");
 			gst_tag_list_foreach (tags, print_tag_foreach, GUINT_TO_POINTER (3));
-			gst_tag_list_unref (tags);
 		}
 
 		NXGLOGI("MIME-type (%s)", mime_type);
@@ -1438,7 +1357,10 @@ dump_collection (GstStreamCollection * collection, MpegTsSt *handle)
 		{
 			gint audio_mpegversion, channels, samplerate;
 			AUDIO_TYPE audio_type = get_audio_codec_type(mime_type);
+			gchar* lang = NULL;
+			gst_tag_list_get_string (tags, GST_TAG_LANGUAGE_CODE, &lang);
 			int32_t a_idx = handle->media_info->ProgramInfo[cur_pro_idx].n_audio;
+
 			handle->media_info->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].type = audio_type;
 			if (gst_structure_get_int (structure, "mpegversion", &audio_mpegversion))
 			{
@@ -1448,12 +1370,13 @@ dump_collection (GstStreamCollection * collection, MpegTsSt *handle)
 					handle->media_info->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].type = AUDIO_TYPE_MPEG_V2;
 				}
 			}
+			handle->media_info->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].language_code = g_strdup(lang);
 			handle->media_info->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].stream_id = g_strdup(stream_id);
 			handle->media_info->ProgramInfo[cur_pro_idx].n_audio++;
-			NXGLOGI("n_audio(%d), audio type(%d), stream_id(%s)",
+			NXGLOGI("n_audio(%d), audio type(%d), languague_code(%s), stream_id(%s)",
 					handle->media_info->ProgramInfo[cur_pro_idx].n_audio,
 					handle->media_info->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].type,
-					(stream_id ? stream_id:""));
+					(lang ? lang:""), (stream_id ? stream_id:""));
 		}
 		else if (stype & GST_STREAM_TYPE_VIDEO)
 		{
@@ -1482,19 +1405,24 @@ dump_collection (GstStreamCollection * collection, MpegTsSt *handle)
 		else if (stype & GST_STREAM_TYPE_TEXT)
 		{
 			SUBTITLE_TYPE sub_type = get_subtitle_codec_type(mime_type);
+			gchar* lang = NULL;
+			gst_tag_list_get_string (tags, GST_TAG_LANGUAGE_CODE, &lang);
 			int32_t sub_idx = handle->media_info->ProgramInfo[cur_pro_idx].n_subtitle;
-			const char* lang = (NULL != structure) ? gst_structure_get_string (structure, GST_TAG_LANGUAGE_CODE) : "";
 
 			handle->media_info->ProgramInfo[cur_pro_idx].SubtitleInfo[sub_idx].type = sub_type;
 			handle->media_info->ProgramInfo[cur_pro_idx].SubtitleInfo[sub_idx].language_code = g_strdup(lang);
 			handle->media_info->ProgramInfo[cur_pro_idx].SubtitleInfo[sub_idx].stream_id = g_strdup(stream_id);
 			handle->media_info->ProgramInfo[cur_pro_idx].n_subtitle++;
 
-			NXGLOGI("n_subtitle(%d), subtitle_type(%d), subtitle_lang(%s), stream_id(%s)",
+			NXGLOGI("n_subtitle(%d), subtitle_type(%d), language_code(%s), stream_id(%s)",
                 handle->media_info->ProgramInfo[cur_pro_idx].n_subtitle,
                 handle->media_info->ProgramInfo[cur_pro_idx].SubtitleInfo[sub_idx].type,
                 handle->media_info->ProgramInfo[cur_pro_idx].SubtitleInfo[sub_idx].language_code,
 				(stream_id ? stream_id:""));
+		}
+
+		if (tags) {
+			gst_tag_list_unref (tags);
 		}
 	}
 }
@@ -1502,7 +1430,7 @@ dump_collection (GstStreamCollection * collection, MpegTsSt *handle)
 static void
 on_bus_message_program (GstBus * bus, GstMessage * message, MpegTsSt *handle)
 {
-	NXGLOGV("Got message %s", GST_MESSAGE_TYPE_NAME (message));
+	//NXGLOGV("Got message %s", GST_MESSAGE_TYPE_NAME (message));
 
 	switch (GST_MESSAGE_TYPE (message)) {
 		case GST_MESSAGE_ERROR:
@@ -1513,35 +1441,12 @@ on_bus_message_program (GstBus * bus, GstMessage * message, MpegTsSt *handle)
 		{
 			GstMpegtsSection *section;
 			if ((section = gst_message_parse_mpegts_section(message))) {
-				const gchar *table_name;
-
-				table_name = table_id_name(section->table_id);
-				NXGLOGI
-						("Got section: PID:0x%04x type:%s (table_id 0x%02x (%s)) at offset %"
-						G_GUINT64_FORMAT "", section->pid,
-						enum_name (GST_TYPE_MPEGTS_SECTION_TYPE, section->section_type),
-						section->table_id, table_name, section->offset);
-				if (!section->short_section)
-				{
-					NXGLOGI
-							("   subtable_extension:0x%04x, version_number:0x%02x",
-							section->subtable_extension, section->version_number);
-					NXGLOGI
-							("   section_number:0x%02x last_section_number:0x%02x crc:0x%08x",
-							section->section_number, section->last_section_number,
-							section->crc);
-				}
-
 				GstMpegtsSectionType section_type = GST_MPEGTS_SECTION_TYPE(section);
 				if (GST_MPEGTS_SECTION_PAT == section_type) {
-						dump_pat(section, handle);
-						gst_mpegts_section_unref(section);
-						g_idle_add (idle_exit_loop, handle->loop);
-				} /*else if (GST_MPEGTS_SECTION_PMT == section_type) {
-						dump_pmt(section, handle);
-						gst_mpegts_section_unref(section);
-						//g_idle_add (idle_exit_loop, handle->loop);
-				}*/
+					dump_pat(section, handle);
+					gst_mpegts_section_unref(section);
+					g_idle_add (idle_exit_loop, handle->loop);
+				}
 			}
 			break;
 		}
@@ -1571,6 +1476,7 @@ on_bus_message_simple (GstBus * bus, GstMessage * message, MpegTsSt *handle)
 				NXGLOGI("Got a collection from %s",
 						src ? GST_OBJECT_NAME (src) : "Unknown");
 				dump_collection(collection, handle);
+				gst_object_unref (collection);
 				g_idle_add (idle_exit_loop, handle->loop);
 				NXGLOGI("exit simple bus loop");
 			}
@@ -1662,63 +1568,46 @@ decodebin_pad_added(GstElement *element, GstPad *pad, gpointer data)
 
 	caps = gst_pad_get_current_caps(pad);
 	if (caps == NULL) {
-			NXGLOGE("Failed to get current caps");
-			return;
+		NXGLOGE("Failed to get current caps");
+		return;
 	}
 
 	structure = gst_caps_get_structure(caps, 0);
 	if (structure == NULL) {
-			NXGLOGE("Failed to get current caps");
-			gst_caps_unref (caps);
-			return;
+		NXGLOGE("Failed to get current caps");
+		gst_caps_unref (caps);
+		return;
 	}
 
 	const char *mime_type = gst_structure_get_name(structure);
 	NXGLOGI("MIME-type:%s", mime_type);
 	if (g_str_has_prefix(mime_type, "video/"))
 	{
-			gint video_mpegversion, width, height, num, den;
-			//NXGLOGI("width(%d), height(%d), framerate(%d/%d)", width, height, num, den);
+		gint video_mpegversion, width, height, num, den;
 
-			target_sink = handle->typefind;
-			NXGLOGV("element %s will be linked to %s\n",
-							gst_element_get_name(element),
-							gst_element_get_name(target_sink));
+		target_sink = handle->typefind;
+		NXGLOGV("element %s will be linked to %s\n",
+						gst_element_get_name(element),
+						gst_element_get_name(target_sink));
 
-			target_sink_pad = gst_element_get_static_pad(target_sink, "sink");
-			GstPadLinkReturn ret = gst_pad_link(pad, target_sink_pad);
-			NXGLOGI("%s to link %s:%s to %s:%s",
-							(ret != GST_PAD_LINK_OK) ? "Failed":"Succeed",
-							GST_DEBUG_PAD_NAME(pad),
-							GST_DEBUG_PAD_NAME(target_sink_pad));
-			gst_object_unref (target_sink_pad);
-	}
-	else if (g_str_has_prefix(mime_type, "audio/"))
-	{
-			target_sink = handle->typefind;
-			NXGLOGV("element %s will be linked to %s\n",
-							gst_element_get_name(element),
-							gst_element_get_name(target_sink));
-
-			target_sink_pad = gst_element_get_static_pad(target_sink, "sink");
-			GstPadLinkReturn ret = gst_pad_link(pad, target_sink_pad);
-			NXGLOGI("%s to link %s:%s to %s:%s",
-							(ret != GST_PAD_LINK_OK) ? "Failed":"Succeed",
-							GST_DEBUG_PAD_NAME(pad),
-							GST_DEBUG_PAD_NAME(target_sink_pad));
-			gst_object_unref (target_sink_pad);
+		target_sink_pad = gst_element_get_static_pad(target_sink, "sink");
+		GstPadLinkReturn ret = gst_pad_link(pad, target_sink_pad);
+		NXGLOGI("%s to link %s:%s to %s:%s",
+						(ret != GST_PAD_LINK_OK) ? "Failed":"Succeed",
+						GST_DEBUG_PAD_NAME(pad),
+						GST_DEBUG_PAD_NAME(target_sink_pad));
+		gst_object_unref (target_sink_pad);
 	}
 	gst_caps_unref (caps);
 }
 
 static void
-demux_pad_added_detail (GstElement *element, GstPad *pad, gpointer data)
+demux_video_pad_added_detail (GstElement *element, GstPad *pad, gpointer data)
 {
 	gchar *name;
 	GstCaps *caps;
 	GstStructure *structure;
 	GstElement *target_sink;
-	//GstElement *target_sink = (GstElement *)data;
 	GstPad *target_sink_pad;
 
 	MpegTsSt *handle = (MpegTsSt *)data;
@@ -1745,31 +1634,20 @@ demux_pad_added_detail (GstElement *element, GstPad *pad, gpointer data)
 
 	if (g_str_has_prefix(mime_type, "video"))
 	{
-		target_sink = handle->video_queue;
+		NXGLOGI("handle->select_video_idx(%d) handle->pad_added_video_num(%d)",
+				handle->select_video_idx, handle->pad_added_video_num);
 
-		target_sink_pad = gst_element_get_static_pad(target_sink, "sink");
-		GstPadLinkReturn ret = gst_pad_link(pad, target_sink_pad);
-		NXGLOGI("%s to link %s:%s to %s:%s",
-					(ret != GST_PAD_LINK_OK) ? "Failed":"Succeed",
-					GST_DEBUG_PAD_NAME(pad),
-					GST_DEBUG_PAD_NAME(target_sink_pad));
-		gst_object_unref (target_sink_pad);
-	}
-	if (g_str_has_prefix(mime_type, "audio"))
-	{
-		handle->pad_added_audio_num++;
-		if (handle->pad_added_audio_num == handle->media_info->ProgramInfo[pIdx].n_audio)
+		if (handle->select_video_idx != handle->pad_added_video_num) {
+			gst_caps_unref (caps);
+			handle->pad_added_video_num++;
+			return;
+		}
+
+		if (handle->select_video_idx == handle->pad_added_video_num)
 		{
-			target_sink = handle->audio_queue;
-			NXGLOGI("Target audio sink: %s", gst_element_get_name(target_sink));
-			target_sink_pad = gst_element_get_static_pad(target_sink, "sink");
-			/*if (gst_pad_is_linked (target_sink_pad))
-			{
-				gst_object_unref (target_sink_pad);
-				target_sink = handle->audio_queue2;
-				target_sink_pad = gst_element_get_static_pad(target_sink, "sink");
-			}*/
+			target_sink = handle->video_queue;
 
+			target_sink_pad = gst_element_get_static_pad(target_sink, "sink");
 			GstPadLinkReturn ret = gst_pad_link(pad, target_sink_pad);
 			NXGLOGI("%s to link %s:%s to %s:%s",
 						(ret != GST_PAD_LINK_OK) ? "Failed":"Succeed",
@@ -1782,7 +1660,57 @@ demux_pad_added_detail (GstElement *element, GstPad *pad, gpointer data)
 }
 
 static void
-decodebin_pad_added_detail(GstElement *element, GstPad *pad, gpointer data)
+demux_audio_pad_added_detail (GstElement *element, GstPad *pad, gpointer data)
+{
+	gchar *name;
+	GstCaps *caps;
+	GstStructure *structure;
+	GstElement *target_sink;
+	GstPad *target_sink_pad;
+
+	MpegTsSt *handle = (MpegTsSt *)data;
+
+	name = gst_pad_get_name(pad);
+	NXGLOGI("A new pad %s was created for %s\n", name, gst_element_get_name(element));
+	g_free(name);
+
+	caps = gst_pad_get_current_caps(pad);
+	if (caps == NULL) {
+		NXGLOGE("Failed to get current caps");
+		return;
+	}
+
+	structure = gst_caps_get_structure(caps, 0);
+	if (structure == NULL) {
+		NXGLOGE("Failed to get current caps");
+		gst_caps_unref (caps);
+		return;
+	}
+
+	const char *mime_type = gst_structure_get_name(structure);
+	if (g_str_has_prefix(mime_type, "audio"))
+	{
+		NXGLOGI("handle->select_audio_idx(%d) handle->pad_added_audio_num(%d)",
+				handle->select_audio_idx, handle->pad_added_audio_num);
+
+		if (handle->select_audio_idx == handle->pad_added_audio_num)
+		{
+			target_sink = handle->audio_queue;
+			target_sink_pad = gst_element_get_static_pad(target_sink, "sink");
+			GstPadLinkReturn ret = gst_pad_link(pad, target_sink_pad);
+			NXGLOGI("  ==> %s to link %s:%s to %s:%s",
+						(ret != GST_PAD_LINK_OK) ? "Failed":"Succeed",
+						GST_DEBUG_PAD_NAME(pad),
+						GST_DEBUG_PAD_NAME(target_sink_pad));
+			gst_object_unref (target_sink_pad);
+		}
+		handle->pad_added_audio_num++;
+	}
+	gst_caps_unref (caps);
+}
+
+static void
+decodebin_video_pad_added_detail(GstElement *element, GstPad *pad, gpointer data)
 {
 	gchar *name;
 	GstCaps *caps;
@@ -1794,8 +1722,77 @@ decodebin_pad_added_detail(GstElement *element, GstPad *pad, gpointer data)
 
 	NXGLOGI("START");
 
-	if (-1 == cur_pro_idx)
+	if (-1 == cur_pro_idx) {
+		NXGLOGE("Not found matched program idx");
+		return;
+	}
+
+	name = gst_pad_get_name(pad);
+	//NXGLOGI("A new pad %s was created for %s\n", name, gst_element_get_name(element));
+	g_free(name);
+
+	caps = gst_pad_get_current_caps(pad);
+	if (caps == NULL) {
+		NXGLOGE("Failed to get current caps");
+		return;
+	}
+
+	structure = gst_caps_get_structure(caps, 0);
+	if (structure == NULL) {
+		NXGLOGE("Failed to get current caps");
+		gst_caps_unref (caps);
+		return;
+	}
+
+	const char *mime_type = gst_structure_get_name(structure);
+	NXGLOGI("MIME-type:%s", mime_type);
+	if (g_str_has_prefix(mime_type, "video"))
 	{
+		// Get video detail info
+		gint video_mpegversion, width, height, num, den;
+		int32_t n_video = handle->media_info->ProgramInfo[cur_pro_idx].n_video;
+		int32_t vIdx = handle->select_video_idx;
+		if (gst_structure_get_int(structure, "width", &width) &&
+			gst_structure_get_int(structure, "height", &height)) {
+			handle->media_info->ProgramInfo[cur_pro_idx].VideoInfo[vIdx].width = width;
+			handle->media_info->ProgramInfo[cur_pro_idx].VideoInfo[vIdx].height = height;
+		}
+
+		if (gst_structure_get_fraction(structure, "framerate", &num, &den)) {
+			handle->media_info->ProgramInfo[cur_pro_idx].VideoInfo[vIdx].framerate_num = num;
+			handle->media_info->ProgramInfo[cur_pro_idx].VideoInfo[vIdx].framerate_denom = den;
+		}
+
+		// Link the last video pad
+		target_sink = handle->typefind;
+		target_sink_pad = gst_element_get_static_pad(target_sink, "sink");
+		GstPadLinkReturn ret = gst_pad_link(pad, target_sink_pad);
+		NXGLOGI("%s to link %s:%s to %s:%s",
+				(ret != GST_PAD_LINK_OK) ? "Failed":"Succeed",
+				GST_DEBUG_PAD_NAME(pad),
+				GST_DEBUG_PAD_NAME(target_sink_pad));
+		gst_object_unref (target_sink_pad);
+	}
+
+	gst_caps_unref (caps);
+
+	NXGLOGI("END");
+}
+
+static void
+decodebin_audio_pad_added_detail(GstElement *element, GstPad *pad, gpointer data)
+{
+	gchar *name;
+	GstCaps *caps;
+	GstStructure *structure;
+	GstElement *target_sink;
+	GstPad *target_sink_pad;
+	MpegTsSt * handle = (MpegTsSt *)data;
+	gint cur_pro_idx = handle->program_index;
+
+	NXGLOGI("START");
+
+	if (-1 == cur_pro_idx) {
 		NXGLOGE("Not found matched program idx");
 		return;
 	}
@@ -1819,44 +1816,15 @@ decodebin_pad_added_detail(GstElement *element, GstPad *pad, gpointer data)
 
 	const char *mime_type = gst_structure_get_name(structure);
 	NXGLOGI("MIME-type:%s", mime_type);
-	if (g_str_has_prefix(mime_type, "video"))
+	if (g_str_has_prefix(mime_type, "audio"))
 	{
-		// Get video detail info
-		gint video_mpegversion, width, height, num, den;
-		int32_t n_video = handle->media_info->ProgramInfo[cur_pro_idx].n_video;
-		int32_t vIdx = handle->current_video_idx;
-		if (gst_structure_get_int(structure, "width", &width) &&
-			gst_structure_get_int(structure, "height", &height)) {
-			handle->media_info->ProgramInfo[cur_pro_idx].VideoInfo[vIdx].width = width;
-			handle->media_info->ProgramInfo[cur_pro_idx].VideoInfo[vIdx].height = height;
-		}
+		NXGLOGI("handle->select_audio_idx(%d)", handle->select_audio_idx);
 
-		if (gst_structure_get_fraction(structure, "framerate", &num, &den)) {
-			handle->media_info->ProgramInfo[cur_pro_idx].VideoInfo[vIdx].framerate_num = num;
-			handle->media_info->ProgramInfo[cur_pro_idx].VideoInfo[vIdx].framerate_denom = den;
-		}
-		handle->current_video_idx++;
-		NXGLOGI("width(%d), height(%d), framerate(%d/%d)", width, height, num, den);
-
-		// Link the last video pad
-		if (handle->current_video_idx == n_video)
-		{
-			target_sink = handle->typefind;
-			target_sink_pad = gst_element_get_static_pad(target_sink, "sink");
-			GstPadLinkReturn ret = gst_pad_link(pad, target_sink_pad);
-			NXGLOGI("%s to link %s:%s to %s:%s",
-					(ret != GST_PAD_LINK_OK) ? "Failed":"Succeed",
-					GST_DEBUG_PAD_NAME(pad),
-					GST_DEBUG_PAD_NAME(target_sink_pad));
-			gst_object_unref (target_sink_pad);
-		}
-	}
-	else if (g_str_has_prefix(mime_type, "audio"))
-	{
 		// Get audio detail information
 		gint audio_mpegversion, channels, samplerate;
+
 		int32_t n_audio = handle->media_info->ProgramInfo[cur_pro_idx].n_audio;
-		int32_t aIdx = handle->current_audio_idx;
+		int32_t aIdx = handle->select_audio_idx;
 		AUDIO_TYPE audio_type = get_audio_codec_type(mime_type);
 		handle->media_info->ProgramInfo[cur_pro_idx].AudioInfo[0].type = audio_type;
 		if (gst_structure_get_int (structure, "mpegversion", &audio_mpegversion))
@@ -1865,7 +1833,7 @@ decodebin_pad_added_detail(GstElement *element, GstPad *pad, gpointer data)
 			if (audio_mpegversion == 1) {
 				handle->media_info->ProgramInfo[cur_pro_idx].AudioInfo[aIdx].type = AUDIO_TYPE_MPEG_V1;
 			} else if (audio_mpegversion == 2) {
-			handle->media_info->ProgramInfo[cur_pro_idx].AudioInfo[aIdx].type = AUDIO_TYPE_MPEG_V2;
+				handle->media_info->ProgramInfo[cur_pro_idx].AudioInfo[aIdx].type = AUDIO_TYPE_MPEG_V2;
 			}
 		}
 		if (gst_structure_get_int(structure, "channels", &channels)) {
@@ -1874,28 +1842,22 @@ decodebin_pad_added_detail(GstElement *element, GstPad *pad, gpointer data)
 		if (gst_structure_get_int(structure, "rate", &samplerate)) {
 			handle->media_info->ProgramInfo[cur_pro_idx].AudioInfo[aIdx].samplerate = samplerate;
 		}
-		handle->current_audio_idx++;
+
 		NXGLOGI("n_channels(%d), samplerate(%d), type(%d)",
 				channels, samplerate,
 				handle->media_info->ProgramInfo[cur_pro_idx].AudioInfo[aIdx].type);
 
-		// Link the last audio pad
-		if (handle->current_audio_idx == n_audio)
-		{
-			if (g_strcmp0(gst_element_get_name(element), "audio_decodebin") == 0){
-				target_sink = handle->audio_typefind;
-			} else if (g_strcmp0(gst_element_get_name(element), "audio_decodebin2") == 0){
-				target_sink = handle->audio_typefind2;
-			}
-
-			target_sink_pad = gst_element_get_static_pad(target_sink, "sink");
-			GstPadLinkReturn ret = gst_pad_link(pad, target_sink_pad);
-			NXGLOGI("%s to link %s:%s to %s:%s",
-					(ret != GST_PAD_LINK_OK) ? "Failed":"Succeed",
-					GST_DEBUG_PAD_NAME(pad),
-					GST_DEBUG_PAD_NAME(target_sink_pad));
-			gst_object_unref (target_sink_pad);
+		if (g_strcmp0(gst_element_get_name(element), "audio_decodebin") == 0){
+			target_sink = handle->audio_typefind;
 		}
+
+		target_sink_pad = gst_element_get_static_pad(target_sink, "sink");
+		GstPadLinkReturn ret = gst_pad_link(pad, target_sink_pad);
+		NXGLOGI("  ==> %s to link %s:%s to %s:%s",
+				(ret != GST_PAD_LINK_OK) ? "Failed":"Succeed",
+				GST_DEBUG_PAD_NAME(pad),
+				GST_DEBUG_PAD_NAME(target_sink_pad));
+		gst_object_unref (target_sink_pad);
 	}
 
 	gst_caps_unref (caps);
@@ -1912,16 +1874,9 @@ cb_typefind_details (GstElement *typefind, guint probability,
 
 	NXGLOGI("START");
 
-	if (handle->remain_stream_num > 0)
-	{
-		handle->remain_stream_num--;
-		if (handle->remain_stream_num == 0)
-		{
-			loop = handle->loop;
-			g_idle_add (idle_exit_loop, loop);
-			NXGLOGI("Exit detail loop");
-		}
-	}
+	loop = handle->loop;
+	g_idle_add (idle_exit_loop, loop);
+
 	NXGLOGI("END");
 }
 
@@ -2039,6 +1994,20 @@ get_program_info(const char* filePath, struct GST_MEDIA_INFO *media_info)
 	return 0;
 }
 
+int32_t get_program_index(struct GST_MEDIA_INFO *media_info, gint program_number)
+{
+	gint cur_pro_idx = -1;
+	for (int i=0; i<media_info->n_program; i++)
+	{
+		if (media_info->program_number[i] == program_number) {
+			cur_pro_idx = i;
+			NXGLOGI("Found matched program number! idx:%d", i);
+			break;
+		}
+	}
+	return cur_pro_idx;
+}
+
 gint
 get_stream_simple_info(const char* filePath, gint program_number, struct GST_MEDIA_INFO *media_info)
 {
@@ -2047,8 +2016,7 @@ get_stream_simple_info(const char* filePath, gint program_number, struct GST_MED
 	GError *error = NULL;
 	gboolean ret = FALSE;
 
-	NXGLOGI("START program_number(%d)", program_number);
-
+	NXGLOGI("START with program_number(%d)", program_number);
 	if (DEMUX_TYPE_MPEGTSDEMUX != media_info->demux_type) {
 		NXGLOGE("Failed to get program info because it's not ts file");
 		return -1;
@@ -2064,7 +2032,7 @@ get_stream_simple_info(const char* filePath, gint program_number, struct GST_MED
 
 	memset(&handle, 0, sizeof(MpegTsSt));
 	handle.media_info = media_info;
-	handle.program_number = program_number;
+	handle.program_index = get_program_index(media_info, program_number);
 
 	handle.loop = g_main_loop_new (NULL, FALSE);
 
@@ -2146,44 +2114,28 @@ get_stream_simple_info(const char* filePath, gint program_number, struct GST_MED
 }
 
 gint
-get_stream_detail_info(const char* filePath, gint program_number, struct GST_MEDIA_INFO *media_info)
+get_video_stream_details_info(const char* filePath,
+	gint program_number, gint video_index, struct GST_MEDIA_INFO *media_info)
 {
+	GError *error = NULL;
+	gboolean ret = FALSE;
+	gint cur_pro_idx;
 	// Initialize struct 'MpegTsSt'
 	MpegTsSt handle;
 	memset(&handle, 0, sizeof(MpegTsSt));
 	handle.media_info = media_info;
-
-	GError *error = NULL;
-	gboolean ret = FALSE;
-	gint cur_pro_idx = -1;
-
+	handle.program_index = get_program_index(media_info, program_number);
+	handle.select_video_idx = video_index;
+	
 	NXGLOGI("START");
 
-	if (NULL == media_info)
-	{
-		NXGLOGE("media_info is NULL");
-		return -1;
-	}
-
-	MediaInfoToStr(media_info, filePath);
-
-	for (int i=0; i<handle.media_info->n_program; i++)
-	{
-		if (handle.media_info->program_number[i] == program_number) {
-			handle.program_index = i;
-			NXGLOGI("Found matched program number! idx:%d", i);
-			break;
-		}
-	}
+	cur_pro_idx = get_program_index(media_info, program_number);
 	if (cur_pro_idx == -1) {
 		NXGLOGE("Not found matched program number");
 		return -1;
 	}
-
-	handle.remain_stream_num = handle.media_info->ProgramInfo[cur_pro_idx].n_video +
-								handle.media_info->ProgramInfo[cur_pro_idx].n_audio;
-	NXGLOGI("program_number(%d) --> pIdx(%d), streams(%d)",
-				program_number, handle.program_index, handle.remain_stream_num);
+	NXGLOGI("program_number(%d) --> pIdx(%d)",
+			program_number, handle.program_index);
 
 	if (DEMUX_TYPE_MPEGTSDEMUX != media_info->demux_type) {
 		NXGLOGE("Failed to get program info because it's not ts file");
@@ -2210,20 +2162,6 @@ get_stream_detail_info(const char* filePath, gint program_number, struct GST_MED
 	handle.decodebin = gst_element_factory_make ("decodebin", "decodebin");
 	handle.typefind = gst_element_factory_make ("typefind", "typefind");
 	handle.fakesink = gst_element_factory_make ("fakesink", "sink");
-	if (handle.media_info->ProgramInfo[cur_pro_idx].n_audio >= 1)
-	{
-		handle.audio_queue = gst_element_factory_make ("queue2", "audio_queue");
-		handle.audio_decodebin = gst_element_factory_make ("decodebin", "audio_decodebin");
-		handle.audio_typefind = gst_element_factory_make ("typefind", "audio_typefind");
-		handle.audio_fakesink = gst_element_factory_make ("fakesink", "audio_fakesink");	
-	}
-	if (handle.media_info->ProgramInfo[cur_pro_idx].n_audio >= 2)
-	{
-		handle.audio_queue2 = gst_element_factory_make ("queue2", "audio_queue2");
-		handle.audio_decodebin2 = gst_element_factory_make ("decodebin", "audio_decodebin2");
-		handle.audio_typefind2 = gst_element_factory_make ("typefind", "audio_typefind2");
-		handle.audio_fakesink2 = gst_element_factory_make ("fakesink", "audio_fakesink2");	
-	}
 
 	// Add & link elements
 	gst_bin_add_many (GST_BIN (handle.pipeline), handle.filesrc,
@@ -2234,43 +2172,121 @@ get_stream_detail_info(const char* filePath, gint program_number, struct GST_MED
 	NXGLOGI("(%d) %s to link filesrc<-->demuxer", __LINE__, (!ret) ? "Failed":"Succeed");
 	// demuxer <==> video_queue, demuxer <==> audio_queue
 	// Can get simple program info when the pad is added in demuxer
-	g_signal_connect(handle.demuxer, "pad-added", G_CALLBACK(demux_pad_added_detail), &handle);
+	g_signal_connect(handle.demuxer, "pad-added", G_CALLBACK(demux_video_pad_added_detail), &handle);
 	// video_queue <-> decodebin
 	ret = gst_element_link_many (handle.video_queue, handle.decodebin, NULL);
 	NXGLOGI("(%d) %s to link video_queue<-->decodebin", __LINE__, (!ret) ? "Failed":"Succeed");
 	// decodebin <==> typefind
-	g_signal_connect(handle.decodebin, "pad-added", G_CALLBACK(decodebin_pad_added_detail), &handle);
+	g_signal_connect(handle.decodebin, "pad-added", G_CALLBACK(decodebin_video_pad_added_detail), &handle);
 	// typefind <--> fakesink
 	ret = gst_element_link_many (handle.typefind, handle.fakesink, NULL);
 	NXGLOGI("(%d) %s to link typefind<-->fakesink", __LINE__, (!ret) ? "Failed":"Succeed");
 	g_signal_connect (handle.typefind, "have-type", G_CALLBACK(cb_typefind_details), &handle);
 
-	if (handle.media_info->ProgramInfo[cur_pro_idx].n_audio >= 1)
-	{
-		gst_bin_add_many (GST_BIN (handle.pipeline), handle.audio_queue,
-			handle.audio_decodebin, handle.audio_typefind,
-			handle.audio_fakesink, NULL);
-		ret = gst_element_link_many (handle.audio_queue, handle.audio_decodebin, NULL);
-		NXGLOGI("(%d) %s to link audio_queue<-->audio_decodebin", __LINE__, (!ret) ? "Failed":"Succeed");
-		g_signal_connect(handle.audio_decodebin, "pad-added", G_CALLBACK(decodebin_pad_added_detail), &handle);
+	/* Put a bus handler */
+	handle.bus = gst_pipeline_get_bus (GST_PIPELINE (handle.pipeline));
+	gst_bus_add_signal_watch (handle.bus);
+	g_signal_connect (handle.bus, "message", (GCallback) on_bus_message_detail, &handle);
 
-		ret = gst_element_link_many (handle.audio_typefind, handle.audio_fakesink, NULL);
-		NXGLOGI("(%d) %s to link audio_typefind<-->audio_fakesink", __LINE__, (!ret) ? "Failed":"Succeed");
-		g_signal_connect (handle.audio_typefind, "have-type", G_CALLBACK(cb_typefind_details), &handle);
-	}
-	if (handle.media_info->ProgramInfo[cur_pro_idx].n_audio >= 2)
-	{
-		gst_bin_add_many (GST_BIN (handle.pipeline), handle.audio_queue2,
-			handle.audio_decodebin2, handle.audio_typefind2,
-			handle.audio_fakesink2, NULL);
-		ret = gst_element_link_many (handle.audio_queue2, handle.audio_decodebin2, NULL);
-		NXGLOGI("(%d) %s to link audio_queue2<-->audio_decodebin2", __LINE__, (!ret) ? "Failed":"Succeed");
-		g_signal_connect(handle.audio_decodebin2, "pad-added", G_CALLBACK(decodebin_pad_added_detail), &handle);
+	g_type_class_ref (GST_TYPE_MPEGTS_SECTION_TYPE);
+	g_type_class_ref (GST_TYPE_MPEGTS_SECTION_TABLE_ID);
+	g_type_class_ref (GST_TYPE_MPEGTS_RUNNING_STATUS);
+	g_type_class_ref (GST_TYPE_MPEGTS_DESCRIPTOR_TYPE);
+	g_type_class_ref (GST_TYPE_MPEGTS_DVB_DESCRIPTOR_TYPE);
+	g_type_class_ref (GST_TYPE_MPEGTS_ATSC_DESCRIPTOR_TYPE);
+	g_type_class_ref (GST_TYPE_MPEGTS_ISDB_DESCRIPTOR_TYPE);
+	g_type_class_ref (GST_TYPE_MPEGTS_MISC_DESCRIPTOR_TYPE);
+	g_type_class_ref (GST_TYPE_MPEGTS_ISO639_AUDIO_TYPE);
+	g_type_class_ref (GST_TYPE_MPEGTS_DVB_SERVICE_TYPE);
+	g_type_class_ref (GST_TYPE_MPEGTS_DVB_TELETEXT_TYPE);
+	g_type_class_ref (GST_TYPE_MPEGTS_STREAM_TYPE);
+	g_type_class_ref (GST_TYPE_MPEGTS_SECTION_DVB_TABLE_ID);
+	g_type_class_ref (GST_TYPE_MPEGTS_SECTION_ATSC_TABLE_ID);
+	g_type_class_ref (GST_TYPE_MPEGTS_SECTION_SCTE_TABLE_ID);
+	g_type_class_ref (GST_TYPE_MPEGTS_MODULATION_TYPE);
+	g_type_class_ref (GST_TYPE_MPEGTS_DVB_CODE_RATE);
+	g_type_class_ref (GST_TYPE_MPEGTS_CABLE_OUTER_FEC_SCHEME);
+	g_type_class_ref (GST_TYPE_MPEGTS_TERRESTRIAL_TRANSMISSION_MODE);
+	g_type_class_ref (GST_TYPE_MPEGTS_TERRESTRIAL_GUARD_INTERVAL);
+	g_type_class_ref (GST_TYPE_MPEGTS_TERRESTRIAL_HIERARCHY);
+	g_type_class_ref (GST_TYPE_MPEGTS_DVB_LINKAGE_TYPE);
+	g_type_class_ref (GST_TYPE_MPEGTS_DVB_LINKAGE_HAND_OVER_TYPE);
+	g_type_class_ref (GST_TYPE_MPEGTS_COMPONENT_STREAM_CONTENT);
+	g_type_class_ref (GST_TYPE_MPEGTS_CONTENT_NIBBLE_HI);
+	g_type_class_ref (GST_TYPE_MPEGTS_SCTE_STREAM_TYPE);
+	g_type_class_ref (GST_TYPE_MPEGTS_SECTION_SCTE_TABLE_ID);
 
-		ret = gst_element_link_many (handle.audio_typefind2, handle.audio_fakesink2, NULL);
-		NXGLOGI("(%d) %s to link audio_typefin2<-->audio_fakesink2", __LINE__, (!ret) ? "Failed":"Succeed");
-		g_signal_connect (handle.audio_typefind2, "have-type", G_CALLBACK(cb_typefind_details), &handle);
+	// Set the state to PLAYING
+	gst_element_set_state (GST_ELEMENT (handle.pipeline), GST_STATE_PLAYING);
+	g_main_loop_run (handle.loop);
+
+	// unset
+	gst_element_set_state (GST_ELEMENT (handle.pipeline), GST_STATE_NULL);
+	gst_object_unref (GST_OBJECT (handle.pipeline));
+	gst_object_unref (GST_OBJECT (handle.bus));
+
+	NXGLOGI("END");
+
+	return 0;
+}
+
+gint
+get_audio_stream_detail_info(const char* filePath, gint program_number, gint audio_index, struct GST_MEDIA_INFO *media_info)
+{
+	GError *error = NULL;
+	gboolean ret = FALSE;
+	// Initialize struct 'MpegTsSt'
+	MpegTsSt handle;
+	memset(&handle, 0, sizeof(MpegTsSt));
+	handle.media_info = media_info;
+	handle.program_index = get_program_index(media_info, program_number);
+	handle.select_audio_idx = audio_index;
+
+	if (DEMUX_TYPE_MPEGTSDEMUX != media_info->demux_type) {
+		NXGLOGE("Failed to get program info because it's not ts file");
+		return -1;
 	}
+
+	// init GStreamer
+	if(!gst_is_initialized()) {
+		gst_init(NULL, NULL);
+	}
+
+	// init mpegts library
+	gst_mpegts_initialize();
+
+	handle.loop = g_main_loop_new (NULL, FALSE);
+
+	// Create elements & set program-number to tsdemux
+	handle.pipeline = gst_pipeline_new("pipe");
+	handle.filesrc = gst_element_factory_make ("filesrc", "source");
+	g_object_set (G_OBJECT (handle.filesrc), "location", filePath, NULL);
+	handle.demuxer = gst_element_factory_make ("tsdemux", "tsdemux");
+	g_object_set (G_OBJECT (handle.demuxer), "program-number", program_number, NULL);
+	handle.audio_queue = gst_element_factory_make ("queue2", "audio_queue");
+	handle.audio_decodebin = gst_element_factory_make ("decodebin", "audio_decodebin");
+	handle.audio_typefind = gst_element_factory_make ("typefind", "audio_typefind");
+	handle.audio_fakesink = gst_element_factory_make ("fakesink", "audio_fakesink");	
+
+	// Add & link elements
+	gst_bin_add_many (GST_BIN (handle.pipeline), handle.filesrc,
+					handle.demuxer, handle.audio_queue,
+					handle.audio_decodebin, handle.audio_typefind, handle.audio_fakesink, NULL);
+	// filesrc <--> demuxer
+	ret = gst_element_link_many (handle.filesrc, handle.demuxer, NULL);
+	NXGLOGI("(%d) %s to link filesrc<-->demuxer", __LINE__, (!ret) ? "Failed":"Succeed");
+	// demuxer <==> audio_queue
+	// Can get simple program info when the pad is added in demuxer
+	g_signal_connect(handle.demuxer, "pad-added", G_CALLBACK(demux_audio_pad_added_detail), &handle);
+	// audio_queue <-> decodebin
+	ret = gst_element_link_many (handle.audio_queue, handle.audio_decodebin, NULL);
+	NXGLOGI("(%d) %s to link audio_queue<-->audio_decodebin", __LINE__, (!ret) ? "Failed":"Succeed");
+	// decodebin <==> typefind
+	g_signal_connect(handle.audio_decodebin, "pad-added", G_CALLBACK(decodebin_audio_pad_added_detail), &handle);
+	// typefind <--> fakesink
+	ret = gst_element_link_many (handle.audio_typefind, handle.audio_fakesink, NULL);
+	NXGLOGI("(%d) %s to link audio_typefind<-->audio_fakesink", __LINE__, (!ret) ? "Failed":"Succeed");
+	g_signal_connect (handle.audio_typefind, "have-type", G_CALLBACK(cb_typefind_details), &handle);
 
 	/* Put a bus handler */
 	handle.bus = gst_pipeline_get_bus (GST_PIPELINE (handle.pipeline));

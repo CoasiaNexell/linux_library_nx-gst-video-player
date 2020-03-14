@@ -146,6 +146,7 @@ static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
         guint n_channels = gst_discoverer_audio_info_get_channels(sinfo);
         guint samplerate = gst_discoverer_audio_info_get_sample_rate(sinfo);
         guint bitrate = gst_discoverer_audio_info_get_bitrate(sinfo);
+        const char* lang = gst_discoverer_audio_info_get_language(sinfo);
         const char* stream_id = gst_discoverer_stream_info_get_stream_id(sinfo);
 
         int32_t a_idx = pMediaInfo->ProgramInfo[cur_pro_idx].n_audio;
@@ -163,14 +164,15 @@ static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
         pMediaInfo->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].n_channels = n_channels;
         pMediaInfo->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].samplerate = samplerate;
         pMediaInfo->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].bitrate = bitrate;
+        pMediaInfo->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].language_code = g_strdup(lang);
         pMediaInfo->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].stream_id = g_strdup(stream_id);
         pMediaInfo->ProgramInfo[cur_pro_idx].n_audio++;
 
         NXGLOGI("n_audio(%d) n_channels(%d), samplerate(%d),"
-                "bitrate(%d), audio_type(%d) stream_id(%s)",
+                "bitrate(%d), audio_type(%d), language_code(%s), stream_id(%s)",
                 pMediaInfo->ProgramInfo[cur_pro_idx].n_audio, n_channels, samplerate,
                 bitrate, pMediaInfo->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].type,
-                (stream_id ? stream_id:""));
+                (lang ? lang:""), (stream_id ? stream_id:""));
     }
     else if (GST_IS_DISCOVERER_SUBTITLE_INFO (sinfo))
     {
@@ -183,11 +185,10 @@ static void  get_gst_stream_info(GstDiscovererStreamInfo *sinfo, gint depth,
         pMediaInfo->ProgramInfo[cur_pro_idx].SubtitleInfo[sub_idx].stream_id = g_strdup(stream_id);
         pMediaInfo->ProgramInfo[cur_pro_idx].n_subtitle++;
 
-        NXGLOGI("n_subtitle(%d), subtitle_type(%d), subtitle_lang(%s), stream_id(%s) lang_code(%s)",
+        NXGLOGI("n_subtitle(%d), subtitle_type(%d), subtitle_lang(%s), stream_id(%s)",
                 pMediaInfo->ProgramInfo[cur_pro_idx].n_subtitle,
                 pMediaInfo->ProgramInfo[cur_pro_idx].SubtitleInfo[sub_idx].type,
-                lang, (stream_id ? stream_id:""),
-                pMediaInfo->ProgramInfo[cur_pro_idx].SubtitleInfo[sub_idx].lang_code);
+                lang, (stream_id ? stream_id:""));
     }
     else
     {

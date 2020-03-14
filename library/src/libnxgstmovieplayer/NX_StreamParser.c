@@ -33,7 +33,7 @@ typedef enum
 static gboolean handle_message (GstBus * bus, GstMessage * msg,
 			CustomData * data);
 
-int start_parsing(const char* filePath, struct GST_MEDIA_INFO *media_info)
+int get_stream_info(const char* filePath, struct GST_MEDIA_INFO *media_info)
 {
 	CustomData data;
 	GstBus *bus;
@@ -56,9 +56,9 @@ int start_parsing(const char* filePath, struct GST_MEDIA_INFO *media_info)
 		return -1;
 	}
 	if (gst_uri_is_valid (filePath))
-	uri = g_strdup (filePath);
+		uri = g_strdup (filePath);
 	else
-	uri = gst_filename_to_uri (filePath, NULL);
+		uri = gst_filename_to_uri (filePath, NULL);
 
 	/* Set the URI to play */
 	g_object_set (data.playbin, "uri", uri, NULL);
@@ -103,7 +103,6 @@ analyze_streams (CustomData * data)
 	GstTagList *tags;
 	gchar *str;
 	guint rate;
-	guint width;
 
 	/* Read some properties */
 	g_object_get (data->playbin, "n-video", &data->n_video, NULL);
@@ -111,11 +110,7 @@ analyze_streams (CustomData * data)
 	g_object_get (data->playbin, "n-text", &data->n_text, NULL);
 
 	NXGLOGI ("%d video stream(s), %d audio stream(s), %d text stream(s)\n",
-	data->n_video, data->n_audio, data->n_text);
-
-	/*data->media_info->ProgramInfo[0].n_video = data->n_video;
-	data->media_info->ProgramInfo[0].n_audio = data->n_audio;
-	data->media_info->ProgramInfo[0].n_subtitle = data->n_text;*/
+			data->n_video, data->n_audio, data->n_text);
 
 	NXGLOGI ("\n");
 	for (i = 0; i < data->n_video; i++) {
@@ -126,16 +121,6 @@ analyze_streams (CustomData * data)
 			NXGLOGI ("video stream %d", i);
 			gst_tag_list_get_string (tags, GST_TAG_VIDEO_CODEC, &str);
 			NXGLOGI ("  codec: %s", str ? str : "unknown");
-			/*if (g_str_has_prefix("H.264", str)) {
-				data->media_info->ProgramInfo[0].VideoInfo[i].type = VIDEO_TYPE_H264;
-			} else if (g_str_has_prefix("H.263", str)) {
-				data->media_info->ProgramInfo[0].VideoInfo[i].type = VIDEO_TYPE_H263;
-			} else if (g_str_has_prefix("DivX", str)) {
-				NXGLOGI("DivX");
-			} else if (g_str_has_prefix("divx", str)) {
-				NXGLOGI("DivX");
-			} */
-
 			g_free (str);
 			gst_tag_list_unref (tags);
 		}
@@ -217,81 +202,131 @@ dump_collection (GstStreamCollection * collection, CustomData * data)
 	GstCaps *caps;
 	GstStreamType stype;
 	GstStructure *structure;
-
+	guint cur_pro_idx = 0;
 	NXGLOGI("");
 
-  for (i = 0; i < gst_stream_collection_get_size (collection); i++) {
-	GstStream *stream = gst_stream_collection_get_stream (collection, i);
-	NXGLOGI (" Stream %u type %s flags 0x%x\n", i,
-		gst_stream_type_get_name (gst_stream_get_stream_type (stream)),
-		gst_stream_get_stream_flags (stream));
-	NXGLOGI ("  ID: %s\n", gst_stream_get_stream_id (stream));
-
-	caps = gst_stream_get_caps (stream);
-	if (caps) {
-	  gchar *caps_str = gst_caps_to_string (caps);
-	  NXGLOGI ("  caps: %s\n", caps_str);
-	  g_free (caps_str);
+	guint size = gst_stream_collection_get_size (collection);
+	if (size < 1) {
+		NXGLOGI("There is no video/audio/subtitle stream");
+		return;
 	}
-	structure = gst_caps_get_structure (caps, 0);
-	if (caps) {
-		gst_caps_unref (caps);
-	}
-
-	tags = gst_stream_get_tags (stream);
-	if (tags) {
-	  NXGLOGI ("  tags:\n");
-	  gst_tag_list_foreach (tags, print_tag_foreach, GUINT_TO_POINTER (3));
-	  gst_tag_list_unref (tags);
-	}
-	
-	stype = gst_stream_get_stream_type (stream);
-	if (stype & GST_STREAM_TYPE_AUDIO) {
-	} else if (stype & GST_STREAM_TYPE_VIDEO) {
-		gint video_mpegversion;
-		gint width = 0, height = 0;
-		gint framerate_num = -1, framerate_den = -1;
+  	for (i = 0; i < size; i++)
+	{
+		GstStream *stream = gst_stream_collection_get_stream (collection, i);
+		GstStreamType stype = gst_stream_get_stream_type (stream);
+		NXGLOGI (" Stream %u type %s flags 0x%x", i,
+				gst_stream_type_get_name (stype),
+				gst_stream_get_stream_flags (stream));
 		const char* stream_id = gst_stream_get_stream_id (stream);
-		int vIdx = data->media_info->ProgramInfo[0].n_video;
+		NXGLOGI ("  ID: %s", stream_id);
 
-		if (gst_structure_has_field (structure, "mpegversion")) {
-			VIDEO_TYPE video_type = data->media_info->ProgramInfo[0].VideoInfo[vIdx].type;
-			if ((structure != NULL) && (video_type == VIDEO_TYPE_MPEG_V4))
+		caps = gst_stream_get_caps (stream);
+		if (caps) {
+			gchar *caps_str = gst_caps_to_string (caps);
+			NXGLOGI ("  caps: %s", caps_str);
+			g_free (caps_str);
+			gst_caps_unref (caps);
+		}
+
+		const GstStructure *structure = gst_caps_get_structure(caps, 0);
+		const gchar *mime_type = gst_structure_get_name(structure);
+
+		tags = gst_stream_get_tags (stream);
+		if (tags) {
+			NXGLOGI ("  tags:");
+			gst_tag_list_foreach (tags, print_tag_foreach, GUINT_TO_POINTER (3));
+		}
+
+		NXGLOGI("MIME-type (%s)", mime_type);
+
+		if (stype & GST_STREAM_TYPE_AUDIO)
+		{
+			gint audio_mpegversion, channels, samplerate;
+			AUDIO_TYPE audio_type = get_audio_codec_type(mime_type);
+			gchar* lang = gst_structure_get_string (structure, GST_TAG_LANGUAGE_CODE);
+			int32_t a_idx = data->media_info->ProgramInfo[cur_pro_idx].n_audio;
+
+			data->media_info->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].type = audio_type;
+			if (gst_structure_get_int (structure, "mpegversion", &audio_mpegversion))
 			{
-				gst_structure_get_int (structure, "mpegversion", &video_mpegversion);
-				if (video_mpegversion == 1) {
-					data->media_info->ProgramInfo[0].VideoInfo[vIdx].type = VIDEO_TYPE_MPEG_V1;
-				} else if (video_mpegversion == 2) {
-					data->media_info->ProgramInfo[0].VideoInfo[vIdx].type = VIDEO_TYPE_MPEG_V2;
+				if (audio_mpegversion == 1) {
+					data->media_info->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].type = AUDIO_TYPE_MPEG_V1;
+				} else if (audio_mpegversion == 2) {
+					data->media_info->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].type = AUDIO_TYPE_MPEG_V2;
 				}
 			}
-  		}
-		if (gst_structure_has_field (structure, "width") &&
-			gst_structure_has_field (structure, "height")) {
-			if (gst_structure_get_int (structure, "width", &width) &&
-				gst_structure_get_int (structure, "height", &height))
-			{
-				data->media_info->ProgramInfo[0].VideoInfo[vIdx].width = width;
-				data->media_info->ProgramInfo[0].VideoInfo[vIdx].height = height;
+			if (gst_structure_get_int(structure, "channels", &channels)) {
+				data->media_info->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].n_channels = channels;
 			}
+			if (gst_structure_get_int(structure, "rate", &samplerate)) {
+				data->media_info->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].samplerate = samplerate;
+			}
+			data->media_info->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].language_code = g_strdup(lang);
+			data->media_info->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].stream_id = g_strdup(stream_id);
+			data->media_info->ProgramInfo[cur_pro_idx].n_audio++;
+			NXGLOGI("n_audio(%d), audio type(%d), languague_code(%s), stream_id(%s)",
+					data->media_info->ProgramInfo[cur_pro_idx].n_audio,
+					data->media_info->ProgramInfo[cur_pro_idx].AudioInfo[a_idx].type,
+					(lang ? lang:""), (stream_id ? stream_id:""));
 		}
-		if (gst_structure_has_field (structure, "framerate")) {
-			gst_structure_get_fraction (structure, "framerate", &framerate_num, &framerate_den);
-			data->media_info->ProgramInfo[0].VideoInfo[vIdx].framerate_num = framerate_num;
-			data->media_info->ProgramInfo[0].VideoInfo[vIdx].framerate_denom = framerate_den;
-			NXGLOGI("framerate(%d/%d)", framerate_num, framerate_den);
+		else if (stype & GST_STREAM_TYPE_VIDEO)
+		{
+			gint video_mpegversion, num, den, width, height;
+			VIDEO_TYPE video_type = get_video_codec_type(mime_type);
+			int32_t v_idx = data->media_info->ProgramInfo[cur_pro_idx].n_video;
+
+			data->media_info->ProgramInfo[cur_pro_idx].VideoInfo[v_idx].type = video_type;
+			if ((structure != NULL) && (video_type == VIDEO_TYPE_MPEG_V4)) {
+				gst_structure_get_int (structure, "mpegversion", &video_mpegversion);
+				if (video_mpegversion == 1) {
+					data->media_info->ProgramInfo[cur_pro_idx].VideoInfo[v_idx].type = VIDEO_TYPE_MPEG_V1;
+				} else if (video_mpegversion == 2) {
+					data->media_info->ProgramInfo[cur_pro_idx].VideoInfo[v_idx].type = VIDEO_TYPE_MPEG_V2;
+				}
+			}
+
+			if (gst_structure_get_int(structure, "width", &width) &&
+				gst_structure_get_int(structure, "height", &height)) {
+				data->media_info->ProgramInfo[cur_pro_idx].VideoInfo[v_idx].width = width;
+				data->media_info->ProgramInfo[cur_pro_idx].VideoInfo[v_idx].height = height;
+			}
+
+			if (gst_structure_get_fraction(structure, "framerate", &num, &den)) {
+				data->media_info->ProgramInfo[cur_pro_idx].VideoInfo[v_idx].framerate_num = num;
+				data->media_info->ProgramInfo[cur_pro_idx].VideoInfo[v_idx].framerate_denom = den;
+			}
+
+			data->media_info->ProgramInfo[cur_pro_idx].VideoInfo[v_idx].stream_id = g_strdup(stream_id);
+			data->media_info->ProgramInfo[cur_pro_idx].n_video++;
+
+			NXGLOGI("n_video(%d), video_width(%d), video_height(%d), framerate(%d/%d), video type(%d) stream_id(%s)",
+					data->media_info->ProgramInfo[cur_pro_idx].n_video,
+					width, height, num, den,
+					data->media_info->ProgramInfo[cur_pro_idx].VideoInfo[v_idx].type,
+					(stream_id ? stream_id:""));
+		}
+		else if (stype & GST_STREAM_TYPE_TEXT)
+		{
+			SUBTITLE_TYPE sub_type = get_subtitle_codec_type(mime_type);
+			gchar* lang = gst_structure_get_string (structure, GST_TAG_LANGUAGE_CODE);
+			int32_t sub_idx = data->media_info->ProgramInfo[cur_pro_idx].n_subtitle;
+
+			data->media_info->ProgramInfo[cur_pro_idx].SubtitleInfo[sub_idx].type = sub_type;
+			data->media_info->ProgramInfo[cur_pro_idx].SubtitleInfo[sub_idx].language_code = g_strdup(lang);
+			data->media_info->ProgramInfo[cur_pro_idx].SubtitleInfo[sub_idx].stream_id = g_strdup(stream_id);
+			data->media_info->ProgramInfo[cur_pro_idx].n_subtitle++;
+
+			NXGLOGI("n_subtitle(%d), subtitle_type(%d), language_code(%s), stream_id(%s)",
+                data->media_info->ProgramInfo[cur_pro_idx].n_subtitle,
+                data->media_info->ProgramInfo[cur_pro_idx].SubtitleInfo[sub_idx].type,
+                data->media_info->ProgramInfo[cur_pro_idx].SubtitleInfo[sub_idx].language_code,
+				(stream_id ? stream_id:""));
 		}
 
-		data->media_info->ProgramInfo[0].VideoInfo[vIdx].stream_id = g_strdup(stream_id);
-		data->media_info->ProgramInfo[0].n_video++;
-
-        NXGLOGI("n_video(%u), video_width(%d), video_height(%d), "
-                "framerate(%d/%d), video_type(%d) stream_id(%s)",
-                data->media_info->ProgramInfo[0].n_video, width, height,
-                framerate_num, framerate_den, data->media_info->ProgramInfo[0].VideoInfo[vIdx].stream_id);
-	} else if (stype & GST_STREAM_TYPE_TEXT) {
+		if (tags) {
+			gst_tag_list_unref (tags);
+		}
 	}
-  }
 }
 
 /* Process messages from GStreamer */
@@ -323,8 +358,8 @@ handle_message (GstBus * bus, GstMessage * msg, CustomData * data)
 						&pending_state);
 			if (GST_MESSAGE_SRC (msg) == GST_OBJECT (data->playbin)) {
 				if (new_state == GST_STATE_PLAYING) {
-				/* Once we are in the playing state, analyze the streams */
-				//analyze_streams (data);
+					/* Once we are in the playing state, analyze the streams */
+					//analyze_streams (data);
 				}
 			}
 		}
@@ -340,21 +375,9 @@ handle_message (GstBus * bus, GstMessage * msg, CustomData * data)
 				NXGLOGI("Got a collection from %s:\n",
 						src ? GST_OBJECT_NAME (src) : "Unknown");
 				dump_collection (collection, data);
-				/*gst_object_replace ((GstObject **) & data->collection,
-									(GstObject *) collection);
-				if (data->collection) {
-					g_signal_connect (data->collection, "stream-notify",
-									(GCallback) stream_notify_cb, data);
-				}*/
-				// for test
-				//g_timeout_add_seconds (5, (GSourceFunc) NX_GSTMP_SelectStream, handle);*/
 				gst_object_unref (collection);
+				g_main_loop_quit (data->main_loop);
 			}
-			break;
-		}
-		case GST_MESSAGE_PROPERTY_NOTIFY:
-		{
-			NXGLOGI("############ GST_MESSAGE_PROPERTY_NOTIFY");
 			break;
 		}
 		default:

@@ -30,6 +30,9 @@
 #include "NX_GstLog.h"
 #define LOG_TAG "[NxGstMediaInfo]"
 
+int32_t isSupportedContents(struct GST_MEDIA_INFO *media_handle,
+			int32_t program_num, int32_t video_idx);
+
 NX_GST_RET	OpenMediaInfo(GST_MEDIA_INFO **media_handle)
 {
 	FUNC_IN();
@@ -81,9 +84,15 @@ NX_GST_ERROR  ParseMediaInfo(GST_MEDIA_INFO *media_handle, const char *filePath)
 			if (cur_program_no != 0) {
 				// Get total number of streams in each program from dump_collection
 				get_stream_simple_info(filePath, cur_program_no, media_handle);
-				if (media_handle->ProgramInfo[i].n_video > 0) {
-					// Get the detail stream information from pad-added signal in decodebin_pad_added_detail
-					get_stream_detail_info(filePath, cur_program_no, media_handle);
+				for (int vIdx = 0; vIdx < media_handle->ProgramInfo[i].n_video; vIdx++)
+				{
+					get_video_stream_details_info(filePath,
+							cur_program_no, vIdx, media_handle);
+				}
+				for (int aIdx = 0; aIdx < media_handle->ProgramInfo[i].n_audio; aIdx++)
+				{
+					get_audio_stream_detail_info(filePath,
+							cur_program_no, aIdx, media_handle);
 				}
 			}
 		}
@@ -95,13 +104,58 @@ NX_GST_ERROR  ParseMediaInfo(GST_MEDIA_INFO *media_handle, const char *filePath)
 				media_handle->n_program = 1;
 			}
 		}
-		//start_parsing(filePath, media_handle);
+		// TODO: no language code information
+		//get_stream_info(filePath, media_handle);
 		err = StartDiscover(filePath, media_handle);
 	}
+
 
 	NXGLOGI("END");
 
 	return err;
+}
+
+int32_t isSupportedContents(struct GST_MEDIA_INFO *media_handle,
+			int32_t program_num, int32_t video_idx)
+{
+    NXGLOGI();
+    int program_idx = 0;
+	for (int i=0; i<media_handle->n_program; i++)
+	{
+		if (media_handle->program_number[i] == program_num) {
+			program_idx = i;
+			break;
+		}
+	}
+    CONTAINER_TYPE container_type = media_handle->container_type;
+    VIDEO_TYPE video_type = media_handle->ProgramInfo[program_idx].VideoInfo[video_idx].type;
+    NXGLOGI("container_type(%d), video_type(%d)", container_type, video_type);
+
+    /* Quicktime, 3GP, Matroska, AVI, MPEG (vob) */
+    if ((container_type == CONTAINER_TYPE_MPEGTS) ||
+        (container_type == CONTAINER_TYPE_QUICKTIME) ||
+        (container_type == CONTAINER_TYPE_MSVIDEO) ||
+        (container_type == CONTAINER_TYPE_MATROSKA) ||
+        (container_type == CONTAINER_TYPE_3GP) ||
+        (container_type == CONTAINER_TYPE_MPEG)
+#ifdef SW_V_DECODER
+        || (container_type == CONTAINER_TYPE_FLV)
+#endif
+        )
+    {
+        if (video_type >= VIDEO_TYPE_FLV)
+        {
+            NXGLOGE("Not supported video type(%d)", video_type);
+            return -1;
+        }
+
+        return 0;
+    }
+    else
+    {
+        NXGLOGE("Not supported container type(%d)", container_type);
+        return -1;
+    }
 }
 
 NX_GST_RET  CopyMediaInfo(GST_MEDIA_INFO *dest, GST_MEDIA_INFO *src)
@@ -117,7 +171,9 @@ NX_GST_RET  CopyMediaInfo(GST_MEDIA_INFO *dest, GST_MEDIA_INFO *src)
 		for (int aIdx = 0; aIdx < src->ProgramInfo[pIdx].n_audio; aIdx++)
 		{
 			gchar *stream_id = src->ProgramInfo[pIdx].AudioInfo[aIdx].stream_id;
+			gchar *language_code = src->ProgramInfo[pIdx].AudioInfo[aIdx].language_code;
 			dest->ProgramInfo[pIdx].AudioInfo[aIdx].stream_id = g_strdup(stream_id);
+			dest->ProgramInfo[pIdx].AudioInfo[aIdx].language_code = g_strdup(language_code);
 		}
 		for (int sIdx = 0; sIdx < src->ProgramInfo[pIdx].n_subtitle; sIdx++)
 		{
@@ -144,6 +200,8 @@ NX_GST_RET  CloseMediaInfo(GST_MEDIA_INFO *media_handle)
 		{
 			g_free(media_handle->ProgramInfo[pIdx].AudioInfo[aIdx].stream_id);
 			media_handle->ProgramInfo[pIdx].AudioInfo[aIdx].stream_id = NULL;
+			g_free(media_handle->ProgramInfo[pIdx].AudioInfo[aIdx].language_code);
+			media_handle->ProgramInfo[pIdx].AudioInfo[aIdx].language_code = NULL;
 		}
 		for (int sIdx = 0; sIdx < media_handle->ProgramInfo[pIdx].n_subtitle; sIdx++)
 		{
@@ -207,12 +265,14 @@ void MediaInfoToStr(GST_MEDIA_INFO *media_info, const char*filePath)
 		{
 			NXGLOGI("%*s [AudioInfo[%d]] "
 					"type(%d), n_channels(%d), samplerate(%d), bitrate(%d), "
-					"stream_id(%s)",
+					"language_code(%s), stream_id(%s)",
 					5, " ", a_idx,
 					media_info->ProgramInfo[i].AudioInfo[a_idx].type,
 					media_info->ProgramInfo[i].AudioInfo[a_idx].n_channels,
 					media_info->ProgramInfo[i].AudioInfo[a_idx].samplerate,
 					media_info->ProgramInfo[i].AudioInfo[a_idx].bitrate,
+					(media_info->ProgramInfo[i].AudioInfo[a_idx].language_code)?
+						media_info->ProgramInfo[i].AudioInfo[a_idx].language_code:"",
 					(media_info->ProgramInfo[i].AudioInfo[a_idx].stream_id) ? 
 						media_info->ProgramInfo[i].AudioInfo[a_idx].stream_id:"");
 		}
@@ -222,8 +282,10 @@ void MediaInfoToStr(GST_MEDIA_INFO *media_info, const char*filePath)
 					"type(%d), language_code(%s), stream_id(%s)",
 					5, " ", s_idx,
 					media_info->ProgramInfo[i].SubtitleInfo[s_idx].type,
-					media_info->ProgramInfo[i].SubtitleInfo[s_idx].language_code,
-					media_info->ProgramInfo[i].SubtitleInfo[s_idx].stream_id);
+					(media_info->ProgramInfo[i].SubtitleInfo[s_idx].language_code)?
+						media_info->ProgramInfo[i].SubtitleInfo[s_idx].language_code:"",
+					(media_info->ProgramInfo[i].SubtitleInfo[s_idx].stream_id)?
+						media_info->ProgramInfo[i].SubtitleInfo[s_idx].stream_id:"");
 		}
 	}
 

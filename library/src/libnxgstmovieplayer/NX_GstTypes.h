@@ -250,13 +250,13 @@ typedef struct {
     SUBTITLE_TYPE   type;
     char*           stream_id;
     char*           language_code;
-    char            lang_code[MAX_LANG_NAME_NUM+1];
 } GST_SUBTITLE_INFO;
 
 typedef struct {
     AUDIO_TYPE      type;
     char*           stream_id;
     char*           audio_pad_name;
+    char*           language_code;
     int32_t         n_channels;
     int32_t         samplerate;
     int32_t         bitrate;

@@ -106,12 +106,13 @@ void CNX_GstMoviePlayer::PrintMediaInfo(GST_MEDIA_INFO media_info, const char* f
 		for (int a_idx=0; a_idx<media_info.ProgramInfo[i].n_audio; a_idx++)
 		{
 			NXLOGI("%*s [AudioInfo[%d]] "
-					"type(%d), n_channels(%d), samplerate(%d), bitrate(%d)",
+					"type(%d), n_channels(%d), samplerate(%d), bitrate(%d), language_code(%s)",
 					5, " ", a_idx,
 					media_info.ProgramInfo[i].AudioInfo[a_idx].type,
 					media_info.ProgramInfo[i].AudioInfo[a_idx].n_channels,
 					media_info.ProgramInfo[i].AudioInfo[a_idx].samplerate,
-					media_info.ProgramInfo[i].AudioInfo[a_idx].bitrate);
+					media_info.ProgramInfo[i].AudioInfo[a_idx].bitrate,
+					media_info.ProgramInfo[i].AudioInfo[a_idx].language_code);
 		}
 		for (int s_idx=0; s_idx<media_info.ProgramInfo[i].n_subtitle; s_idx++)
 		{
