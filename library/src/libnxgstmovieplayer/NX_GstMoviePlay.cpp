@@ -33,7 +33,7 @@
 #define DEFAULT_STREAM_IDX       0
 
 // Function Prototype
-int32_t get_program_idx(MP_HANDLE handle, int program_number);
+int32_t get_program_idx(MP_HANDLE handle, unsigned int program_number);
 
 const char* get_gst_state_change_ret(GstStateChangeReturn gstStateChangeRet);
 enum NX_MEDIA_STATE GstState2NxState(GstState state);
@@ -168,7 +168,7 @@ class _CAutoLock
         pthread_mutex_t *m_pLock;
 };
 
-int32_t get_program_idx(MP_HANDLE handle, int program_number)
+int32_t get_program_idx(MP_HANDLE handle, unsigned int program_number)
 {
 	gint cur_pro_idx = -1;
 
@@ -326,8 +326,6 @@ void on_handoff(GstElement* object, GstBuffer* buffer,
     if (handle) {
         handle->callback(NULL, (int)MP_EVENT_SUBTITLE_UPDATED, 0, subtitleInfo);
     }
-
-    gst_buffer_unref (buffer);
 }
 
 NX_GST_RET set_subtitle_elements(MP_HANDLE handle)
@@ -761,9 +759,9 @@ NX_GST_RET set_demux_element(MP_HANDLE handle)
         handle->demuxer = gst_element_factory_make("mpegpsdemux", "mpegpsdemux");
     } else if (container_type == CONTAINER_TYPE_MPEGTS) {         // MPEGTS
         handle->demuxer = gst_element_factory_make("tsdemux", "tsdemux");
-        int pIdx = handle->gst_media_info.program_number[handle->select_program_idx];
-        NXGLOGI("## Set program number %d", pIdx);
-        g_object_set (G_OBJECT (handle->demuxer), "program-number", pIdx, NULL);
+        int program_number = handle->gst_media_info.program_number[handle->select_program_idx];
+        NXGLOGI("## Set program number %d", program_number);
+        g_object_set (G_OBJECT (handle->demuxer), "program-number", program_number, NULL);
     }
 #ifdef SW_V_DECODER
     else if (container_type == CONTAINER_TYPE_FLV)          // FLV
@@ -806,6 +804,7 @@ NX_GST_RET set_audio_elements(MP_HANDLE handle)
             NXGLOGE("Failed to create mpegaudioparse element");
             return NX_GST_RET_ERROR;
         }
+        // mpg123audiodec or avdec_mp3
         handle->audio_decoder = gst_element_factory_make("mpg123audiodec", "mpg123audiodec");
         if (!handle->audio_decoder) {
             NXGLOGE("Failed to create mpg123audiodec element");
@@ -1472,6 +1471,44 @@ NX_GST_RET NX_GSTMP_SetUri(MP_HANDLE handle, const char *filePath)
     return NX_GST_RET_OK;
 }
 
+gboolean isSupportedContents(struct GST_MEDIA_INFO *media_info,
+    int pIdx, int vIdx, int aIdx, int sIdx)
+{
+    CONTAINER_TYPE container_type;
+    VIDEO_TYPE video_type;
+
+    container_type = media_info->container_type;
+    /* Quicktime, 3GP, Matroska, AVI, MPEG (vob) */
+    if ((container_type == CONTAINER_TYPE_MPEGTS) ||
+        (container_type == CONTAINER_TYPE_QUICKTIME) ||
+        (container_type == CONTAINER_TYPE_MSVIDEO) ||
+        (container_type == CONTAINER_TYPE_MATROSKA) ||
+        (container_type == CONTAINER_TYPE_3GP) ||
+        (container_type == CONTAINER_TYPE_MPEG)
+        )
+    {
+        if (media_info->ProgramInfo[pIdx].n_video == 0)
+        {
+            NXGLOGE("There is no video to play");
+            return FALSE;
+        }
+
+        video_type = media_info->ProgramInfo[pIdx].VideoInfo[vIdx].type;
+        if (video_type >= VIDEO_TYPE_FLV)
+        {
+            NXGLOGE("Not supported video type(%d)", video_type);
+            return FALSE;
+        }
+
+        return TRUE;
+    }
+    else
+    {
+        NXGLOGE("Not supported container type(%d)", container_type);
+        return FALSE;
+    }
+}
+
 NX_GST_RET NX_GSTMP_Prepare(MP_HANDLE handle)
 {
     _CAutoLock lock(&handle->apiLock);
@@ -1502,6 +1539,17 @@ NX_GST_RET NX_GSTMP_Prepare(MP_HANDLE handle)
     gint aIdx = handle->select_audio_idx;
     gint sIdx = handle->select_subtitle_idx;
     NXGLOGI("matched program index(%d), vIdx(%d), aIdx(%d), sIdx(%d)", pIdx, vIdx, aIdx, sIdx);
+
+    if (handle->gst_media_info.ProgramInfo[pIdx].n_video == 0)
+    {
+        NXGLOGE("Failed to prepare nxvideoplayer - no video");
+        return NX_GST_RET_ERROR;
+    }
+    if (!isSupportedContents(&handle->gst_media_info, pIdx, vIdx, aIdx, sIdx))
+    {
+        NXGLOGE("Failed to prepare nxvideoplayer - not supported contents");
+        return NX_GST_RET_ERROR;
+    }
 
     if (NX_GST_RET_ERROR == set_source_element(handle) ||
         NX_GST_RET_ERROR == set_demux_element(handle))
@@ -2141,36 +2189,7 @@ double NX_GSTMP_GetVideoSpeed(MP_HANDLE handle)
     return speed;
 }
 
-NX_GST_RET NX_GSTMP_SelectProgram(MP_HANDLE handle, int32_t program_number)
-{
-    NXGLOGI("START");
-
-    if (!handle) {
-        NXGLOGE("handle is NULL");
-        return NX_GST_RET_ERROR;
-    }
-
-    NXGLOGI("program_number(%d)", program_number);
-
-    if (handle->gst_media_info.container_type != CONTAINER_TYPE_MPEGTS)
-    {
-        NXGLOGI("Ignore the request program selection");
-        return NX_GST_RET_OK;
-    }
-
-    int pIdx = get_program_idx(handle, program_number);
-    if (-1 == pIdx) {
-        NXGLOGE("No matched program number");
-        return NX_GST_RET_ERROR;
-    }
-
-    handle->select_program_idx = pIdx;
-
-    NXGLOGI("END");
-    return NX_GST_RET_OK;
-}
-
-NX_GST_RET NX_GSTMP_SelectStream(MP_HANDLE handle, CODEC_TYPE type, int32_t idx)
+NX_GST_RET NX_GSTMP_SelectStream(MP_HANDLE handle, STREAM_TYPE type, int32_t idx)
 {
     NXGLOGI("START");
 
@@ -2181,15 +2200,25 @@ NX_GST_RET NX_GSTMP_SelectStream(MP_HANDLE handle, CODEC_TYPE type, int32_t idx)
     }
 
     NXGLOGI("type(%s), idx(%d)",
-            (CODEC_TYPE_VIDEO == type)?"Video":((CODEC_TYPE_AUDIO == type)?"AUDIO":"SUBTITLE"),
+            (STREAM_TYPE_VIDEO == type)?"Video":((STREAM_TYPE_AUDIO == type)?"AUDIO":"SUBTITLE"),
             idx);
 
     int pIdx = handle->select_program_idx;
 
     switch (type)
     {
-        case CODEC_TYPE_VIDEO:
-            if ((handle->gst_media_info.ProgramInfo[pIdx].n_video <= idx) || (idx < 0)) {
+        case STREAM_TYPE_PROGRAM:
+            if ((handle->gst_media_info.n_program <= idx) || (idx < 0))
+            {
+                handle->select_program_idx = DEFAULT_STREAM_IDX;
+                NXGLOGE("Failed to select program idx. idx is out of bounds. Set default idx(0)");
+            } else {
+                handle->select_program_idx = idx;
+            }
+        break;
+        case STREAM_TYPE_VIDEO:
+            if ((handle->gst_media_info.ProgramInfo[pIdx].n_video <= idx) || (idx < 0))
+            {
                 handle->select_video_idx = DEFAULT_STREAM_IDX;
                 NXGLOGE("Failed to select video idx. idx is out of bounds. Set default idx(0)");
             } else {
@@ -2202,16 +2231,18 @@ NX_GST_RET NX_GSTMP_SelectStream(MP_HANDLE handle, CODEC_TYPE type, int32_t idx)
                 return NX_GST_RET_ERROR;
             }
             break;
-        case CODEC_TYPE_AUDIO:
-            if ((handle->gst_media_info.ProgramInfo[pIdx].n_audio <= idx) || (idx < 0)) {
+        case STREAM_TYPE_AUDIO:
+            if ((handle->gst_media_info.ProgramInfo[pIdx].n_audio <= idx) || (idx < 0))
+            {
                 handle->select_audio_idx = DEFAULT_STREAM_IDX;
                 NXGLOGE("Failed to select audio idx. idx is out of bounds. Set default idx(0)");
             } else {
                 handle->select_audio_idx = idx;
             }
             break;
-        case CODEC_TYPE_SUBTITLE:
-            if ((handle->gst_media_info.ProgramInfo[pIdx].n_subtitle <= idx) || (idx < 0)) {
+        case STREAM_TYPE_SUBTITLE:
+            if ((handle->gst_media_info.ProgramInfo[pIdx].n_subtitle <= idx) || (idx < 0))
+            {
                 handle->select_subtitle_idx = DEFAULT_STREAM_IDX;
                 NXGLOGE("Failed to select subtitle idx. idx is out of bounds. Set default idx(0)");
             } else {
@@ -2230,9 +2261,9 @@ NX_GST_RET NX_GSTMP_SelectStream(MP_HANDLE handle, CODEC_TYPE type, int32_t idx)
     }
 
     NXGLOGI("Final select_%s_idx(%d)",
-            (CODEC_TYPE_VIDEO == type) ? "Video" : ((CODEC_TYPE_AUDIO == type)?"AUDIO":"SUBTITLE"),
-            (CODEC_TYPE_VIDEO == type) ? handle->select_video_idx : 
-                (CODEC_TYPE_AUDIO == type) ? handle->select_audio_idx : handle->select_subtitle_idx);
+            (STREAM_TYPE_VIDEO == type) ? "Video" : ((STREAM_TYPE_AUDIO == type)?"AUDIO":"SUBTITLE"),
+            (STREAM_TYPE_VIDEO == type) ? handle->select_video_idx : 
+                (STREAM_TYPE_AUDIO == type) ? handle->select_audio_idx : handle->select_subtitle_idx);
 
     if (handle->pipeline_is_linked)
     {

@@ -38,55 +38,52 @@ static struct {
 static struct {
     const char *mimetype;
     VIDEO_TYPE type;
-    const char *parser;
 } VIDEO_DESC[] = {
-    {"video/x-h264",            VIDEO_TYPE_H264,        "h264parse"},
-	{"video/x-h263",            VIDEO_TYPE_H263,        NULL},
-	{"video/mpeg",              VIDEO_TYPE_MPEG_V4,     NULL},
-    {"video/x-h265",            VIDEO_TYPE_H265,        NULL},
-	{"video/x-flash-video",     VIDEO_TYPE_FLV,         NULL},
-	{"video/x-pn-realvideo",    VIDEO_TYPE_RV,          NULL},
-	{"video/x-divx",            VIDEO_TYPE_DIVX,        NULL},
-	{"video/x-ms-asf",          VIDEO_TYPE_ASF,         NULL},
-	{"video/x-wmv",             VIDEO_TYPE_WMV,         NULL},
-	{"video/x-theora",          VIDEO_TYPE_THEORA,      NULL},
-	{"video/x-xvid",            VIDEO_TYPE_XVID,        NULL},
-	{NULL,                      VIDEO_TYPE_UNKNOWN,     NULL},
+    {"video/x-h264",            VIDEO_TYPE_H264},
+	{"video/x-h263",            VIDEO_TYPE_H263},
+	{"video/mpeg",              VIDEO_TYPE_MPEG_V4},
+    {"video/x-h265",            VIDEO_TYPE_H265},
+	{"video/x-flash-video",     VIDEO_TYPE_FLV},
+	{"video/x-pn-realvideo",    VIDEO_TYPE_RV},
+	{"video/x-divx",            VIDEO_TYPE_DIVX},
+	{"video/x-ms-asf",          VIDEO_TYPE_ASF},
+	{"video/x-wmv",             VIDEO_TYPE_WMV},
+	{"video/x-theora",          VIDEO_TYPE_THEORA},
+	{"video/x-xvid",            VIDEO_TYPE_XVID},
+	{NULL,                      VIDEO_TYPE_UNKNOWN},
 };
 
 static struct {
     const char *mimetype;
     AUDIO_TYPE type;
-    const char *parser;
 } AUDIO_DESC[] = {
-    {"audio/x-raw",             AUDIO_TYPE_RAW,         NULL},
-    {"audio/mpeg",              AUDIO_TYPE_MPEG,        NULL},
-	{"audio/mp3",               AUDIO_TYPE_MP3,         NULL},
-	{"audio/aac",               AUDIO_TYPE_AAC,         NULL},
-	{"audio/x-wma",             AUDIO_TYPE_WMA,         NULL},
-	{"audio/x-vorbis",          AUDIO_TYPE_OGG,         NULL},
-	{"audio/x-ac3",             AUDIO_TYPE_AC3,         NULL},
-	{"audio/x-private1-ac3",    AUDIO_TYPE_AC3_PRI,     NULL},
-	{"audio/x-flac",            AUDIO_TYPE_FLAC,        NULL},
-	{"audio/x-pn-realaudio",    AUDIO_TYPE_RA,          NULL},
-	{"audio/x-dts",             AUDIO_TYPE_DTS,         NULL},
-	{"audio/x-private1-dts",    AUDIO_TYPE_DTS_PRI,     NULL},
-    {"audio/x-wav",             AUDIO_TYPE_WAV,         NULL},
-	{NULL,                      AUDIO_TYPE_UNKNOWN,     NULL},
+    {"audio/x-raw",             AUDIO_TYPE_RAW},
+    {"audio/mpeg",              AUDIO_TYPE_MPEG},
+	{"audio/mp3",               AUDIO_TYPE_MP3},
+	{"audio/aac",               AUDIO_TYPE_AAC},
+	{"audio/x-wma",             AUDIO_TYPE_WMA},
+	{"audio/x-vorbis",          AUDIO_TYPE_OGG},
+	{"audio/x-ac3",             AUDIO_TYPE_AC3},
+	{"audio/x-private1-ac3",    AUDIO_TYPE_AC3_PRI},
+	{"audio/x-flac",            AUDIO_TYPE_FLAC},
+	{"audio/x-pn-realaudio",    AUDIO_TYPE_RA},
+	{"audio/x-dts",             AUDIO_TYPE_DTS},
+	{"audio/x-private1-dts",    AUDIO_TYPE_DTS_PRI},
+    {"audio/x-wav",             AUDIO_TYPE_WAV},
+	{NULL,                      AUDIO_TYPE_UNKNOWN},
 };
 
 static struct {
     const char *mimetype;
     SUBTITLE_TYPE type;
-    const char *parser;
 } SUBTITLE_DESC[] = {
-    {"text/x-raw",              SUBTITLE_TYPE_RAW,        NULL},
-    {"application/x-ssa",       SUBTITLE_TYPE_SSA,        NULL},
-    {"application/x-ass",       SUBTITLE_TYPE_ASS,        NULL},
-    {"application/x-usf",       SUBTITLE_TYPE_USF,        NULL},
-    {"application/x-dvd",       SUBTITLE_TYPE_DVD,        NULL},
-	{"subpicture/x-dvb",        SUBTITLE_TYPE_DVB,        NULL},
-	{NULL,                      SUBTITLE_TYPE_UNKNOWN,    NULL},
+    {"text/x-raw",              SUBTITLE_TYPE_RAW},
+    {"application/x-ssa",       SUBTITLE_TYPE_SSA},
+    {"application/x-ass",       SUBTITLE_TYPE_ASS},
+    {"application/x-usf",       SUBTITLE_TYPE_USF},
+    {"application/x-dvd",       SUBTITLE_TYPE_DVD},
+	{"subpicture/x-dvb",        SUBTITLE_TYPE_DVB},
+	{NULL,                      SUBTITLE_TYPE_UNKNOWN},
 };
 
 enum NX_GST_ERROR StartDiscover(const char* pUri, struct GST_MEDIA_INFO *pInfo);

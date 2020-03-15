@@ -24,7 +24,7 @@ typedef struct TypeFindSt {
 	GstElement *video_fakesink;
 	GstElement *audio_typefind;
 	GstElement *audio_fakesink;
-	gint		codec_type;
+	gint		stream_type;
 	gint		audio_track_on;
 	gint		video_track_on;
 
@@ -70,7 +70,7 @@ static void cb_typefind_video_ps(GstElement *typefind, guint probability, GstCap
  * 
 *******************************************************************************/
 int typefind_codec_info(struct GST_MEDIA_INFO *media_handle,
-               const char *filePath, gint codec_type, gint program_num, gint track_num);
+               const char *filePath, gint stream_type, gint program_num, gint track_num);
 // demux<-->video_queue / demux<-->audio_queue
 static void on_demux_pad_added_typefind(GstElement *element, GstPad *pad, TypeFindSt *handle);
 // video_decode <--> video_typefind
@@ -282,7 +282,7 @@ static void on_demux_pad_added_typefind(GstElement *element, GstPad *pad, TypeFi
 	gint i = 0, len = 0;
 	gint sIdx = 0;
 	gint audio_on = 0;
-	gint codec_type = handle->codec_type;
+	gint stream_type = handle->stream_type;
 	gint pIdx = handle->program_idx;
 
 	NXGLOGI("START");
@@ -306,7 +306,7 @@ static void on_demux_pad_added_typefind(GstElement *element, GstPad *pad, TypeFi
 
 	targetqueue = NULL;
 
-	if (CODEC_TYPE_VIDEO == codec_type)
+	if (STREAM_TYPE_VIDEO == stream_type)
 	{ 
 		if (g_strrstr(mime_type, "video"))
 		{
@@ -327,7 +327,7 @@ static void on_demux_pad_added_typefind(GstElement *element, GstPad *pad, TypeFi
 			}
 		}
 	}
-	else if (CODEC_TYPE_AUDIO == codec_type)
+	else if (STREAM_TYPE_AUDIO == stream_type)
 	{  
 		if (g_strrstr(mime_type, "audio")) {
 			gchar *type = NULL;
@@ -357,7 +357,7 @@ static void on_demux_pad_added_typefind(GstElement *element, GstPad *pad, TypeFi
 			}
 		}
 	}
-	else if (CODEC_TYPE_SUBTITLE == codec_type)
+	else if (STREAM_TYPE_SUBTITLE == stream_type)
 	{
 		// TODO:
 	}
@@ -384,7 +384,7 @@ EXIT:
 	gst_caps_unref(caps);
 //	TODO:
 	if( (handle->media_info->demux_type == DEMUX_TYPE_MPEGTSDEMUX)
-		&& (CODEC_TYPE_AUDIO == codec_type)
+		&& (STREAM_TYPE_AUDIO == stream_type)
 		&& (audio_on == 0) 
 		)
 	{
@@ -498,7 +498,7 @@ static void on_audio_decodebin_pad_added(GstElement *element, GstPad *pad, gpoin
 }
 
 int typefind_codec_info(struct GST_MEDIA_INFO *media_handle, const char *uri,
-        gint codec_type, gint program_idx, gint track_num)
+        gint stream_type, gint program_idx, gint track_num)
 {
 	TypeFindSt handle;
 	
@@ -511,16 +511,16 @@ int typefind_codec_info(struct GST_MEDIA_INFO *media_handle, const char *uri,
 	handle.media_info = media_handle;
 	demux_type = handle.media_info->demux_type;
 	handle.program_idx = program_idx;
-	handle.codec_type = codec_type;
+	handle.stream_type = stream_type;
 
-	if (codec_type == CODEC_TYPE_VIDEO)
+	if (stream_type == STREAM_TYPE_VIDEO)
 		handle.video_stream_idx = track_num;
-	else if (codec_type == CODEC_TYPE_AUDIO)
+	else if (stream_type == STREAM_TYPE_AUDIO)
 		handle.audio_stream_idx = track_num;
-	else if (codec_type == CODEC_TYPE_SUBTITLE)
+	else if (stream_type == STREAM_TYPE_SUBTITLE)
 		handle.subtitle_stream_idx = track_num;
 
-	NXGLOGI("codec_type(%d), program_idx(%d), track_num(%d)", codec_type, program_idx, track_num);
+	NXGLOGI("stream_type(%d), program_idx(%d), track_num(%d)", stream_type, program_idx, track_num);
 
 	// create a new pipeline to hold the elements
 	handle.pipeline = gst_pipeline_new ("pipe");
@@ -535,7 +535,7 @@ int typefind_codec_info(struct GST_MEDIA_INFO *media_handle, const char *uri,
 
 	// create demux
 	if (demux_type == DEMUX_TYPE_MPEGDEMUX) {
-		if(CODEC_TYPE_AUDIO == codec_type)
+		if(STREAM_TYPE_AUDIO == stream_type)
 		{
 			if(handle.media_info->ProgramInfo[program_idx].AudioInfo[track_num].type == AUDIO_TYPE_AC3) {
 				handle.demux = gst_element_factory_make ("dvddemux", "demux");
@@ -548,7 +548,7 @@ int typefind_codec_info(struct GST_MEDIA_INFO *media_handle, const char *uri,
 				handle.audio_parse = gst_element_factory_make ("ac3parse", "parse_audio");
 			}
 		}
-		else if (CODEC_TYPE_VIDEO == codec_type)
+		else if (STREAM_TYPE_VIDEO == stream_type)
 		{
 			handle.demux = gst_element_factory_make ("mpegpsdemux", "demux");
 			handle.video_parse = gst_element_factory_make ("mpegvideoparse", "parse_video");
@@ -567,7 +567,7 @@ int typefind_codec_info(struct GST_MEDIA_INFO *media_handle, const char *uri,
 		NXGLOGE("Not supported demux_type(%d)", demux_type);
 	}
 
-	if (CODEC_TYPE_VIDEO == codec_type)
+	if (STREAM_TYPE_VIDEO == stream_type)
 	{
 		// create elements (decode, video_queue, video_typefind, video_fakesink)
 		if (demux_type == DEMUX_TYPE_MPEGTSDEMUX) {
@@ -578,7 +578,7 @@ int typefind_codec_info(struct GST_MEDIA_INFO *media_handle, const char *uri,
 		handle.video_fakesink = gst_element_factory_make ("fakesink", "sink_video");
 		g_signal_connect (handle.video_typefind, "have-type", G_CALLBACK (cb_typefind_video), &handle);
 	}
-	else if (CODEC_TYPE_AUDIO == codec_type)
+	else if (STREAM_TYPE_AUDIO == stream_type)
 	{
 		// create elements (decode, audio_queue, audio_typefind, audio_fakesink)
 		if(demux_type == DEMUX_TYPE_MPEGTSDEMUX) {
@@ -589,10 +589,10 @@ int typefind_codec_info(struct GST_MEDIA_INFO *media_handle, const char *uri,
 		handle.audio_fakesink = gst_element_factory_make ("fakesink", "sink_audio");
 		g_signal_connect(handle.audio_typefind, "have-type", G_CALLBACK (cb_typefind_audio), &handle);
 	}
-	else if (CODEC_TYPE_SUBTITLE == codec_type)
+	else if (STREAM_TYPE_SUBTITLE == stream_type)
 	{
 		NXGLOGI("TODO: subtitle");
-		return;
+		return 0;
 	}
 
 	// demux <--> video_queue && demux <--> audio_queue
@@ -601,7 +601,7 @@ int typefind_codec_info(struct GST_MEDIA_INFO *media_handle, const char *uri,
 	// Add elements to bin and link them
 	if(demux_type == DEMUX_TYPE_MPEGDEMUX)
 	{
-		if(CODEC_TYPE_VIDEO == codec_type)
+		if(STREAM_TYPE_VIDEO == stream_type)
 		{
 			// Add video elements
 			gst_bin_add_many((handle.pipeline),
@@ -617,7 +617,7 @@ int typefind_codec_info(struct GST_MEDIA_INFO *media_handle, const char *uri,
 			NXGLOGI("(%d) %s to link video_queue<-->video_parse<-->video_typefind<-->video_fakesink",
 					__LINE__, (ret == 0) ? "Failed":"Succeed");
 		}
-		else if (CODEC_TYPE_AUDIO == codec_type)
+		else if (STREAM_TYPE_AUDIO == stream_type)
 		{
 			// Add video elements
 			gst_bin_add_many((handle.pipeline),
@@ -637,7 +637,7 @@ int typefind_codec_info(struct GST_MEDIA_INFO *media_handle, const char *uri,
 	}
 	else if(demux_type == DEMUX_TYPE_MPEGTSDEMUX)
 	{
-		if(CODEC_TYPE_VIDEO == codec_type)
+		if(STREAM_TYPE_VIDEO == stream_type)
 		{
 			// Add elements for TS Video
 			gst_bin_add_many((handle.pipeline),
@@ -656,7 +656,7 @@ int typefind_codec_info(struct GST_MEDIA_INFO *media_handle, const char *uri,
 			ret = gst_element_link_many (handle.video_typefind, handle.video_fakesink, NULL );	
 			NXGLOGI("(%d) %s to link video_typefind<-->video_fakesink", __LINE__, (ret == 0) ? "Failed":"Succeed");
 		}
-		else if (CODEC_TYPE_AUDIO == codec_type)
+		else if (STREAM_TYPE_AUDIO == stream_type)
 		{
 			// Add elements for TS Audio
 			gst_bin_add_many((handle.pipeline),
@@ -674,14 +674,14 @@ int typefind_codec_info(struct GST_MEDIA_INFO *media_handle, const char *uri,
 			ret = gst_element_link_many(handle.audio_typefind, handle.audio_fakesink, NULL);	
 			NXGLOGI("(%d) %s to link audio_typefind<-->audio_fakesink", __LINE__, (ret == 0) ? "Failed":"Succeed");
 		}
-		else if (CODEC_TYPE_SUBTITLE == codec_type)
+		else if (STREAM_TYPE_SUBTITLE == stream_type)
 		{
 			NXGLOGI("TODO: subtitle");
 		}
 	}
 	else
 	{
-		if(CODEC_TYPE_VIDEO == codec_type)
+		if(STREAM_TYPE_VIDEO == stream_type)
 		{
 			gst_bin_add_many((handle.pipeline),
 								handle.filesrc,	handle.demux,																	
@@ -695,7 +695,7 @@ int typefind_codec_info(struct GST_MEDIA_INFO *media_handle, const char *uri,
 			NXGLOGI("(%d) %s to link video_queue<-->video_typefind<-->video_fakesink",
 					__LINE__, (ret == 0) ? "Failed":"Succeed");
 		}
-		else if (CODEC_TYPE_AUDIO == codec_type)
+		else if (STREAM_TYPE_AUDIO == stream_type)
 		{		
             gst_bin_add_many((handle.pipeline),
 								handle.filesrc, handle.demux,
@@ -709,7 +709,7 @@ int typefind_codec_info(struct GST_MEDIA_INFO *media_handle, const char *uri,
 			NXGLOGI("(%d) %s to link audio_queue<-->audio_typefind<-->audio_fakesink",
 					__LINE__, (ret == 0) ? "Failed":"Succeed");
 		}
-		else if (CODEC_TYPE_SUBTITLE == codec_type)
+		else if (STREAM_TYPE_SUBTITLE == stream_type)
 		{
 			// TODO:
 			NXGLOGI("TODO: subtitle");

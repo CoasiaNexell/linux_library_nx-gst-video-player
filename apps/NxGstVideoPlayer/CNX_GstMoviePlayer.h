@@ -111,8 +111,7 @@ private:
 				   void *cbPrivate);
 	int SetUri(const char *pUri);
 	int GetMediaInfo(const char* filePath);
-	int SelectProgram(int program_number);
-	int SelectStream(CODEC_TYPE type, int idx);
+	int SelectStream(STREAM_TYPE type, int idx);
 	int Prepare();
 	void GetAspectRatio(int srcWidth, int srcHeight,
 						int dspWidth, int dspHeight,

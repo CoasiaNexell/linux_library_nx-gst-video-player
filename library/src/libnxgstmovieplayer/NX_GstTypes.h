@@ -273,10 +273,11 @@ typedef struct {
 } GST_VIDEO_INFO;
 
 typedef enum {
-	CODEC_TYPE_VIDEO,
-	CODEC_TYPE_AUDIO,
-    CODEC_TYPE_SUBTITLE,
-} CODEC_TYPE;
+    STREAM_TYPE_PROGRAM,
+	STREAM_TYPE_VIDEO,
+	STREAM_TYPE_AUDIO,
+    STREAM_TYPE_SUBTITLE,
+} STREAM_TYPE;
 
 /*! \def MAX_STREAM_INFO
  * \brief Maximum number of stream information */
@@ -289,7 +290,7 @@ typedef enum {
 
 typedef struct STREAM_INFO
 {
-    CODEC_TYPE  stream_type;
+    STREAM_TYPE  stream_type;
     int32_t     stream_index;
     int32_t     duration;
 
@@ -351,7 +352,7 @@ struct GST_MEDIA_INFO {
     /*! \brief Total number of programs */
     int32_t             n_program;
     /*! \brief The program number */
-    unsigned int        program_number[PROGRAM_MAX];// 0x4351, 0x4415, ...
+    unsigned int        program_number[PROGRAM_MAX];
     /*! \brief Currently playing program */
     int32_t             current_program_no;
 

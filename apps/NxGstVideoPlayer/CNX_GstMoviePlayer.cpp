@@ -59,9 +59,9 @@ int CNX_GstMoviePlayer::InitMediaPlayer(void (*pCbEventCallback)(void *privateDe
 	if(0 > SetUri(pUri))									return -1;
 	if(0 > GetMediaInfo(pUri))								return -1;
 	PrintMediaInfo(m_MediaInfo, pUri);
-	if(0 > SelectProgram(4351))								return -1;
-	if(0 > SelectStream(CODEC_TYPE_AUDIO, 1))				return -1;
-	//if(0 > SelectStream(CODEC_TYPE_SUBTITLE, 1))				return -1;
+	if(0 > SelectStream(STREAM_TYPE_PROGRAM, 0))			return -1;
+	if(0 > SelectStream(STREAM_TYPE_AUDIO, 1))				return -1;
+	if(0 > SelectStream(STREAM_TYPE_SUBTITLE, 1))				return -1;
 	if(0 > Prepare())										return -1;
 	if(0 > SetAspectRatio(dspInfo))							return -1;
 
@@ -388,26 +388,7 @@ int CNX_GstMoviePlayer::SetDisplayMode(DISPLAY_MODE mode)
 	return 0;
 }
 
-int CNX_GstMoviePlayer::SelectProgram(int program_number)
-{
-	NXLOGI("%s", __FUNCTION__);
-
-	if(NULL == m_hPlayer)
-	{
-		NXLOGE("%s: Error! Handle is not initialized!", __FUNCTION__);
-		return -1;
-	}
-
-	NX_GST_RET iResult = NX_GSTMP_SelectProgram(m_hPlayer, program_number);
-	if(NX_GST_RET_OK != iResult)
-	{
-		NXLOGE("%s(): Error! NX_GSTMP_SelectProgram() Failed! (ret = %d)\n", __FUNCTION__, iResult);
-		return -1;
-	}
-	return 0;
-}
-
-int CNX_GstMoviePlayer::SelectStream(CODEC_TYPE type, int idx)
+int CNX_GstMoviePlayer::SelectStream(STREAM_TYPE type, int idx)
 {
 	NXLOGI("%s", __FUNCTION__);
 

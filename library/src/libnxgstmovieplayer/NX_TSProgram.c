@@ -2141,7 +2141,10 @@ get_video_stream_details_info(const char* filePath,
 		NXGLOGE("Failed to get program info because it's not ts file");
 		return -1;
 	}
-
+	if (media_info->ProgramInfo[cur_pro_idx].n_video == 0) {
+		NXGLOGE("Skip to get video info because no video file");
+		return -1;
+	}
 	// init GStreamer
 	if(!gst_is_initialized()) {
 		gst_init(NULL, NULL);

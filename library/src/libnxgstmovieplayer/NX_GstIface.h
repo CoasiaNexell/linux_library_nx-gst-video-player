@@ -274,19 +274,6 @@ double NX_GSTMP_GetVideoSpeed(MP_HANDLE handle);
 NX_GST_RET NX_GSTMP_GetVideoSpeedSupport(MP_HANDLE handle);
 
 /*!
- * \fn NX_GST_RET NX_GSTMP_SelectProgram(MP_HANDLE handle, int32_t program_number);
- *
- * \brief This is used to select the specific program.
- *
- * \param [in]  handle    Movie player handle
- * \param [in]  program_number       The program number to select
-  *
- * \retval NX_GST_RET_ERROR On failure.
- * \retval NX_GST_RET_OK On succee.
- */
-NX_GST_RET NX_GSTMP_SelectProgram(MP_HANDLE handle, int32_t program_number);
-
-/*!
  * \fn NX_GST_RET NX_GSTMP_SelectStream(MP_HANDLE handle);
  *
  * \brief This is used to select the specific stream.
@@ -298,7 +285,7 @@ NX_GST_RET NX_GSTMP_SelectProgram(MP_HANDLE handle, int32_t program_number);
  * \retval NX_GST_RET_ERROR On failure.
  * \retval NX_GST_RET_OK On succee.
  */
-NX_GST_RET NX_GSTMP_SelectStream(MP_HANDLE handle, CODEC_TYPE type, int32_t idx);
+NX_GST_RET NX_GSTMP_SelectStream(MP_HANDLE handle, STREAM_TYPE type, int32_t idx);
 
 /*!
  * \fn const char* NX_GSTMP_MakeThumbnail(const gchar *uri, int64_t pos_msec,
