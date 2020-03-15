@@ -61,6 +61,7 @@ int CNX_GstMoviePlayer::InitMediaPlayer(void (*pCbEventCallback)(void *privateDe
 	PrintMediaInfo(m_MediaInfo, pUri);
 	if(0 > SelectProgram(4351))								return -1;
 	if(0 > SelectStream(CODEC_TYPE_AUDIO, 1))				return -1;
+	//if(0 > SelectStream(CODEC_TYPE_SUBTITLE, 1))				return -1;
 	if(0 > Prepare())										return -1;
 	if(0 > SetAspectRatio(dspInfo))							return -1;
 
