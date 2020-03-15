@@ -666,7 +666,7 @@ static gboolean gst_bus_callback(GstBus *bus, GstMessage *msg, MP_HANDLE handle)
 
             gst_message_parse_state_changed (msg, &old_state, &new_state, NULL);
             // TODO: workaround
-            //if(g_strcmp0("NxGstMoviePlay", GST_OBJECT_NAME (msg->src)) == 0) {
+            if(g_strcmp0("NxGstMoviePlay", GST_OBJECT_NAME (msg->src)) == 0) {
                 NXGLOGI("Element '%s' changed state from  '%s' to '%s'"
                        , GST_OBJECT_NAME (msg->src)
                        , gst_element_state_get_name (old_state)
@@ -675,9 +675,9 @@ static gboolean gst_bus_callback(GstBus *bus, GstMessage *msg, MP_HANDLE handle)
                 if(g_strcmp0("NxGstMoviePlay", GST_OBJECT_NAME (msg->src)) == 0)
                 {
                     handle->state = new_state;
-                handle->callback(NULL, (int)MP_EVENT_STATE_CHANGED, (int)GstState2NxState(new_state), NULL);
+                    handle->callback(NULL, (int)MP_EVENT_STATE_CHANGED, (int)GstState2NxState(new_state), NULL);
                 }
-            //}
+            }
             break;
         }
         case GST_MESSAGE_DURATION_CHANGED:
@@ -1187,7 +1187,9 @@ NX_GST_RET link_display(MP_HANDLE handle, enum DISPLAY_TYPE type)
     g_object_set(G_OBJECT(sink->nxvideosink), "dst-w", (rect.right - rect.left), NULL);
     g_object_set(G_OBJECT(sink->nxvideosink), "dst-h", (rect.bottom - rect.top), NULL);
     // TODO: If hdmi is connected, set crtc-index.
-    g_object_set(sink->nxvideosink, "crtc-index", type, NULL);
+    if (DISPLAY_TYPE_SECONDARY == type) {
+        g_object_set(sink->nxvideosink, "crtc-index", type, NULL);
+    }
 
     if (!sink->queue || !sink->nxvideosink)
     {
@@ -1866,16 +1868,20 @@ static int send_seek_event(MP_HANDLE handle)
                                 GST_SEEK_TYPE_SET, position);
     }
 
-    if (handle->nxvideosink == NULL)
-    {
-        /* If we have not done so, obtain the sink through which we will send the seek events */
-        g_object_get (handle->pipeline, "video-sink", &handle->nxvideosink, NULL);
+    struct Sink *sink;
+    if (primary_sinks) {
+        sink = (Sink*)primary_sinks->data;
+    } else if (secondary_sinks) {
+        sink = (Sink*)secondary_sinks->data;
     }
 
-    /* Send the event */
-    gst_element_send_event (handle->nxvideosink, seek_event);
+    if (sink)
+    {
+        /* Send the event */
+        gst_element_send_event (sink->nxvideosink, seek_event);
+    }
 
-    NXGLOGI("Current rate: %g\n", handle->rate);
+    NXGLOGI("Current rate: %g", handle->rate);
     return 0;
 }
 
@@ -2092,11 +2098,23 @@ NX_GST_RET NX_GSTMP_VideoMute(MP_HANDLE handle, int32_t bOnoff)
 
     _CAutoLock lock(&handle->apiLock);
 
-    if (bOnoff) {
-        g_object_set(G_OBJECT(handle->nxvideosink), "dst-y", dsp_height, NULL);
-    } else {
-        g_object_set(G_OBJECT(handle->nxvideosink), "dst-y", dsp_top, NULL);
+    // TODO:
+    struct Sink *sink;
+    if (primary_sinks) {
+        sink = (Sink*)primary_sinks->data;
+    } else if (secondary_sinks) {
+        sink = (Sink*)secondary_sinks->data;
     }
+
+    if (sink)
+    {
+        if (bOnoff) {
+            g_object_set(G_OBJECT(sink->nxvideosink), "dst-y", dsp_height, NULL);
+        } else {
+            g_object_set(G_OBJECT(sink->nxvideosink), "dst-y", dsp_top, NULL);
+        }
+    }
+
     return	NX_GST_RET_OK;
 
     FUNC_OUT();
