@@ -93,6 +93,10 @@ public:
 	int SetDisplayInfo(enum DISPLAY_TYPE type, int dspWidth, int dspHeight, DSP_RECT rect);
 	// Thumbnail
 	int MakeThumbnail(const char *pUri, int64_t pos_msec, int32_t width, const char *outPath);
+	int SwitchStream();
+	bool isProgramSelectable();
+	int SetNextProgramIdx();
+	void resetStreamIndex();
 	// The dual display
 	int DrmVideoMute(int bOnOff);
 
@@ -133,6 +137,8 @@ private:
 
 	char			*m_pAudioDeviceName;
 	gdouble 		m_fSpeed;
+	int				m_select_program;
+	int				m_select_audio;
 public:
 	int IsCbQtUpdateImg();
 

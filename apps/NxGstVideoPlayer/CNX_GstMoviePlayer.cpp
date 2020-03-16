@@ -17,6 +17,7 @@ CNX_GstMoviePlayer::CNX_GstMoviePlayer(QWidget *parent)
 	, m_fSpeed(1.0)
 	, m_pSubtitleParser(NULL)
 	, m_iSubtitleSeekTime(0)
+	, m_select_program(0)
 {
 	pthread_mutex_init(&m_hLock, NULL);
 	pthread_mutex_init(&m_SubtitleLock, NULL);
@@ -59,9 +60,9 @@ int CNX_GstMoviePlayer::InitMediaPlayer(void (*pCbEventCallback)(void *privateDe
 	if(0 > SetUri(pUri))									return -1;
 	if(0 > GetMediaInfo(pUri))								return -1;
 	PrintMediaInfo(m_MediaInfo, pUri);
-	if(0 > SelectStream(STREAM_TYPE_PROGRAM, 0))			return -1;
-	if(0 > SelectStream(STREAM_TYPE_AUDIO, 1))				return -1;
-	if(0 > SelectStream(STREAM_TYPE_SUBTITLE, 1))				return -1;
+	if(0 > SelectStream(STREAM_TYPE_PROGRAM, m_select_program))			return -1;
+	if(0 > SelectStream(STREAM_TYPE_AUDIO, m_select_audio))				return -1;
+	//if(0 > SelectStream(STREAM_TYPE_SUBTITLE, 1))				return -1;
 	if(0 > Prepare())										return -1;
 	if(0 > SetAspectRatio(dspInfo))							return -1;
 
@@ -70,13 +71,23 @@ int CNX_GstMoviePlayer::InitMediaPlayer(void (*pCbEventCallback)(void *privateDe
 	return 0;
 }
 
+bool CNX_GstMoviePlayer::isProgramSelectable()
+{
+	if (m_MediaInfo.n_program > 2) {
+		return true;
+	} else {
+		m_select_program = 0;
+		return false;
+	}
+}
+
 void CNX_GstMoviePlayer::PrintMediaInfo(GST_MEDIA_INFO media_info, const char* filePath)
 {
 	NXLOGI("<=========== [APP_MEDIA_INFO] %s =========== ", filePath);
 	NXLOGI("container_type(%d), demux_type(%d),"
-			"n_program(%d), current_program_no(%d)",
+			"n_program(%d), current_program_idx(%d)",
 			media_info.container_type, media_info.demux_type,
-			media_info.n_program, media_info.current_program_no);
+			media_info.n_program, media_info.current_program_idx);
 
 	if (media_info.demux_type != DEMUX_TYPE_MPEGTSDEMUX)
 	{
@@ -137,19 +148,7 @@ int CNX_GstMoviePlayer::SetAspectRatio(DISPLAY_INFO dspInfo)
 	NXLOGI("%s() dspInfo(%d, %d, %d, %d, %d)",
 			__FUNCTION__, dspInfo.primary_dsp_width, dspInfo.primary_dsp_height,
 			dspInfo.dspMode, dspInfo.secondary_dsp_width, dspInfo.secondary_dsp_height);
-
-	if (m_MediaInfo.demux_type == DEMUX_TYPE_MPEGTSDEMUX)
-	{
-		for (int i=0; i<m_MediaInfo.n_program; i++)
-		{
-			if (m_MediaInfo.program_number[i] == m_MediaInfo.current_program_no)
-			{
-				pIdx = i;
-				break;
-			}
-		}
-	}
-
+	pIdx = m_MediaInfo.current_program_idx;
 	if (m_MediaInfo.ProgramInfo[pIdx].n_video > 0)
 	{
 		video_width = m_MediaInfo.ProgramInfo[pIdx].VideoInfo[0].width;
@@ -763,20 +762,11 @@ int	CNX_GstMoviePlayer::GetVideoSpeedSupport()
 
 bool CNX_GstMoviePlayer::HasSubTitleStream()
 {
-	int pIdx = 0;
+	int pIdx = m_MediaInfo.current_program_idx;
 	if(NULL == m_hPlayer)
 	{
 		NXLOGE("%s: Error! Handle is not initialized!", __FUNCTION__);
 		return false;
-	}
-	if (m_MediaInfo.demux_type == DEMUX_TYPE_MPEGTSDEMUX) {
-		for (int i=0; i<m_MediaInfo.n_program; i++)
-		{
-			if (m_MediaInfo.program_number[i] == m_MediaInfo.current_program_no) {
-				pIdx = i;
-				break;
-			}
-		}
 	}
 	NXLOGI("%s() %s", __FUNCTION__,
 		((m_MediaInfo.ProgramInfo[pIdx].n_subtitle > 0)?"true":"false"));
@@ -795,4 +785,54 @@ int CNX_GstMoviePlayer::MakeThumbnail(const char *pUri, int64_t pos_msec, int32_
 	}
 
 	return 0;
+}
+
+// For test
+int CNX_GstMoviePlayer::SwitchStream()
+{
+	NXLOGI("%s", __FUNCTION__);
+
+	int pIdx = 0, aIdx = 0, n_audio = 0;
+	pIdx = m_MediaInfo.current_program_idx;
+	n_audio = m_MediaInfo.ProgramInfo[pIdx].n_audio;
+	aIdx = m_MediaInfo.ProgramInfo[pIdx].current_audio;
+
+	if (n_audio > 1)
+	{
+		m_select_audio = (aIdx + 1) % n_audio;
+#if 0
+		NX_GST_RET iResult = NX_GSTMP_SelectStream(m_hPlayer, STREAM_TYPE_AUDIO,
+									m_MediaInfo.ProgramInfo[pIdx].current_audio);
+		if(NX_GST_RET_OK != iResult)
+		{
+			NXLOGI("%s Failed to SwitchStream", __FUNCTION__);
+			return -1;
+		}
+#endif
+		return 0;
+	}
+	else
+	{
+		NXLOGE("It has only one audio or no audio");
+		return -1;
+	}
+}
+
+// For test
+int CNX_GstMoviePlayer::SetNextProgramIdx()
+{
+	NXLOGI("%s", __FUNCTION__);
+
+	int pIdx = m_select_program;
+	m_select_program = (pIdx + 1) % (m_MediaInfo.n_program);
+
+	NXLOGI("%s Select Program(%d)", __FUNCTION__, m_select_program);
+
+	return 0;
+}
+
+void CNX_GstMoviePlayer::resetStreamIndex()
+{
+	m_select_program = 0;
+	m_select_audio = 0;
 }

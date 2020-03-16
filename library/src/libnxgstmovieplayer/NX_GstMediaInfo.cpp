@@ -229,9 +229,9 @@ void MediaInfoToStr(GST_MEDIA_INFO *media_info, const char*filePath)
 
 	NXGLOGI("<=========== [GST_MEDIA_INFO] =========== ");
 	NXGLOGI("filePath(%s)", filePath);
-	NXGLOGI("container_type(%d), demux_type(%d), n_program(%d), current_program(%d)",
+	NXGLOGI("container_type(%d), demux_type(%d), n_program(%d), current_program_idx(%d)",
 			media_info->container_type, media_info->demux_type,
-			media_info->n_program, media_info->current_program_no);
+			media_info->n_program, media_info->current_program_idx);
 
 	if (media_info->demux_type != DEMUX_TYPE_MPEGTSDEMUX)
 	{

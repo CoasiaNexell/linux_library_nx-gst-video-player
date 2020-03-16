@@ -58,7 +58,9 @@ static void start_loop_thread(MP_HANDLE handle);
 static void stop_my_thread(MP_HANDLE handle);
 static gboolean gst_bus_callback(GstBus *bus, GstMessage *msg, MP_HANDLE handle);
 static NX_GST_RET seek_to_time (MP_HANDLE handle, gint64 time_nanoseconds);
-
+static gboolean switch_streams (MP_HANDLE handle);
+static void stream_notify_cb (GstStreamCollection * collection, GstStream * stream,
+                                GParamSpec * pspec, guint * val);
 static const char* get_nx_gst_error(NX_GST_ERROR error);
 //------------------------------------------------------------------------------
 
@@ -107,6 +109,9 @@ struct MOVIE_TYPE {
     GstElement  *capsfilter;
 
     GstStreamCollection *collection;
+    guint notify_id;
+    glong timeout_id;
+
     GstState    state;
 
     GstElement  *volume;
@@ -675,6 +680,15 @@ static gboolean gst_bus_callback(GstBus *bus, GstMessage *msg, MP_HANDLE handle)
                     handle->state = new_state;
                     handle->callback(NULL, (int)MP_EVENT_STATE_CHANGED, (int)GstState2NxState(new_state), NULL);
                 }
+                if (new_state == GST_STATE_PLAYING || new_state == GST_STATE_PAUSED)
+                {
+                    int pIdx = 0;
+                    handle->gst_media_info.current_program_idx = handle->select_program_idx;
+                    pIdx = handle->gst_media_info.current_program_idx;
+                    handle->gst_media_info.ProgramInfo[pIdx].current_video = handle->select_video_idx;
+                    handle->gst_media_info.ProgramInfo[pIdx].current_audio = handle->select_audio_idx;
+                    handle->gst_media_info.ProgramInfo[pIdx].current_subtitle = handle->select_subtitle_idx;
+                }
             }
             break;
         }
@@ -683,7 +697,7 @@ static gboolean gst_bus_callback(GstBus *bus, GstMessage *msg, MP_HANDLE handle)
             NXGLOGI("TODO:%s", gst_message_type_get_name(GST_MESSAGE_TYPE(msg)));
             break;
         }
-        /*case GST_MESSAGE_STREAM_COLLECTION:
+        case GST_MESSAGE_STREAM_COLLECTION:
         {
             GstStreamCollection *collection = NULL;
             GstObject *src = GST_MESSAGE_SRC (msg);
@@ -697,7 +711,7 @@ static gboolean gst_bus_callback(GstBus *bus, GstMessage *msg, MP_HANDLE handle)
                 gst_object_unref (collection);
             }
             break;
-        }*/
+        }
         case GST_MESSAGE_STREAM_STATUS:
         {
             GstStreamStatusType type;
@@ -2200,7 +2214,9 @@ NX_GST_RET NX_GSTMP_SelectStream(MP_HANDLE handle, STREAM_TYPE type, int32_t idx
     }
 
     NXGLOGI("type(%s), idx(%d)",
-            (STREAM_TYPE_VIDEO == type)?"Video":((STREAM_TYPE_AUDIO == type)?"AUDIO":"SUBTITLE"),
+            (STREAM_TYPE_PROGRAM == type) ? "Program":
+            (STREAM_TYPE_VIDEO == type) ? "Video":
+            (STREAM_TYPE_AUDIO == type) ? "Audio":"Subtitle",
             idx);
 
     int pIdx = handle->select_program_idx;
@@ -2256,18 +2272,21 @@ NX_GST_RET NX_GSTMP_SelectStream(MP_HANDLE handle, STREAM_TYPE type, int32_t idx
             }
             break;
         default:
-            NXGLOGE("Unsupported codec type");
+            NXGLOGE("Unsupported stream type");
             return NX_GST_RET_ERROR;
     }
 
     NXGLOGI("Final select_%s_idx(%d)",
-            (STREAM_TYPE_VIDEO == type) ? "Video" : ((STREAM_TYPE_AUDIO == type)?"AUDIO":"SUBTITLE"),
-            (STREAM_TYPE_VIDEO == type) ? handle->select_video_idx : 
-                (STREAM_TYPE_AUDIO == type) ? handle->select_audio_idx : handle->select_subtitle_idx);
+            (STREAM_TYPE_PROGRAM == type) ? "Program":
+            (STREAM_TYPE_VIDEO == type) ? "Video":
+            (STREAM_TYPE_AUDIO == type) ? "Audio":"Subtitle",
+            (STREAM_TYPE_VIDEO == type) ? handle->select_video_idx: 
+            (STREAM_TYPE_AUDIO == type) ? handle->select_audio_idx:handle->select_subtitle_idx);
 
-    if (handle->pipeline_is_linked)
+    if (handle->pipeline_is_linked &&
+        (handle->state == GST_STATE_PLAYING || handle->state == GST_STATE_PAUSED))
     {
-        NXGLOGI("Reconfigure pipeline!!");
+       switch_streams(handle);
     }
 
     NXGLOGI("END");
@@ -2301,6 +2320,83 @@ NX_GST_RET NX_GSTMP_SetVideoSpeed(MP_HANDLE handle, double rate)
     handle->rate = rate;
     send_seek_event(handle);
     return NX_GST_RET_OK;
+}
+
+static void
+stream_notify_cb (GstStreamCollection * collection, GstStream * stream,
+    GParamSpec * pspec, guint * val)
+{
+    NXGLOGI("Got stream-notify from stream %s for %s (collection %p)",
+            stream->stream_id, pspec->name, collection);
+    if (g_str_equal (pspec->name, "caps")) {
+        GstCaps *caps = gst_stream_get_caps (stream);
+        gchar *caps_str = gst_caps_to_string (caps);
+        NXGLOGI(" New caps: %s\n", caps_str);
+        g_free (caps_str);
+        gst_caps_unref (caps);
+    }
+}
+
+static gboolean
+switch_streams (MP_HANDLE handle)
+{
+    guint i;
+    gint pIdx = 0, vIdx = 0, aIdx = 0, sIdx = 0;
+    gint nb_video = 0, nb_audio = 0, nb_text = 0;
+    GstStream *videos[256], *audios[256], *texts[256];
+    GList *streams = NULL;
+    GstEvent *ev;
+
+    NXGLOGI("Switching Streams...");
+
+    if (NULL == handle)
+    {
+        NXGLOGE("handle is NULL");
+        return FALSE;
+    }
+
+    pIdx = handle->select_program_idx;
+    vIdx = handle->select_video_idx;
+    aIdx = handle->select_audio_idx;
+    sIdx = handle->select_subtitle_idx;
+
+    nb_video = handle->gst_media_info.ProgramInfo[pIdx].n_video;
+    nb_audio = handle->gst_media_info.ProgramInfo[pIdx].n_audio;
+    nb_text = handle->gst_media_info.ProgramInfo[pIdx].n_subtitle;
+
+    pIdx = handle->select_program_idx;
+    vIdx = handle->select_video_idx;
+    aIdx = handle->select_audio_idx;
+    sIdx = handle->select_subtitle_idx;
+
+    nb_video = handle->gst_media_info.ProgramInfo[pIdx].n_video;
+    nb_audio = handle->gst_media_info.ProgramInfo[pIdx].n_audio;
+    nb_text = handle->gst_media_info.ProgramInfo[pIdx].n_subtitle;
+
+    if (nb_video) {
+        gchar *stream_id = handle->gst_media_info.ProgramInfo[pIdx].VideoInfo[vIdx].stream_id;
+        streams = g_list_append (streams, stream_id);
+        NXGLOGI("  Selecting video channel #%d : %s", handle->select_video_idx,
+                (stream_id ? stream_id:""));
+    }
+    if (nb_audio) {
+        gchar *stream_id = handle->gst_media_info.ProgramInfo[pIdx].AudioInfo[aIdx].stream_id;
+        streams = g_list_append (streams, stream_id);
+        NXGLOGI("  Selecting audio channel #%d : %s\n", handle->select_audio_idx,
+                (stream_id ? stream_id:""));
+    }
+    if (nb_text) {
+        gchar *stream_id = handle->gst_media_info.ProgramInfo[pIdx].SubtitleInfo[sIdx].stream_id;
+        streams = g_list_append (streams, stream_id);
+        NXGLOGI("  Selecting text channel #%d : %s\n", handle->select_subtitle_idx,
+                (stream_id ? stream_id:""));
+    }
+
+    ev = gst_event_new_select_streams (streams);
+    gst_element_send_event (handle->pipeline, ev);
+    g_list_free (streams);
+
+    return G_SOURCE_CONTINUE;
 }
 
 NX_GST_RET NX_GSTMP_GetVideoSpeedSupport(MP_HANDLE handle)

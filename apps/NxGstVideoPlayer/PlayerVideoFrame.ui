@@ -517,6 +517,40 @@ color: rgba(1, 1, 1);</string>
     <string>x 1</string>
    </property>
   </widget>
+  <widget class="QPushButton" name="switchStreamButton">
+   <property name="geometry">
+    <rect>
+     <x>860</x>
+     <y>250</y>
+     <width>89</width>
+     <height>51</height>
+    </rect>
+   </property>
+   <property name="styleSheet">
+    <string notr="true">background-color: rgba(255, 255, 255, 50%);
+color: rgba(1, 1, 1);</string>
+   </property>
+   <property name="text">
+    <string>x 1</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="nextProgramButton">
+   <property name="geometry">
+    <rect>
+     <x>860</x>
+     <y>150</y>
+     <width>89</width>
+     <height>51</height>
+    </rect>
+   </property>
+   <property name="styleSheet">
+    <string notr="true">background-color: rgba(255, 255, 255, 50%);
+color: rgba(1, 1, 1);</string>
+   </property>
+   <property name="text">
+    <string>x 1</string>
+   </property>
+  </widget>
   <zorder>graphicsView</zorder>
   <zorder>prevButton</zorder>
   <zorder>pauseButton</zorder>
@@ -529,6 +563,8 @@ color: rgba(1, 1, 1);</string>
   <zorder>stopButton</zorder>
   <zorder>subTitleLabel</zorder>
   <zorder>subTitleLabel2</zorder>
+  <zorder>switchStreamButton</zorder>
+  <zorder>nextProgramButton</zorder>
   <zorder>speedButton</zorder>
  </widget>
  <resources/>

@@ -354,7 +354,7 @@ struct GST_MEDIA_INFO {
     /*! \brief The program number */
     unsigned int        program_number[PROGRAM_MAX];
     /*! \brief Currently playing program */
-    int32_t             current_program_no;
+    int32_t             current_program_idx;
 
     /*! \brief The stream information of the currently playing program */
     PROGRAM_INFO        ProgramInfo[PROGRAM_MAX];

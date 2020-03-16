@@ -773,6 +773,9 @@ void PlayerVideoFrame::on_stopButton_released()
 		return;
 	}
 
+	if (m_pNxPlayer)
+		m_pNxPlayer->resetStreamIndex();
+
 	StopVideo();
 }
 
@@ -1000,6 +1003,9 @@ bool PlayerVideoFrame::PlayNextVideo()
 		return false;
 	}
 
+	if (m_pNxPlayer)
+		m_pNxPlayer->resetStreamIndex();
+
 	StopVideo();
 
 	//	find next index
@@ -1019,6 +1025,9 @@ bool PlayerVideoFrame::PlayPreviousVideo()
 		NXLOGW("%s(), line: %d, m_pNxPlayer is NULL \n", __FUNCTION__, __LINE__);
 		return false;
 	}
+
+	if (m_pNxPlayer)
+		m_pNxPlayer->resetStreamIndex();
 
 	StopVideo();
 
@@ -1176,6 +1185,12 @@ bool PlayerVideoFrame::PlayVideo()
                     }
                     else
                     {
+						if (m_pNxPlayer->isProgramSelectable()) {
+							ui->nextProgramButton->show();
+						} else {
+							ui->nextProgramButton->hide();
+						}
+						
 						m_iDuration = m_pNxPlayer->GetMediaDuration();
 						if (-1 == m_iDuration) {
 							ui->progressBar->setMaximum(0);
@@ -1353,6 +1368,8 @@ void PlayerVideoFrame::displayTouchEvent()
 		ui->durationlabel->hide();
 		ui->appNameLabel->hide();
 		ui->speedButton->hide();
+		ui->nextProgramButton->hide();
+		ui->switchStreamButton->hide();
 		m_pStatusBar->hide();
 		NXLOGD("**************** MainWindow:: Hide \n ");
 	}
@@ -1369,6 +1386,10 @@ void PlayerVideoFrame::displayTouchEvent()
 		ui->durationlabel->show();
 		ui->appNameLabel->show();
 		ui->speedButton->show();
+		if (m_pNxPlayer->isProgramSelectable()) {
+			ui->nextProgramButton->show();
+		}
+		ui->switchStreamButton->show();
 		m_pStatusBar->show();
 		m_bButtonHide = false;
 	}
@@ -1580,6 +1601,18 @@ void PlayerVideoFrame::SetupUI()
 	rw = widthRatio * ui->speedButton->width();
 	rh = heightRatio * ui->speedButton->height();
 	ui->speedButton->setGeometry(rx, ry, rw, rh);
+
+	rx = widthRatio * ui->switchStreamButton->x();
+	ry = heightRatio * ui->switchStreamButton->y();
+	rw = widthRatio * ui->switchStreamButton->width();
+	rh = heightRatio * ui->switchStreamButton->height();
+	ui->switchStreamButton->setGeometry(rx, ry, rw, rh);
+
+	rx = widthRatio * ui->nextProgramButton->x();
+	ry = heightRatio * ui->nextProgramButton->y();
+	rw = widthRatio * ui->nextProgramButton->width();
+	rh = heightRatio * ui->nextProgramButton->height();
+	ui->nextProgramButton->setGeometry(rx, ry, rw, rh);
 }
 
 void PlayerVideoFrame::StatusHomeEvent(NxStatusHomeEvent *)
@@ -1754,6 +1787,28 @@ void PlayerVideoFrame::StopSubTitle()
 
 	ui->subTitleLabel->setText("");
 	ui->subTitleLabel2->setText("");
+}
+
+void PlayerVideoFrame::on_switchStreamButton_released()
+{
+	NXLOGI("on_switchStreamButton_released");
+	StopVideo();
+	m_pNxPlayer->SwitchStream();
+	PlayVideo();
+}
+
+void PlayerVideoFrame::on_nextProgramButton_released()
+{
+	NXLOGI("on_nextProgramButton_released");
+
+	if (m_pNxPlayer->isProgramSelectable())
+	{
+		StopVideo();
+
+		m_pNxPlayer->SetNextProgramIdx();
+
+		PlayVideo();
+	}
 }
 
 void PlayerVideoFrame::on_speedButton_released()

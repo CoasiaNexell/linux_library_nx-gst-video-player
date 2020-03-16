@@ -77,6 +77,8 @@ private slots:
 	void on_playListButton_released();
 
 	void on_speedButton_released();
+	void on_switchStreamButton_released();
+	void on_nextProgramButton_released();
 
 	void slotOk();
 
