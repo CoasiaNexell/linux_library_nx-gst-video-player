@@ -152,6 +152,9 @@ PlayerVideoFrame::PlayerVideoFrame(QWidget *parent)
 	, m_pMessageFrame(NULL)
 	, m_pMessageLabel(NULL)
 	, m_pMessageButton(NULL)
+	, m_select_program(0)
+	, m_select_audio(0)
+	, m_current_status(MP_STATE_STOPPED)
 	, ui(new Ui::PlayerVideoFrame)
 {
 	//UI Setting
@@ -268,8 +271,7 @@ PlayerVideoFrame::~PlayerVideoFrame()
 
 	if(m_pNxPlayer)
 	{
-        NX_MEDIA_STATE state = m_pNxPlayer->GetState();
-        if( (MP_STATE_PLAYING == state)||(MP_STATE_PAUSED == state) )
+        if( (MP_STATE_PLAYING == m_current_status)||(MP_STATE_PAUSED == m_current_status) )
 		{
 			StopVideo();
 		}
@@ -370,8 +372,7 @@ int32_t PlayerVideoFrame::SaveInfo()
 	}
 
 	//save current media position
-	NX_MEDIA_STATE state = m_pNxPlayer->GetState();
-    if((MP_STATE_PLAYING == state)||(MP_STATE_PAUSED == state))
+    if((MP_STATE_PLAYING == m_current_status)||(MP_STATE_PAUSED == m_current_status))
 	{
 		char pCurPos[64];
 		qint64 iCurPos = m_pNxPlayer->GetMediaPosition();
@@ -388,7 +389,7 @@ int32_t PlayerVideoFrame::SaveInfo()
 			return -1;
 		}
     }
-    else if(MP_STATE_STOPPED == state)
+    else if(MP_STATE_STOPPED == m_current_status)
 	{
 		char pCurPos[sizeof(int)] = {};
 		sprintf(pCurPos, "%d", 0);
@@ -671,11 +672,10 @@ void PlayerVideoFrame::updateProgressBar(QMouseEvent *event, bool bReleased)
 		//	 Do Seek
         if(m_bSeekReady)
 		{
-            if(MP_STATE_STOPPED != m_pNxPlayer->GetState())
+			if(MP_STATE_STOPPED != m_current_status)
 			{
 				double ratio = (double)event->x()/ui->progressBar->width();
-                m_iDuration = m_pNxPlayer->GetMediaDuration();
-                qint64 position = ratio * NANOSEC_TO_MSEC(m_iDuration);
+				qint64 position = ratio * m_iDuration;
                 NXLOGI("%s() ratio: %lf, m_iDuration: %lld, conv_msec:%lld",
                        __FUNCTION__, ratio, m_iDuration, NANOSEC_TO_SEC(m_iDuration));
 				if (m_fSpeed > 1.0)
@@ -795,8 +795,8 @@ void PlayerVideoFrame::DoPositionUpdate()
 		int64_t iDuration = 0;
 		int64_t iPosition = 0;
 
-		if (m_pNxPlayer->GetState() != MP_STATE_READY &&
-			m_pNxPlayer->GetState() != MP_STATE_STOPPED)
+		if (m_current_status != MP_STATE_READY &&
+			m_current_status != MP_STATE_STOPPED)
 		{
 			iDuration = m_pNxPlayer->GetMediaDuration();
 			iPosition = m_pNxPlayer->GetMediaPosition();
@@ -885,23 +885,23 @@ void PlayerVideoFrame::statusChanged(int eventType, int eventData, void* param)
 	}
 	case MP_EVENT_STATE_CHANGED:
 	{
-		NX_MEDIA_STATE new_state = (NX_MEDIA_STATE)eventData;
-		NXLOGI("%s() New state [%d]", __FUNCTION__, new_state);
-		ui->playButton->setEnabled((new_state != MP_STATE_PLAYING) || (m_fSpeed != 1.0));
-		ui->pauseButton->setEnabled(new_state == MP_STATE_PLAYING);
-		ui->stopButton->setEnabled(new_state != MP_STATE_STOPPED);
+		m_current_status = (NX_MEDIA_STATE)eventData;
+		NXLOGI("%s() New state [%d]", __FUNCTION__, m_current_status);
+		ui->playButton->setEnabled((m_current_status != MP_STATE_PLAYING) || (m_fSpeed != 1.0));
+		ui->pauseButton->setEnabled(m_current_status == MP_STATE_PLAYING);
+		ui->stopButton->setEnabled(m_current_status != MP_STATE_STOPPED);
 
-		if (new_state == MP_STATE_PLAYING)
+		if (m_current_status == MP_STATE_PLAYING)
 		{
 			m_PosUpdateTimer.start(300);
 		}
-		else if (new_state == MP_STATE_PAUSED)
+		else if (m_current_status == MP_STATE_PAUSED)
 		{
 			m_PosUpdateTimer.stop();
 			m_SubtitleDismissTimer->stop();
 		}
 
-		if (new_state == MP_STATE_STOPPED)
+		if (m_current_status == MP_STATE_STOPPED)
 		{
 			DoPositionUpdate();
 		}
@@ -1092,10 +1092,9 @@ bool PlayerVideoFrame::PlayVideo()
 	}
 
 	double video_speed = m_pNxPlayer->GetVideoSpeed();
-	NX_MEDIA_STATE state = m_pNxPlayer->GetState();
-	NXLOGI("%s() The previous state before playing is %d", __FUNCTION__);
+	NXLOGI("%s() The previous state before playing is %d", __FUNCTION__, m_current_status);
 
-	if(MP_STATE_PLAYING == state)
+	if(MP_STATE_PLAYING == m_current_status)
 	{
 		NXLOGW("%s() The current video speed(%f) in PLYAING state", __FUNCTION__, video_speed);
 		if(1.0 == video_speed)
@@ -1126,13 +1125,13 @@ bool PlayerVideoFrame::PlayVideo()
 	/* When pressing 'play' button in the paused state with the specific playback speed,
 	 * it needs to play with the same playback speed.
 	 */
-	if((MP_STATE_PAUSED == state) || (MP_STATE_READY == state))
+	if((MP_STATE_PAUSED == m_current_status) || (MP_STATE_READY == m_current_status))
 	{
 		NXLOGI("%s m_fSPeed(%f), video_speed(%f)", __FUNCTION__, m_fSpeed, video_speed);
 		m_pNxPlayer->Play();
 		return true;
 	}
-	else if(MP_STATE_STOPPED == state)
+	else if(MP_STATE_STOPPED == m_current_status)
 	{
 		lock_cnt++;
 		m_listMutex.Lock();
@@ -1241,6 +1240,7 @@ bool PlayerVideoFrame::PlayVideo()
 				CloseVideo();
 				NXLOGW("%s() Closed video and try to play next video '%s'"
 						, __FUNCTION__, m_FileList.GetList(m_iCurFileListIdx).toStdString().c_str());
+				m_pNxPlayer->resetStreamIndex();
 			}	// end of while(0 > iResult)
 		}		// end of if(0 < m_FileList.GetSize())
 		else
@@ -1264,8 +1264,7 @@ bool PlayerVideoFrame::PauseVideo()
 		return false;
 	}
 
-	NX_MEDIA_STATE state = m_pNxPlayer->GetState();
-	if((MP_STATE_STOPPED == state) || (MP_STATE_READY == state))
+	if((MP_STATE_STOPPED == m_current_status) || (MP_STATE_READY == m_current_status))
 	{
 		return false;
 	}
@@ -1287,8 +1286,7 @@ bool PlayerVideoFrame::SeekVideo(int32_t mSec)
 		return false;
 	}
 
-	NX_MEDIA_STATE state = m_pNxPlayer->GetState();
-    if(MP_STATE_PLAYING == state || MP_STATE_PAUSED == state)
+    if(MP_STATE_PLAYING == m_current_status || MP_STATE_PAUSED == m_current_status)
 	{
 		NXLOGI("%s() seek to %d mSec", __FUNCTION__, mSec);
         if(0 > m_pNxPlayer->Seek(mSec))
@@ -1679,7 +1677,7 @@ void PlayerVideoFrame::updateSubTitle()
 {
 	if (m_bSubThreadFlag)
 	{
-		if ((m_pNxPlayer) && (MP_STATE_STOPPED != m_pNxPlayer->GetState()))
+		if ((m_pNxPlayer) && (MP_STATE_STOPPED != m_current_status))
 		{
 			QString encResult;
 			int idx;
@@ -1793,7 +1791,7 @@ void PlayerVideoFrame::on_switchStreamButton_released()
 {
 	NXLOGI("on_switchStreamButton_released");
 	StopVideo();
-	m_pNxPlayer->SwitchStream();
+	m_select_audio = m_pNxPlayer->SetNextAudioStream(m_select_audio);
 	PlayVideo();
 }
 
@@ -1804,17 +1802,14 @@ void PlayerVideoFrame::on_nextProgramButton_released()
 	if (m_pNxPlayer->isProgramSelectable())
 	{
 		StopVideo();
-
-		m_pNxPlayer->SetNextProgramIdx();
-
+		m_select_program = m_pNxPlayer->SetNextProgramIdx(m_select_program);
 		PlayVideo();
 	}
 }
 
 void PlayerVideoFrame::on_speedButton_released()
 {
-	NX_MEDIA_STATE state = m_pNxPlayer->GetState();
-    if((MP_STATE_STOPPED == state) || (MP_STATE_READY == state))
+    if((MP_STATE_STOPPED == m_current_status) || (MP_STATE_READY == m_current_status))
 	{
 		qDebug("Works when in play state.\n");
 		ui->speedButton->setText("x 1");
@@ -1843,7 +1838,7 @@ void PlayerVideoFrame::on_speedButton_released()
 	else
 	{
 		m_fSpeed = new_speed;
-		if (MP_STATE_PLAYING == state)
+		if (MP_STATE_PLAYING == m_current_status)
 		{
 			m_pNxPlayer->Play();
 		}
@@ -1854,39 +1849,6 @@ void PlayerVideoFrame::on_speedButton_released()
 	else if(m_fSpeed == 4.0) ui->speedButton->setText("x 4");
 	else if(m_fSpeed == 8.0) ui->speedButton->setText("x 8");
 	else if(m_fSpeed == 16.0) ui->speedButton->setText("x 16");
-
-	if(m_fSpeed > 1.0)
-	{
-		QString style;
-		style += "QProgressBar {";
-		style += "  border: 2px solid grey;";
-		style += "  border-radius: 5px;";
-		style += "  background: rgba(128, 128, 128, 50%);";
-		style += "}";
-
-		style += "QProgressBar::chunk {";
-		style += "  background-color: rgba(37, 86, 201, 50%);";
-		style += "width: 20px;";
-		style += "}";
-
-		ui->progressBar->setStyleSheet(style);
-	}
-	else
-	{
-		QString style;
-		style += "QProgressBar {";
-		style += "  border: 2px solid grey;";
-		style += "  border-radius: 5px;";
-		style += "  background: rgba(255, 255, 255, 50%);";
-		style += "}";
-
-		style += "QProgressBar::chunk {";
-		style += "  background-color: rgba(37, 86, 201, 50%);";
-		style += "width: 20px;";
-		style += "}";
-
-		ui->progressBar->setStyleSheet(style);
-	}
 }
 
 void PlayerVideoFrame::slotOk()

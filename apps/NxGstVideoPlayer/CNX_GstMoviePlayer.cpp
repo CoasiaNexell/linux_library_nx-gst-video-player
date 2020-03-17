@@ -18,6 +18,7 @@ CNX_GstMoviePlayer::CNX_GstMoviePlayer(QWidget *parent)
 	, m_pSubtitleParser(NULL)
 	, m_iSubtitleSeekTime(0)
 	, m_select_program(0)
+	, m_select_video(0)
 {
 	pthread_mutex_init(&m_hLock, NULL);
 	pthread_mutex_init(&m_SubtitleLock, NULL);
@@ -141,7 +142,7 @@ void CNX_GstMoviePlayer::PrintMediaInfo(GST_MEDIA_INFO media_info, const char* f
 
 int CNX_GstMoviePlayer::SetAspectRatio(DISPLAY_INFO dspInfo)
 {
-	int pIdx= 0, video_width = 0, video_height = 0;
+	int pIdx= 0, vIdx = 0, video_width = 0, video_height = 0;
 	DSP_RECT m_dstDspRect;
 	DSP_RECT m_dstSubDspRect;
 
@@ -151,8 +152,9 @@ int CNX_GstMoviePlayer::SetAspectRatio(DISPLAY_INFO dspInfo)
 	pIdx = m_MediaInfo.current_program_idx;
 	if (m_MediaInfo.ProgramInfo[pIdx].n_video > 0)
 	{
-		video_width = m_MediaInfo.ProgramInfo[pIdx].VideoInfo[0].width;
-		video_height = m_MediaInfo.ProgramInfo[pIdx].VideoInfo[0].height;
+		vIdx = m_select_video;
+		video_width = m_MediaInfo.ProgramInfo[pIdx].VideoInfo[vIdx].width;
+		video_height = m_MediaInfo.ProgramInfo[pIdx].VideoInfo[vIdx].height;
 	}
 
 	NXLOGI("pIdx(%d) Video width/height(%d/%d), Display width/height(%d/%d)",
@@ -788,10 +790,10 @@ int CNX_GstMoviePlayer::MakeThumbnail(const char *pUri, int64_t pos_msec, int32_
 }
 
 // For test
-int CNX_GstMoviePlayer::SwitchStream()
+int CNX_GstMoviePlayer::SetNextAudioStream(int aIdx)
 {
 	NXLOGI("%s", __FUNCTION__);
-
+#if 0
 	int pIdx = 0, aIdx = 0, n_audio = 0;
 	pIdx = m_MediaInfo.current_program_idx;
 	n_audio = m_MediaInfo.ProgramInfo[pIdx].n_audio;
@@ -800,35 +802,56 @@ int CNX_GstMoviePlayer::SwitchStream()
 	if (n_audio > 1)
 	{
 		m_select_audio = (aIdx + 1) % n_audio;
-#if 0
 		NX_GST_RET iResult = NX_GSTMP_SelectStream(m_hPlayer, STREAM_TYPE_AUDIO,
 									m_MediaInfo.ProgramInfo[pIdx].current_audio);
 		if(NX_GST_RET_OK != iResult)
 		{
 			NXLOGI("%s Failed to SwitchStream", __FUNCTION__);
-			return -1;
+			return 0;
 		}
-#endif
-		return 0;
+		return m_select_audio;
 	}
 	else
 	{
 		NXLOGE("It has only one audio or no audio");
-		return -1;
+		return 0;
 	}
+#else
+	int pIdx = 0, n_audio = 0;
+
+	pIdx = m_select_program;
+	n_audio = m_MediaInfo.ProgramInfo[pIdx].n_audio;
+
+	if (n_audio > 1)
+	{
+		m_select_audio = (aIdx + 1) % n_audio;
+	}
+	else
+	{
+		m_select_audio = 0;
+	}
+	
+	NXLOGI("%s Select Audio Stream(%d)", __FUNCTION__, m_select_audio);
+#endif
+	return m_select_audio;
 }
 
 // For test
-int CNX_GstMoviePlayer::SetNextProgramIdx()
+int CNX_GstMoviePlayer::SetNextProgramIdx(int pIdx)
 {
 	NXLOGI("%s", __FUNCTION__);
 
-	int pIdx = m_select_program;
-	m_select_program = (pIdx + 1) % (m_MediaInfo.n_program);
-
+	if (m_MediaInfo.n_program > 1)
+	{
+		m_select_program = (pIdx + 1) % m_MediaInfo.n_program;
+	}
+	else
+	{
+		m_select_program = 0;
+	}
 	NXLOGI("%s Select Program(%d)", __FUNCTION__, m_select_program);
 
-	return 0;
+	return m_select_program;
 }
 
 void CNX_GstMoviePlayer::resetStreamIndex()

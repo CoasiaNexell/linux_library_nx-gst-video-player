@@ -103,7 +103,7 @@ print_tag_foreach (const GstTagList * tags, const gchar * tag,
 	else
 			str = gst_value_serialize (&val);
 
-	NXGLOGI ("%*s%s: %s\n", 2 * depth, " ", gst_tag_get_nick (tag), str);
+	NXGLOGV ("%*s%s: %s\n", 2 * depth, " ", gst_tag_get_nick (tag), str);
 	g_free (str);
 
 	g_value_unset (&val);
@@ -148,7 +148,7 @@ dump_memory_bytes (guint8 * data, guint len, guint spacing)
 
 		/* gst_info_dump_mem_line will process 16 bytes at most */
 		gst_info_dump_mem_line (buf, sizeof (buf), data, off, len - off);
-		NXGLOGI("%*s   %s", spacing, "", buf);
+		NXGLOGV("%*s   %s", spacing, "", buf);
 		off += 16;
 	}
 }

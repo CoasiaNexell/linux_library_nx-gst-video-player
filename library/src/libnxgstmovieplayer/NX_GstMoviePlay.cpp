@@ -504,7 +504,7 @@ static void on_pad_added_demux(GstElement *element,
     }
 
 #ifdef TEST
-    if ((handle->gst_media_info.ProgramInfo[index].n_subtitle >= 1) && g_str_has_prefix(padName, "subtitle"))
+    if ((handle->gst_media_info.ProgramInfo[pIdx].n_subtitle >= 1) && g_str_has_prefix(padName, "subtitle"))
     {
         NXGLOGI("Add probe to pad");
         gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER,
@@ -886,7 +886,7 @@ NX_GST_RET set_video_elements(MP_HANDLE handle)
 
     // Video Decoder
 #ifdef SW_V_DECODER
-    if (g_strcmp0(handle->gst_media_info.video_mime_type, "video/x-flash-video") == 0)
+    if (handle->gst_media_info.ProgramInfo[pIdx].VideoInfo[vIdx].type == VIDEO_TYPE_FLV)
     {
         handle->video_decoder = gst_element_factory_make("avdec_flv", "avdec_flv");
         //handle->video_convert = gst_element_factory_make("videoconvert", "videoconvert");
@@ -1199,10 +1199,7 @@ NX_GST_RET link_display(MP_HANDLE handle, enum DISPLAY_TYPE type)
     g_object_set(G_OBJECT(sink->nxvideosink), "dst-y", rect.top, NULL);
     g_object_set(G_OBJECT(sink->nxvideosink), "dst-w", (rect.right - rect.left), NULL);
     g_object_set(G_OBJECT(sink->nxvideosink), "dst-h", (rect.bottom - rect.top), NULL);
-    // TODO: If hdmi is connected, set crtc-index.
-    if (DISPLAY_TYPE_SECONDARY == type) {
-        g_object_set(sink->nxvideosink, "crtc-index", type, NULL);
-    }
+    g_object_set(sink->nxvideosink, "crtc-index", type, NULL);
 
     if (!sink->queue || !sink->nxvideosink)
     {
@@ -1499,6 +1496,9 @@ gboolean isSupportedContents(struct GST_MEDIA_INFO *media_info,
         (container_type == CONTAINER_TYPE_MATROSKA) ||
         (container_type == CONTAINER_TYPE_3GP) ||
         (container_type == CONTAINER_TYPE_MPEG)
+#ifdef SW_V_DECODER
+        || (container_type == CONTAINER_TYPE_FLV)
+#endif
         )
     {
         if (media_info->ProgramInfo[pIdx].n_video == 0)
@@ -1508,7 +1508,11 @@ gboolean isSupportedContents(struct GST_MEDIA_INFO *media_info,
         }
 
         video_type = media_info->ProgramInfo[pIdx].VideoInfo[vIdx].type;
+#ifdef SW_V_DECODER
+        if (video_type > VIDEO_TYPE_FLV)
+#else
         if (video_type >= VIDEO_TYPE_FLV)
+#endif
         {
             NXGLOGE("Not supported video type(%d)", video_type);
             return FALSE;
@@ -2049,7 +2053,7 @@ NX_GST_RET NX_GSTMP_Pause(MP_HANDLE handle)
 {
     _CAutoLock lock(&handle->apiLock);
 
-    FUNC_IN();
+    NXGLOGI("START");
 
     if (!handle || !handle->pipeline_is_linked)
     {
@@ -2066,7 +2070,7 @@ NX_GST_RET NX_GSTMP_Pause(MP_HANDLE handle)
         return NX_GST_RET_ERROR;
     }
 
-    FUNC_OUT();
+    NXGLOGI("END");
 
     return	NX_GST_RET_OK;
 }
@@ -2207,8 +2211,7 @@ NX_GST_RET NX_GSTMP_SelectStream(MP_HANDLE handle, STREAM_TYPE type, int32_t idx
 {
     NXGLOGI("START");
 
-    if (!handle)
-    {
+    if (!handle) {
         NXGLOGE("handle is NULL");
         return NX_GST_RET_ERROR;
     }
@@ -2227,7 +2230,7 @@ NX_GST_RET NX_GSTMP_SelectStream(MP_HANDLE handle, STREAM_TYPE type, int32_t idx
             if ((handle->gst_media_info.n_program <= idx) || (idx < 0))
             {
                 handle->select_program_idx = DEFAULT_STREAM_IDX;
-                NXGLOGE("Failed to select program idx. idx is out of bounds. Set default idx(0)");
+                NXGLOGE("Failed to select program idx - idx is out of bounds. Set default idx(0)");
             } else {
                 handle->select_program_idx = idx;
             }
@@ -2236,22 +2239,24 @@ NX_GST_RET NX_GSTMP_SelectStream(MP_HANDLE handle, STREAM_TYPE type, int32_t idx
             if ((handle->gst_media_info.ProgramInfo[pIdx].n_video <= idx) || (idx < 0))
             {
                 handle->select_video_idx = DEFAULT_STREAM_IDX;
-                NXGLOGE("Failed to select video idx. idx is out of bounds. Set default idx(0)");
+                NXGLOGE("Failed to select video idx - idx is out of bounds. Set default idx(0)");
             } else {
                 handle->select_video_idx = idx;
             }
-
+#ifdef SW_V_DECODER
+            if (handle->gst_media_info.ProgramInfo[pIdx].VideoInfo[handle->select_video_idx].type > VIDEO_TYPE_FLV)
+#else
             if (handle->gst_media_info.ProgramInfo[pIdx].VideoInfo[handle->select_video_idx].type >= VIDEO_TYPE_FLV)
+#endif
             {
                 NXGLOGE("Unsupported video codec type");
                 return NX_GST_RET_ERROR;
             }
             break;
         case STREAM_TYPE_AUDIO:
-            if ((handle->gst_media_info.ProgramInfo[pIdx].n_audio <= idx) || (idx < 0))
-            {
+            if ((handle->gst_media_info.ProgramInfo[pIdx].n_audio <= idx) || (idx < 0)) {
                 handle->select_audio_idx = DEFAULT_STREAM_IDX;
-                NXGLOGE("Failed to select audio idx. idx is out of bounds. Set default idx(0)");
+                NXGLOGE("Failed to select audio idx - idx is out of bounds. Set default idx(0)");
             } else {
                 handle->select_audio_idx = idx;
             }
@@ -2260,7 +2265,7 @@ NX_GST_RET NX_GSTMP_SelectStream(MP_HANDLE handle, STREAM_TYPE type, int32_t idx
             if ((handle->gst_media_info.ProgramInfo[pIdx].n_subtitle <= idx) || (idx < 0))
             {
                 handle->select_subtitle_idx = DEFAULT_STREAM_IDX;
-                NXGLOGE("Failed to select subtitle idx. idx is out of bounds. Set default idx(0)");
+                NXGLOGE("Failed to select subtitle idx - idx is out of bounds. Set default idx(0)");
             } else {
                 handle->select_subtitle_idx = idx;
             }

@@ -540,7 +540,11 @@ gboolean isSupportedContents(struct GST_MEDIA_INFO *pMediaInfo)
 #endif
         )
     {
+#ifdef SW_V_DECODER
+        if (video_type > VIDEO_TYPE_FLV)
+#else
         if (video_type >= VIDEO_TYPE_FLV)
+#endif
         {
             NXGLOGE("Not supported video type(%d)", video_type);
             return FALSE;

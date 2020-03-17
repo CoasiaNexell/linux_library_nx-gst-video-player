@@ -212,6 +212,12 @@ private:
 	// Dual display
 	CNX_DrmInfo* 	m_pDrmInfo;
 
+	// For test : Program, stream selection index
+	int 	m_select_program;
+	int		m_select_audio;
+
+	NX_MEDIA_STATE m_current_status;
+
 private:
 	Ui::PlayerVideoFrame *ui;
 };
