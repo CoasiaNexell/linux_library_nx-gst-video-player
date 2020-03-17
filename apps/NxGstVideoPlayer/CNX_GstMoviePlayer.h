@@ -95,6 +95,7 @@ public:
 	int MakeThumbnail(const char *pUri, int64_t pos_msec, int32_t width, const char *outPath);
 	int SetNextAudioStream(int aIdx);
 	bool isProgramSelectable();
+	bool isStreamSelectable();
 	int SetNextProgramIdx(int pIdx);
 	void resetStreamIndex();
 	// The dual display

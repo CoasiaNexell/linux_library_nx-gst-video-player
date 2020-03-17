@@ -82,6 +82,14 @@ bool CNX_GstMoviePlayer::isProgramSelectable()
 	}
 }
 
+bool CNX_GstMoviePlayer::isStreamSelectable()
+{
+	if (m_MediaInfo.ProgramInfo[m_select_program].n_audio > 1)
+		return true;
+	else
+		return false;
+}
+
 void CNX_GstMoviePlayer::PrintMediaInfo(GST_MEDIA_INFO media_info, const char* filePath)
 {
 	NXLOGI("<=========== [APP_MEDIA_INFO] %s =========== ", filePath);

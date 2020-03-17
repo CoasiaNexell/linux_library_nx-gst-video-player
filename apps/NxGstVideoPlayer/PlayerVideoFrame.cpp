@@ -242,7 +242,7 @@ PlayerVideoFrame::PlayerVideoFrame(QWidget *parent)
 
 	//Get audioDeviceName
 	memset(m_audioDeviceName,0,sizeof(m_audioDeviceName));
-	if(0 > m_pIConfig->Open("/nexell/daudio/NxGstVideoPlayer/nxvideoplayer_config.xml"))
+	if(0 > m_pIConfig->Open("/nexell/daudio/NxGstVideoPlayer/nxgstvideoplayer_config.xml"))
 	{
 		NXLOGE("[%s]nxgstvideooplayer_config.xml open err\n", __FUNCTION__);
 	}
@@ -675,7 +675,7 @@ void PlayerVideoFrame::updateProgressBar(QMouseEvent *event, bool bReleased)
 			if(MP_STATE_STOPPED != m_current_status)
 			{
 				double ratio = (double)event->x()/ui->progressBar->width();
-				qint64 position = ratio * m_iDuration;
+				qint64 position = ratio * NANOSEC_TO_MSEC(m_iDuration);
                 NXLOGI("%s() ratio: %lf, m_iDuration: %lld, conv_msec:%lld",
                        __FUNCTION__, ratio, m_iDuration, NANOSEC_TO_SEC(m_iDuration));
 				if (m_fSpeed > 1.0)
@@ -1056,7 +1056,7 @@ void PlayerVideoFrame::PlaySeek()
 
 	seekflag = SeekToPrev(&iSavedPosition, &m_iCurFileListIdx);
 
-	//PlayVideo();
+	PlayVideo();
 
 	if(seekflag)
 	{
@@ -1189,6 +1189,12 @@ bool PlayerVideoFrame::PlayVideo()
 						} else {
 							ui->nextProgramButton->hide();
 						}
+
+						if (m_pNxPlayer->isStreamSelectable()) {
+							ui->switchStreamButton->show();
+						} else {
+							ui->switchStreamButton->hide();
+						}
 						
 						m_iDuration = m_pNxPlayer->GetMediaDuration();
 						if (-1 == m_iDuration) {
@@ -1286,14 +1292,12 @@ bool PlayerVideoFrame::SeekVideo(int32_t mSec)
 		return false;
 	}
 
-    if(MP_STATE_PLAYING == m_current_status || MP_STATE_PAUSED == m_current_status)
+	NXLOGI("%s() seek to %d mSec", __FUNCTION__, mSec);
+	if(0 > m_pNxPlayer->Seek(mSec))
 	{
-		NXLOGI("%s() seek to %d mSec", __FUNCTION__, mSec);
-        if(0 > m_pNxPlayer->Seek(mSec))
-		{
-			return false;
-		}
+		return false;
 	}
+
 	return true;
 }
 
@@ -1387,7 +1391,9 @@ void PlayerVideoFrame::displayTouchEvent()
 		if (m_pNxPlayer->isProgramSelectable()) {
 			ui->nextProgramButton->show();
 		}
-		ui->switchStreamButton->show();
+		if (m_pNxPlayer->isStreamSelectable()) {
+			ui->switchStreamButton->show();
+		}
 		m_pStatusBar->show();
 		m_bButtonHide = false;
 	}
@@ -1790,9 +1796,10 @@ void PlayerVideoFrame::StopSubTitle()
 void PlayerVideoFrame::on_switchStreamButton_released()
 {
 	NXLOGI("on_switchStreamButton_released");
+	SaveInfo();
 	StopVideo();
 	m_select_audio = m_pNxPlayer->SetNextAudioStream(m_select_audio);
-	PlayVideo();
+	PlaySeek();
 }
 
 void PlayerVideoFrame::on_nextProgramButton_released()
