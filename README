@@ -1,0 +1,7 @@
+How to build
+	1. sourcing compile environment
+		#> source /opt/poky/2.5.1/environment-setup-cortexa9hf-neon-poky-linux-gnueabi
+	2. autogen (autoconf, automake, libtool)
+		#> autogen.sh --host=arm-poky-linux-gnueabi --prefix=/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr
+		#> make
+
