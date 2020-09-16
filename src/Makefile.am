@@ -1,4 +1,4 @@
-AM_CFLAGS = \
+libnxgstvplayer_la_CFLAGS = \
 	$(WARN_CFLAGS) \
 	-O -DDEBUG -g \
 	-I${includedir} \
@@ -7,7 +7,7 @@ AM_CFLAGS = \
 	-I${includedir}/gstreamer-1.0 \
 	-I${includedir}/gdk-pixbuf-2.0
 
-AM_CPPFLAGS = \
+libnxgstvplayer_la_CPPFLAGS = \
 	$(WARN_CFLAGS) \
 	-O -DDEBUG -g \
 	-I${includedir} \
@@ -20,11 +20,11 @@ libnxgstvplayer_la_LTLIBRARIES = libnxgstvplayer.la
 libnxgstvplayer_ladir = ${libdir}/libnxgstvplayer
 
 # library version
-libnxgstvplayer_la_LDFLAGS = -version-info 0:9:0
+#libnxgstvplayer_la_LDFLAGS = -version-info 0:9:0
 
 # add dependency libraries
-libnxgstvplayer_la_LDFLAGS += \
-	-L${libdir} -lm \
+libnxgstvplayer_la_LDFLAGS = \
+	${GST_LIBS} \
 	-lglib-2.0 \
 	-lgstmpegts-1.0 \
 	-lgstreamer-1.0 \
