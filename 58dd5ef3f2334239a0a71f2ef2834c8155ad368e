@@ -1,0 +1,50 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "8c2dd779_7556dda9",
+        "filename": "src/Makefile.am",
+        "patchSetId": 1
+      },
+      "lineNbr": 18,
+      "author": {
+        "id": 1000013
+      },
+      "writtenOn": "2020-09-17T11:31:26Z",
+      "side": 1,
+      "message": "Please delete space character",
+      "range": {
+        "startLine": 18,
+        "startChar": 0,
+        "endLine": 18,
+        "endChar": 1
+      },
+      "revId": "58dd5ef3f2334239a0a71f2ef2834c8155ad368e",
+      "serverId": "f3c90331-7953-4206-aadc-b7348badd027",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "dcb09a02_19a45ae2",
+        "filename": "src/Makefile.am",
+        "patchSetId": 1
+      },
+      "lineNbr": 23,
+      "author": {
+        "id": 1000013
+      },
+      "writtenOn": "2020-09-17T11:31:26Z",
+      "side": 1,
+      "message": "If you are not use version information, please delete this code.",
+      "range": {
+        "startLine": 23,
+        "startChar": 0,
+        "endLine": 23,
+        "endChar": 49
+      },
+      "revId": "58dd5ef3f2334239a0a71f2ef2834c8155ad368e",
+      "serverId": "f3c90331-7953-4206-aadc-b7348badd027",
+      "unresolved": true
+    }
+  ]
+}
