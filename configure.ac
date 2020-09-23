@@ -5,6 +5,7 @@ AC_PREREQ([2.69])
 AC_INIT([nxgstvplayer], [0.9], [BUG-REPORT-ADDRESS])
 AC_CONFIG_SRCDIR([config.h.in])
 AC_CONFIG_HEADERS([config.h])
+AC_CONFIG_MACRO_DIRS([m4])
 
 AM_INIT_AUTOMAKE([subdir-objects])
 LT_INIT
