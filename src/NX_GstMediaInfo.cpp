@@ -161,7 +161,7 @@ int32_t isSupportedContents(struct GST_MEDIA_INFO *media_handle,
     }
 }
 
-NX_GST_RET  CopyMediaInfo(GST_MEDIA_INFO *dest, GST_MEDIA_INFO *src)
+void  CopyMediaInfo(GST_MEDIA_INFO *dest, GST_MEDIA_INFO *src)
 {
 	memcpy(dest, src, sizeof(struct GST_MEDIA_INFO));
 	for (int pIdx = 0; pIdx < src->n_program; pIdx++)
