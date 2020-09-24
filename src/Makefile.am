@@ -17,10 +17,7 @@ libnxgstvplayer_la_CPPFLAGS = \
 	-I${includedir}/gdk-pixbuf-2.0
 
 libnxgstvplayer_la_LTLIBRARIES = libnxgstvplayer.la
-libnxgstvplayer_ladir = ${libdir}/libnxgstvplayer
-
-# library version
-libnxgstvplayer_la_LDFLAGS = -version-info 1:0:0
+libnxgstvplayer_ladir = ${libdir}
 
 # add dependency libraries
 libnxgstvplayer_la_LDFLAGS = \
