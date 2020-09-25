@@ -1,0 +1,220 @@
+libnxgstvplayer_la-NX_OMXSemaphore.lo: NX_OMXSemaphore.c \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/stdc-predef.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/pthread.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/features.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/sys/cdefs.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/wordsize.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/wordsize-32.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/long-double.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/long-double-32.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/gnu/stubs.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/gnu/stubs-32.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/gnu/stubs-hard.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/endian.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/endian.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/endian-32.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/byteswap.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/typesizes.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/typesizes-32.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/byteswap-16.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/uintn-identity.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/sched.h \
+ /opt/poky/2.5.1/sysroots/x86_64-pokysdk-linux/usr/lib/arm-poky-linux-gnueabi/gcc/arm-poky-linux-gnueabi/7.3.0/include/stddef.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/time_t.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/struct_timespec.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/sched.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/cpu-set.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/time.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/time.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/clock_t.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/struct_tm.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/clockid_t.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/timer_t.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/struct_itimerspec.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/locale_t.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/__locale_t.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/pthreadtypes.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/pthreadtypes-32.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/thread-shared-types.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/pthreadtypes-arch.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/pthreadtypes-arch-32.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/setjmp.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/setjmp-32.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/assert.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/sys/time.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/struct_timeval.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/sys/select.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/select.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/sigset_t.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/__sigset_t.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/stdio.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/libc-header-start.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/__FILE.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/FILE.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/libio.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/_G_config.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/__mbstate_t.h \
+ /opt/poky/2.5.1/sysroots/x86_64-pokysdk-linux/usr/lib/arm-poky-linux-gnueabi/gcc/arm-poky-linux-gnueabi/7.3.0/include/stdarg.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/stdio_lim.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/sys_errlist.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/stdio.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/errno.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/errno.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/linux/errno.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/asm/errno.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/asm-generic/errno.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/asm-generic/errno-base.h \
+ NX_OMXSemaphore.h \
+ /opt/poky/2.5.1/sysroots/x86_64-pokysdk-linux/usr/lib/arm-poky-linux-gnueabi/gcc/arm-poky-linux-gnueabi/7.3.0/include/stdint.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/lib/gcc/arm-poky-linux-gnueabi/7.3.0/include/stdint.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/stdint.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/wchar.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/stdint-intn.h \
+ /opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/stdint-uintn.h
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/stdc-predef.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/pthread.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/features.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/sys/cdefs.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/wordsize.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/wordsize-32.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/long-double.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/long-double-32.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/gnu/stubs.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/gnu/stubs-32.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/gnu/stubs-hard.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/endian.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/endian.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/endian-32.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/byteswap.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/typesizes.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/typesizes-32.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/byteswap-16.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/uintn-identity.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/sched.h:
+
+/opt/poky/2.5.1/sysroots/x86_64-pokysdk-linux/usr/lib/arm-poky-linux-gnueabi/gcc/arm-poky-linux-gnueabi/7.3.0/include/stddef.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/time_t.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/struct_timespec.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/sched.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/cpu-set.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/time.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/time.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/clock_t.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/struct_tm.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/clockid_t.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/timer_t.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/struct_itimerspec.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/locale_t.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/__locale_t.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/pthreadtypes.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/pthreadtypes-32.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/thread-shared-types.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/pthreadtypes-arch.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/pthreadtypes-arch-32.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/setjmp.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/setjmp-32.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/assert.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/sys/time.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/struct_timeval.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/sys/select.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/select.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/sigset_t.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/__sigset_t.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/stdio.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/libc-header-start.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/__FILE.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/FILE.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/libio.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/_G_config.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/types/__mbstate_t.h:
+
+/opt/poky/2.5.1/sysroots/x86_64-pokysdk-linux/usr/lib/arm-poky-linux-gnueabi/gcc/arm-poky-linux-gnueabi/7.3.0/include/stdarg.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/stdio_lim.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/sys_errlist.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/stdio.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/errno.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/errno.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/linux/errno.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/asm/errno.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/asm-generic/errno.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/asm-generic/errno-base.h:
+
+NX_OMXSemaphore.h:
+
+/opt/poky/2.5.1/sysroots/x86_64-pokysdk-linux/usr/lib/arm-poky-linux-gnueabi/gcc/arm-poky-linux-gnueabi/7.3.0/include/stdint.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/lib/gcc/arm-poky-linux-gnueabi/7.3.0/include/stdint.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/stdint.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/wchar.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/stdint-intn.h:
+
+/opt/poky/2.5.1/sysroots/cortexa9hf-neon-poky-linux-gnueabi/usr/include/bits/stdint-uintn.h:
