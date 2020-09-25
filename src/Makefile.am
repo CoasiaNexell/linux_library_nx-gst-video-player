@@ -20,10 +20,10 @@ libnxgstvplayer_la_LTLIBRARIES = libnxgstvplayer.la
 libnxgstvplayer_ladir = ${libdir}/libnxgstvplayer
 
 # library version
-libnxgstvplayer_la_LDFLAGS = -version-info 1:0:0
+libnxgstvplayer_la_LDFLAGS = -version-number 0:9:0
 
 # add dependency libraries
-libnxgstvplayer_la_LDFLAGS = \
+libnxgstvplayer_la_LDFLAGS += \
 	-lglib-2.0 \
 	-lgstmpegts-1.0 \
 	-lgstreamer-1.0 \
